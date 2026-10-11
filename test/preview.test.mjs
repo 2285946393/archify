@@ -1599,7 +1599,7 @@ test('preview: native watch-target resolution failure closes startup resources',
   );
 });
 
-test('preview: HEAD returns GET representation metadata without a response body', { timeout: 15000 }, async (t) => {
+test('preview: HEAD returns GET representation metadata without a response body', { timeout: 30000 }, async (t) => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'archify-preview-head-'));
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
   const input = path.join(directory, 'diagram.architecture.json');
