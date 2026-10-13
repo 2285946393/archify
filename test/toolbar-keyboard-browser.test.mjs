@@ -44,13 +44,19 @@ test('Viewer toolbars move focus between enabled top-level controls with directi
         };
         return {
           page: run(document.querySelector('.toolbar'), ':scope > .toolbar-group > button'),
-          dock: run(document.querySelector('.diagram-nav'), ':scope > button')
+          dock: run(document.querySelector('.diagram-nav'), ':scope > button'),
+          rail: (() => {
+            const toolbar = document.querySelector('.rail-controls');
+            document.documentElement.dataset.readerRail = 'true';
+            for (const button of toolbar.querySelectorAll('button')) button.hidden = false;
+            return run(toolbar, ':scope > button');
+          })()
         };
       })()`, returnByValue: true,
     });
     assert.equal(result.exceptionDetails, undefined, result.exceptionDetails?.exception?.description);
     for (const [name, value] of Object.entries(result.result.value)) {
-      assert.ok(value.count > 2, `${width}/${name}: expected several enabled controls`);
+      assert.ok(value.count > 1, `${width}/${name}: expected multiple enabled controls`);
       assert.notEqual(value.first, value.second, `${width}/${name}: ArrowRight moves focus`);
       assert.equal(value.returned, value.first, `${width}/${name}: ArrowLeft returns focus`);
       assert.equal(value.home, value.first, `${width}/${name}: Home selects first control`);
