@@ -5896,6 +5896,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         if (!toolbar) return;
         toolbar.addEventListener('keydown', function (event) {
           if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+          if (event.ctrlKey || event.altKey || event.metaKey || event.shiftKey) return;
           var controls = Array.from(toolbar.querySelectorAll(selector)).filter(function (control) {
             return !control.disabled && !control.hidden && control.getClientRects().length;
           });
