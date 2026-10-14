@@ -112,7 +112,10 @@ function checkNoRavenSwitcher(relativePath, source) {
 }
 
 function checkIdentityTemplate(relativePath, source, isDevelopment) {
-  const hasHardcodedVersion = /\b\d+\.\d+\.\d+(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?\b/.test(source);
+  // SVG path coordinates can resemble SemVer (for example, `4.3.6-3.1`).
+  // Keep every other attribute visible so published metadata remains covered.
+  const sourceWithoutPathData = source.replace(/(<path\b[^>]*?)\sd=(['"])[\s\S]*?\2/gi, '$1');
+  const hasHardcodedVersion = /\b\d+\.\d+\.\d+(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?\b/.test(sourceWithoutPathData);
   const identity = isDevelopment ? 'development and 开发版' : 'stable and 稳定版';
   const hasIdentity = isDevelopment
     ? /development/i.test(source) && /开发版/.test(source)
