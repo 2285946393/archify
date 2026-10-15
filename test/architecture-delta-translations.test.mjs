@@ -21,11 +21,13 @@ const unchangedEntities = {
   boundaries: { added: 0, changed: 0, removed: 0, geometryChanged: 0 },
 };
 
-for (const [name, before, after, changed] of [
+for (const [name, before, after, changed, sourceChanged = changed] of [
   ['adding translations', undefined, translations, true],
   ['removing translations', translations, undefined, true],
   ['editing a translation', translations, revised, true],
   ['reordering translation keys', translations, reordered, false],
+  ['adding an empty translation catalog', undefined, {}, false, true],
+  ['removing an empty translation catalog', {}, undefined, false, true],
 ]) {
   test(`compare reports presentation accurately when ${name}`, { timeout: 30000 }, (t) => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'archify-delta-translations-'));
@@ -54,7 +56,7 @@ for (const [name, before, after, changed] of [
     }
     assert.deepEqual(receipt.changes, { components: [], connections: [], boundaries: [] });
     assert.equal(receipt.provenance, undefined);
-    assert.equal(receipt.base.semanticSha256 !== receipt.head.semanticSha256, changed);
+    assert.equal(receipt.base.semanticSha256 !== receipt.head.semanticSha256, sourceChanged);
     assert.deepEqual(JSON.parse(fs.readFileSync(sidecar, 'utf8')), receipt);
     const html = fs.readFileSync(output, 'utf8');
     const embedded = html.match(/<script id="archify-compare-receipt" type="application\/json">([\s\S]*?)<\/script>/);
@@ -62,9 +64,22 @@ for (const [name, before, after, changed] of [
     const review = JSON.parse(embedded[1]);
     assert.deepEqual(review.summary, receipt.summary);
     assert.deepEqual(review.changes, receipt.changes);
+    if (name.includes('empty translation catalog')) {
+      // Authored bytes differ, but both catalogs must render the same diagram.
+      const svgs = paths.map((input, index) => {
+        const rendered = path.join(dir, `rendered-${index}.html`);
+        const render = spawnSync(process.execPath, [
+          path.join(skillRoot, 'renderers/architecture/render-architecture.mjs'), input, rendered,
+        ], { encoding: 'utf8', timeout: 25000 });
+        assert.equal(render.status, 0, render.stderr || render.stdout);
+        return fs.readFileSync(rendered, 'utf8').match(/<svg\b[\s\S]*?<\/svg>/)[0];
+      });
+      assert.equal(svgs[0], svgs[1]);
+    }
     // The visible wording changes too, not just unrendered metadata.
     for (const catalog of [before, after].filter(Boolean)) {
       const wording = catalog['legend.architecture.backend'];
+      if (wording === undefined) continue;
       assert.ok(html.includes(`>${wording}</text>`)
         || html.includes(`&gt;${wording}&lt;/text&gt;`), 'wording must appear in rendered SVG text');
     }

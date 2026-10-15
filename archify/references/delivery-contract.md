@@ -397,7 +397,7 @@ Passing one claim never implies the others. Never claim that the deterministic r
 
 ## Comparison presentation changes
 
-Architecture comparisons include authored `meta.translations` in presentation changes. Adding, removing or editing translations changes `summary.presentationChanged`; reordering translation keys does not. Component, relationship, boundary and repository-provenance classifications remain independent.
+Architecture comparisons include authored `meta.translations` in presentation changes. Adding, removing or editing translations changes `summary.presentationChanged`; reordering translation keys does not. An empty translation object is equivalent to an omitted catalog for presentation classification; the canonical source digest still records the authored representation. Component, relationship, boundary and repository-provenance classifications remain independent.
 
 ## Recovering a failed comparison
 
