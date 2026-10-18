@@ -10674,7 +10674,10 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         });
       }
 
-      attachToolbarNavigation(document.querySelector(&#39;.toolbar&#39;), &#39;:scope &gt; .toolbar-group &gt; button&#39;);
+      attachToolbarNavigation(
+        document.querySelector(&#39;.toolbar&#39;),
+        &#39;:scope &gt; .toolbar-group &gt; button, :scope &gt; .toolbar-group &gt; .preset-wrap &gt; #btn-preset, :scope &gt; .export-wrap &gt; #btn-export&#39;
+      );
       attachToolbarNavigation(document.querySelector(&#39;.diagram-nav&#39;), &#39;:scope &gt; button&#39;);
       attachToolbarNavigation(document.querySelector(&#39;.rail-controls&#39;), &#39;:scope &gt; button&#39;);
     })();
@@ -25847,7 +25850,10 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         });
       }
 
-      attachToolbarNavigation(document.querySelector(&#39;.toolbar&#39;), &#39;:scope &gt; .toolbar-group &gt; button&#39;);
+      attachToolbarNavigation(
+        document.querySelector(&#39;.toolbar&#39;),
+        &#39;:scope &gt; .toolbar-group &gt; button, :scope &gt; .toolbar-group &gt; .preset-wrap &gt; #btn-preset, :scope &gt; .export-wrap &gt; #btn-export&#39;
+      );
       attachToolbarNavigation(document.querySelector(&#39;.diagram-nav&#39;), &#39;:scope &gt; button&#39;);
       attachToolbarNavigation(document.querySelector(&#39;.rail-controls&#39;), &#39;:scope &gt; button&#39;);
     })();
