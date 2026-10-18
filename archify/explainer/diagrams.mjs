@@ -6,7 +6,9 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { validateSchema } from '../renderers/shared/validator.mjs';
 import { textUnits, SEMANTIC_SIGIL_FOOTPRINT } from '../renderers/shared/utils.mjs';
-import { minimumNodeTextWidth } from '../renderers/shared/text-fit.mjs';
+import { minimumNodeTextWidth, fittedNodeFontSize } from '../renderers/shared/text-fit.mjs';
+import { declaredWideReadabilityBudget, projectedNodeTextPx, MIN_PROJECTED_NODE_TEXT_PX } from '../renderers/shared/desktop-readability.mjs';
+import { gridLayout, resolveComponentPos } from '../renderers/architecture/grid.mjs';
 import { throwDiagnosticError } from '../renderers/shared/diagnostics.mjs';
 import { createOwnedTempDirectory } from '../renderers/shared/owned-temp-directory.mjs';
 
@@ -77,7 +79,7 @@ function workflowWidth(nodes, edges) {
 
 // Placement supplies native grid/lane hints only. Native renderers own sizing,
 // ports, routes, labels, and all quality validation.
-function rankedPlacement(nodes, edges, maxColumns = Infinity) {
+function rankedPlacement(nodes, edges, maxColumns = Infinity, acceptsPlacement = () => true) {
   const ids = new Set(nodes.map(node => node.id));
   const outgoing = new Map(nodes.map(node => [node.id, []]));
   for (const edge of edges) if (ids.has(edge.from) && ids.has(edge.to) && edge.from !== edge.to) outgoing.get(edge.from).push(edge);
@@ -97,7 +99,7 @@ function rankedPlacement(nodes, edges, maxColumns = Infinity) {
       if (!state.has(edge.to)) { state.set(edge.to, 1); stack.push({ id: edge.to, next: 0 }); }
     }
   }
-  // Preserve legacy placement if unfolding feedback exceeds the native grid budget.
+  // Preserve legacy placement if unfolding feedback exceeds native layout budgets.
   for (const links of [forward, outgoing]) {
     const incoming = new Map(nodes.map(node => [node.id, 0]));
     for (const edges of links.values()) for (const edge of edges) incoming.set(edge.to, incoming.get(edge.to) + 1);
@@ -115,12 +117,14 @@ function rankedPlacement(nodes, edges, maxColumns = Infinity) {
     const columns = nodes.map(node => incoming.get(node.id) === 0 ? rank.get(node.id) : 0);
     if (links === forward && columns.some(col => col >= maxColumns)) continue;
     const nextRow = new Map();
-    return nodes.map((node, index) => {
+    const placed = nodes.map((node, index) => {
       const col = columns[index];
       const row = nextRow.get(col) || 0;
       nextRow.set(col, row + 1);
       return { ...node, row, col };
     });
+    if (links === forward && !acceptsPlacement(placed)) continue;
+    return placed;
   }
 }
 
@@ -218,11 +222,25 @@ export function compileExplainerDiagram(diagramType, rows, { title, id, line = 1
       }
     }
     duplicateCheck(nodes, context, 'node');
-    const placed = rankedPlacement(nodes, edges, diagramType === 'architecture' ? 12 : Infinity);
+    const fitWidth = node => Math.ceil(textUnits(node.label) * 6.6 + 16);
+    const architectureLayout = diagramType === 'architecture'
+      ? { mode: 'grid', cols: 12, cellW: Math.max(176, ...nodes.map(fitWidth)), cellH: 76, gapX: 100, gapY: 110 } : null;
+    const readablePlacement = placed => {
+      if (!architectureLayout) return true;
+      const grid = gridLayout({ layout: architectureLayout });
+      const widthOf = node => Math.max(120, fitWidth(node));
+      const viewBoxWidth = Math.max(...placed.map(node => resolveComponentPos(node, grid)[0] + widthOf(node))) + grid.origin[0];
+      // Reserve vertical room for native routing and the legend. The final
+      // rendered canvas still goes through the native readability check.
+      const viewBoxHeight = grid.origin[1] + (Math.max(...placed.map(node => node.row)) + 1) * (grid.cellH + grid.gapY);
+      const minimumSourceTextPx = Math.min(...placed.map(node => fittedNodeFontSize(node.label, widthOf(node), 11, 8)), ...(edges.some(edge => edge.label) ? [8] : []));
+      const budget = declaredWideReadabilityBudget({ viewBoxWidth, viewBoxHeight, minimumSourceTextPx, requestedMinimumTextPx: minimumSourceTextPx });
+      return budget?.hardFloorMet ?? projectedNodeTextPx(minimumSourceTextPx, viewBoxWidth) >= MIN_PROJECTED_NODE_TEXT_PX;
+    };
+    const placed = rankedPlacement(nodes, edges, diagramType === 'architecture' ? 12 : Infinity, readablePlacement);
     if (diagramType === 'architecture') {
       const cols = Math.max(1, ...placed.map(node => node.col + 1));
       if (cols > 12) fail(context, 'diagram-shorthand-limit', 'This architecture needs more than twelve native grid columns.', 'Use native JSON with explicit component positions.');
-      const fitWidth = node => Math.ceil(textUnits(node.label) * 6.6 + 16);
       // Order each column by where its upstream nodes sit, then centre it against the tallest column,
       // so a hub sits between the nodes it connects instead of on the first row.
       const height = Math.max(...Array.from({ length: cols }, (_, col) => placed.filter(node => node.col === col).length));
@@ -233,7 +251,7 @@ export function compileExplainerDiagram(diagramType, rows, { title, id, line = 1
         column.sort((a, b) => upstream(a) - upstream(b) || a.row - b.row)
           .forEach((node, i) => rowOf.set(node.id, Math.floor((height - column.length) / 2) + i));
       }
-      spec.layout = { mode: 'grid', cols, cellW: Math.max(176, ...placed.map(fitWidth)), cellH: 76, gapX: 100, gapY: 110 };
+      spec.layout = { ...architectureLayout, cols };
       spec.components = placed.map(node => ({ ...node, row: rowOf.get(node.id), ...(fitWidth(node) > 120 ? { size: [fitWidth(node), 60] } : {}) }));
       spec.connections = edges;
     } else if (lanes.size) {

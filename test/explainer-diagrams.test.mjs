@@ -289,3 +289,18 @@ test('explainer diagrams: cyclic architecture preserves renderable inputs at the
     error => error.archifyDiagnostics.some(item => item.code === 'explainer/diagram-shorthand-limit'),
     'an already unsupported wide acyclic chain keeps its existing diagnostic');
 });
+
+test('cyclic architecture preserves readability under both native quality profiles', async () => {
+  for(const [count,suffix] of [[9,''],[10,''],[6,' with a deliberately long architecture label']]){
+    const rows=[...Array.from({length:count},(_,i)=>`n${i} | Node ${i}${suffix}`),...Array.from({length:count},(_,i)=>`n${i} > n${(i+1)%count}`)];
+    const spec=compileExplainerDiagram('architecture',rows,{id:'ring',quality:'showcase'});
+    assert.equal(spec.components.length,count);
+    assert.equal(spec.connections.length,count);
+    const {diagrams}=await prepareExplainerDiagrams(documentOf([blockOf('architecture',spec)]),{quality:'showcase'});
+    assert.equal(diagrams.architecture.checks.check.ok,true);
+    if(count===9)assert.ok(spec.components.some(node=>node.col>0),'readable cyclic expansion remains available');
+    const standard=compileExplainerDiagram('architecture',rows,{id:'ring',quality:'standard'});
+    const checked=await prepareExplainerDiagrams(documentOf([blockOf('architecture',standard)]),{quality:'standard'});
+    assert.equal(checked.diagrams.architecture.checks.check.ok,true);
+  }
+});

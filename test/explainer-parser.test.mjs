@@ -203,6 +203,58 @@ test('node content references reuse explicit prose IDs and follow body edits wit
   assert.ok(validateExplainer(wrongNode).diagnostics.some(entry=>entry.code==='explainer/diagram-node'));
 });
 
+test('diagram references reject message, phase, edge and field rows at the authored line',()=>{
+  const sequence='@sequence id=flow\n| actor api | API | backend |\n| actor db | DB | database |';
+  for(const reference of ['block:api-notes','source:docs'])for(const [declaration,row,tail]of [
+    [sequence,`| api | db | Read | ${reference} |`,''],
+    [sequence,`| phase | Read phase | ${reference} |`,'\n| api | db | Read |'],
+    ['@architecture id=flow\n| api | API | backend |\n| db | DB | database |',`| api > db | Read | ${reference} |`,''],
+    ['@erd id=flow\n| entity api | API |',`| api.id | bigint | pk | ${reference} |`,''],
+  ]){
+    const text=draft(`${declaration}\n${row}${tail}\n\n@prose id=api-notes\n| Explain the API. |`);
+    const result=parseExplainer(text,{inputPath:'answer.md'});
+    assert.equal(result.document,null,row);
+    const issue=result.diagnostics.find(d=>d.message==='A content reference belongs to a node, actor or entity row.');
+    assert.ok(issue,row);
+    assert.equal(issue.subject.line,text.split('\n').indexOf(row)+1,row);
+  }
+});
+
+test('declared nodes retain every previously accepted source-cell position',()=>{
+  for(const [type,cells,before,after]of [
+    ['architecture',['api','API','backend'],'','\n| db | DB | database |\n| api > db | Read |'],
+    ['workflow',['api','API','backend','serve'],'| lane serve | Serve |\n','\n| db | DB | database | serve |\n| api > db | Read |'],
+    ['sequence',['actor api','API','backend'],'','\n| actor db | DB | database |\n| api | db | Read |'],
+    ['erd',['entity api','API'],'','\n| api.id | bigint | pk |'],
+  ]){
+    const make=row=>draft(`@${type} id=flow\n${before}| ${row.join(' | ')} |${after}`);
+    const native=parse(make(cells)).document.panels[0].blocks[0].spec;
+    for(let index=1;index<=cells.length;index++){
+      const row=[...cells];row.splice(index,0,'source:docs');
+      const {document}=parse(make(row)),block=document.panels[0].blocks[0];
+      assert.deepEqual(block.nodeSources,{api:'docs'},`${type} cell ${index}`);
+      assert.deepEqual(block.spec,native,`${type} cell ${index}`);
+      assert.equal(validateExplainer(document).ok,true,`${type} cell ${index}`);
+    }
+  }
+});
+
+test('node references accept each documented content block and reject duplicate source bindings',()=>{
+  for(const body of [
+    '@prose id=notes\n| Explain the API. |',
+    '@callout id=notes level=note\n| Check this condition. |',
+    '@list id=notes\n| Check the request. |\n| Read the response. |',
+    '@facts id=notes\n| Owner | API team |',
+  ]){
+    const {document}=parse(draft(`@sequence id=flow\n| actor api | API | backend | block:notes |\n| actor db | DB | database |\n| api | db | Read |\n\n${body}`));
+    assert.deepEqual(document.panels[0].blocks[0].nodeBlocks,{api:'notes'});
+    assert.equal(validateExplainer(document).ok,true,body);
+  }
+  const duplicate=parseExplainer(draft('@sequence id=flow\n| actor api | API | backend | source:docs | source:docs |\n| actor db | DB | database |\n| api | db | Read |'));
+  assert.equal(duplicate.document,null);
+  assert.ok(duplicate.diagnostics.some(d=>d.message==='A node accepts one reference of each kind.'));
+});
+
 test('a badge-only comparison cell and a route written in the node column are accepted',()=>{
   const {document}=parse('# T\n\nA.\n\n## Q {#q}\n\n| Trap | Verdict |\n| --- | --- |\n| Flood car | {bad:Drop} |\n\n@sequence id=flow\n| actor a | A |\n| actor b | B |\n| a | b | hi |\n\n@steps id=walk\n| one | Hello | Detail | flow | a~b |\n| two | Back | Detail | flow | b |');
   assert.deepEqual(document.panels[0].blocks[0].rows[0].cells[0],{text:'Drop',assessment:'bad',verdict:'Drop'});

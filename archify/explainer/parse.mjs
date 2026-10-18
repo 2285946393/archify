@@ -205,14 +205,15 @@ export function parseExplainer(sourceText, { inputPath, output } = {}) {
           if(rows.length&&(a.spec!==undefined||a.source!==undefined))fail(at+1,type,'Choose shorthand rows, spec or source, not several.','@diagram sequence source=cache.sequence.json');
           // Reference cells belong to the page, not to the native diagram spec.
           for (const r of rows) {
-            for (let index=r.cells.length-1;index>=2;index--) {
+            for (let index=r.cells.length-1;index>=1;index--) {
               const ref=r.cells[index].match(/^(source|block):([A-Za-z][\w-]*)$/u);
               if(!ref)continue;
               const node = r.cells[0].replace(/^(?:actor|entity)\s+/u, '').trim();
               const key = ref[1] === 'source' ? 'nodeSources' : 'nodeBlocks';
-              if (!ID.test(node) || (block.diagramType==='sequence' && r.cells[0]==='phase')) fail(r.line+1,type,'A content reference belongs to a node, actor or entity row.','| api | API | backend | block:api-notes |');
-              else if (Object.hasOwn(block[key] || {}, node)) fail(r.line+1,type,'A node accepts one reference of each kind.','| api | API | backend | block:api-notes |');
-              else (block[key] ||= {})[node] = ref[2];
+              const declaration = block.diagramType==='sequence' ? r.cells[0].startsWith('actor ') : block.diagramType==='erd' ? r.cells[0].startsWith('entity ') : true;
+              if (!ID.test(node) || !declaration) { fail(r.line+1,type,'A content reference belongs to a node, actor or entity row.','| api | API | backend | block:api-notes |'); continue; }
+              if (Object.hasOwn(block[key] || {}, node)) { fail(r.line+1,type,'A node accepts one reference of each kind.','| api | API | backend | block:api-notes |'); continue; }
+              (block[key] ||= {})[node] = ref[2];
               (r.references ||= []).push({ key, node });
               r.cells.splice(index,1);
             }
