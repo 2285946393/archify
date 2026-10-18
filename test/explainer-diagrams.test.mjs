@@ -304,3 +304,22 @@ test('cyclic architecture preserves readability under both native quality profil
     assert.equal(checked.diagrams.architecture.checks.check.ok,true);
   }
 });
+
+test('cyclic architecture keeps deliverable routes and labels clear of other nodes', async () => {
+  const examples = [
+    { count: 5, edges: 8, rows: [...Array.from({ length: 5 }, (_, i) => `n${i} | Node ${i}`),
+      'n2 > n3', 'n3 > n4', 'n4 > n1', 'n0 > n2', 'n0 > n1', 'n0 > n4', 'n3 > n0', 'n3 > n1'] },
+    { count: 6, edges: 9, rows: [...Array.from({ length: 6 }, (_, i) => `n${5 - i} | Node ${5 - i}`),
+      'n0 > n1 | step', 'n1 > n2', 'n2 > n3 | step', 'n3 > n4', 'n4 > n5 | step',
+      'n5 > n0', 'n5 > n1 | step', 'n3 > n1', 'n3 > n0 | step'] },
+  ];
+  for (const { count, edges, rows } of examples) for (const quality of ['standard', 'showcase']) {
+    const spec = compileExplainerDiagram('architecture', rows, { id: 'routes', quality });
+    const frozen = JSON.stringify(spec);
+    const { diagrams } = await prepareExplainerDiagrams(documentOf([blockOf('architecture', spec)]), { quality });
+    assert.equal(diagrams.architecture.checks.check.ok, true);
+    assert.equal(diagrams.architecture.semantic.nodes.length, count);
+    assert.equal(diagrams.architecture.semantic.edges.length, edges);
+    assert.equal(JSON.stringify(spec), frozen, 'native checks preserve the compiled input');
+  }
+});

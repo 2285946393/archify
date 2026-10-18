@@ -9,7 +9,9 @@ import { textUnits, SEMANTIC_SIGIL_FOOTPRINT } from '../renderers/shared/utils.m
 import { minimumNodeTextWidth, fittedNodeFontSize } from '../renderers/shared/text-fit.mjs';
 import { declaredWideReadabilityBudget, projectedNodeTextPx, MIN_PROJECTED_NODE_TEXT_PX } from '../renderers/shared/desktop-readability.mjs';
 import { gridLayout, resolveComponentPos } from '../renderers/architecture/grid.mjs';
-import { throwDiagnosticError } from '../renderers/shared/diagnostics.mjs';
+import { createArchitectureRouter, connectionLabelBoxAt } from '../renderers/architecture/routing.mjs';
+import { cleanFlowProblems, cleanAmbiguousCorridorProblems, cleanRouteRhythmProblems, collectArrowheadCollisions, labelPoint, rectsOverlap } from '../renderers/shared/geometry.mjs';
+import { throwDiagnosticError, withDiagnosticRecordingSuppressed } from '../renderers/shared/diagnostics.mjs';
 import { createOwnedTempDirectory } from '../renderers/shared/owned-temp-directory.mjs';
 
 const runFile = promisify(execFile);
@@ -87,6 +89,7 @@ function rankedPlacement(nodes, edges, maxColumns = Infinity, acceptsPlacement =
   // authored relationship, including returns, parallel edges and self loops.
   const forward = new Map(nodes.map(node => [node.id, []]));
   const state = new Map();
+  let feedback = false;
   for (const node of nodes) {
     if (state.has(node.id)) continue;
     const stack = [{ id: node.id, next: 0 }];
@@ -94,7 +97,7 @@ function rankedPlacement(nodes, edges, maxColumns = Infinity, acceptsPlacement =
     while (stack.length) {
       const frame = stack.at(-1), edge = outgoing.get(frame.id)[frame.next++];
       if (!edge) { state.set(frame.id, 2); stack.pop(); continue; }
-      if (state.get(edge.to) === 1) continue;
+      if (state.get(edge.to) === 1) { feedback = true; continue; }
       forward.get(frame.id).push(edge);
       if (!state.has(edge.to)) { state.set(edge.to, 1); stack.push({ id: edge.to, next: 0 }); }
     }
@@ -123,7 +126,7 @@ function rankedPlacement(nodes, edges, maxColumns = Infinity, acceptsPlacement =
       nextRow.set(col, row + 1);
       return { ...node, row, col };
     });
-    if (links === forward && !acceptsPlacement(placed)) continue;
+    if (links === forward && feedback && !acceptsPlacement(placed)) continue;
     return placed;
   }
 }
@@ -225,20 +228,7 @@ export function compileExplainerDiagram(diagramType, rows, { title, id, line = 1
     const fitWidth = node => Math.ceil(textUnits(node.label) * 6.6 + 16);
     const architectureLayout = diagramType === 'architecture'
       ? { mode: 'grid', cols: 12, cellW: Math.max(176, ...nodes.map(fitWidth)), cellH: 76, gapX: 100, gapY: 110 } : null;
-    const readablePlacement = placed => {
-      if (!architectureLayout) return true;
-      const grid = gridLayout({ layout: architectureLayout });
-      const widthOf = node => Math.max(120, fitWidth(node));
-      const viewBoxWidth = Math.max(...placed.map(node => resolveComponentPos(node, grid)[0] + widthOf(node))) + grid.origin[0];
-      // Reserve vertical room for native routing and the legend. The final
-      // rendered canvas still goes through the native readability check.
-      const viewBoxHeight = grid.origin[1] + (Math.max(...placed.map(node => node.row)) + 1) * (grid.cellH + grid.gapY);
-      const minimumSourceTextPx = Math.min(...placed.map(node => fittedNodeFontSize(node.label, widthOf(node), 11, 8)), ...(edges.some(edge => edge.label) ? [8] : []));
-      const budget = declaredWideReadabilityBudget({ viewBoxWidth, viewBoxHeight, minimumSourceTextPx, requestedMinimumTextPx: minimumSourceTextPx });
-      return budget?.hardFloorMet ?? projectedNodeTextPx(minimumSourceTextPx, viewBoxWidth) >= MIN_PROJECTED_NODE_TEXT_PX;
-    };
-    const placed = rankedPlacement(nodes, edges, diagramType === 'architecture' ? 12 : Infinity, readablePlacement);
-    if (diagramType === 'architecture') {
+    const architectureModel = placed => {
       const cols = Math.max(1, ...placed.map(node => node.col + 1));
       if (cols > 12) fail(context, 'diagram-shorthand-limit', 'This architecture needs more than twelve native grid columns.', 'Use native JSON with explicit component positions.');
       // Order each column by where its upstream nodes sit, then centre it against the tallest column,
@@ -251,9 +241,43 @@ export function compileExplainerDiagram(diagramType, rows, { title, id, line = 1
         column.sort((a, b) => upstream(a) - upstream(b) || a.row - b.row)
           .forEach((node, i) => rowOf.set(node.id, Math.floor((height - column.length) / 2) + i));
       }
-      spec.layout = { ...architectureLayout, cols };
-      spec.components = placed.map(node => ({ ...node, row: rowOf.get(node.id), ...(fitWidth(node) > 120 ? { size: [fitWidth(node), 60] } : {}) }));
-      spec.connections = edges;
+      return { layout: { ...architectureLayout, cols },
+        components: placed.map(node => ({ ...node, row: rowOf.get(node.id), ...(fitWidth(node) > 120 ? { size: [fitWidth(node), 60] } : {}) })), connections: edges };
+    };
+    const acceptsPlacement = placed => {
+      if (!architectureLayout) return true;
+      const model = architectureModel(placed), grid = gridLayout(model);
+      const measured = model.components.map(node => {
+        const [x, y] = resolveComponentPos(node, grid), [width, height] = node.size || [120, 60];
+        return { ...node, x, y, width, height, cx: x + width / 2, cy: y + height / 2 };
+      });
+      const viewBoxWidth = Math.max(...measured.map(node => node.x + node.width)) + grid.origin[0];
+      // Reserve vertical room for native routing and the legend. Final output
+      // still goes through the complete native checks under the requested profile.
+      const viewBoxHeight = Math.max(...measured.map(node => node.y + grid.cellH + grid.gapY));
+      const minimumSourceTextPx = Math.min(...measured.map(node => fittedNodeFontSize(node.label, node.width, 11, 8)), ...(edges.some(edge => edge.label) ? [8] : []));
+      const budget = declaredWideReadabilityBudget({ viewBoxWidth, viewBoxHeight, minimumSourceTextPx, requestedMinimumTextPx: minimumSourceTextPx });
+      if (!(budget?.hardFloorMet ?? projectedNodeTextPx(minimumSourceTextPx, viewBoxWidth) >= MIN_PROJECTED_NODE_TEXT_PX)) return false;
+      return withDiagnosticRecordingSuppressed(() => {
+        const components = new Map(measured.map(node => [node.id, node]));
+        const { pathFor } = createArchitectureRouter(components, edges);
+        const routed = edges.filter(edge => components.has(edge.from) && components.has(edge.to))
+          .map(relation => ({ relation, points: pathFor(relation).points }));
+        // Standard keeps the default label positions; showcase may move them.
+        // A generated placement must leave those defaults clear of every node.
+        if (routed.some(({ relation, points }) => relation.label && measured.some(node =>
+          rectsOverlap(connectionLabelBoxAt(relation, labelPoint(relation, points)), node, -2)))) return false;
+        const common = { relations: edges, endpointIds: new Set(components.keys()), pathFor, diagramType: 'architecture',
+          relationCollection: 'connections', profile: 'showcase', profileIsAuthoritative: true };
+        return !cleanFlowProblems({ ...common, obstacles: measured, obstacleKind: 'component' }).length
+          && !cleanAmbiguousCorridorProblems({ ...common, includeSharedEndpoints: () => true }).length
+          && !cleanRouteRhythmProblems(common).length
+          && !collectArrowheadCollisions({ routedRelations: routed }).length;
+      });
+    };
+    const placed = rankedPlacement(nodes, edges, diagramType === 'architecture' ? 12 : Infinity, acceptsPlacement);
+    if (diagramType === 'architecture') {
+      Object.assign(spec, architectureModel(placed));
     } else if (lanes.size) {
       for (const [id, { lane, context: ctx }] of nodeLanes) if (!lanes.has(lane)) fail(ctx, 'diagram-lane', `Node ${id} names an undeclared lane.`, 'lane locate | Locate the cause');
       const first = lanes.keys().next().value;
