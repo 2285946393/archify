@@ -13,29 +13,29 @@
     {
       "id": "signal-flow",
       "artifact": "docs/gallery/artifacts/agent-tool-call.workflow.html",
-      "artifactSha256": "fdc0975c069e0353800a1958036d3e24f2630811da9eac5a8dd6d4942d84f31a",
+      "artifactSha256": "6c37abeb61d674ed9607547b7d961cfdfe2525ff2c7a7efeac83292330e06157",
       "hash": "#focus=planner&reach=downstream",
-      "eyebrow": "WORKFLOW · SIGNAL FLOW",
+      "eyebrow": "WORKFLOW \u00b7 SIGNAL FLOW",
       "title": "Agent Tool Call",
-      "receipt": "12 nodes · 11 edges · 9/9 checks"
+      "receipt": "12 nodes \u00b7 11 edges \u00b7 9/9 checks"
     },
     {
       "id": "blueprint",
       "artifact": "docs/gallery/artifacts/production-deployment.architecture.html",
-      "artifactSha256": "bab5aa4aab63abbe867c415306750b9382939161da46139300d12c0a54c8c62b",
+      "artifactSha256": "fcd46f1bd98517747d4f0db8edeca5d7e79ba8f26d0e36446dce7a7757b6cd05",
       "hash": "#lens=backend~database",
-      "eyebrow": "ARCHITECTURE · BLUEPRINT",
+      "eyebrow": "ARCHITECTURE \u00b7 BLUEPRINT",
       "title": "Production Deployment",
-      "receipt": "12 nodes · 12 edges · 9/9 checks"
+      "receipt": "12 nodes \u00b7 12 edges \u00b7 9/9 checks"
     },
     {
       "id": "classic",
       "artifact": "docs/gallery/artifacts/cache-miss.sequence.html",
-      "artifactSha256": "252f687dbe79fbf9fb4402d24c974b3c1e56d761f773d2093ad61493dd7d349c",
+      "artifactSha256": "36fef2ad4cad2f5b4b6030e1ca3bd8da0c01ab6558ad8ae094dde9bd1b343698",
       "hash": "#route=web~db",
-      "eyebrow": "SEQUENCE · CLASSIC",
+      "eyebrow": "SEQUENCE \u00b7 CLASSIC",
       "title": "Cache Miss Request",
-      "receipt": "7 participants · 12 messages · 9/9 checks"
+      "receipt": "7 participants \u00b7 12 messages \u00b7 9/9 checks"
     }
   ]
 }
