@@ -77,7 +77,7 @@ function workflowWidth(nodes, edges) {
 
 // Placement supplies native grid/lane hints only. Native renderers own sizing,
 // ports, routes, labels, and all quality validation.
-function rankedPlacement(nodes, edges) {
+function rankedPlacement(nodes, edges, maxColumns = Infinity) {
   const ids = new Set(nodes.map(node => node.id));
   const outgoing = new Map(nodes.map(node => [node.id, []]));
   for (const edge of edges) if (ids.has(edge.from) && ids.has(edge.to) && edge.from !== edge.to) outgoing.get(edge.from).push(edge);
@@ -97,26 +97,31 @@ function rankedPlacement(nodes, edges) {
       if (!state.has(edge.to)) { state.set(edge.to, 1); stack.push({ id: edge.to, next: 0 }); }
     }
   }
-  const incoming = new Map(nodes.map(node => [node.id, 0]));
-  for (const links of forward.values()) for (const edge of links) incoming.set(edge.to, incoming.get(edge.to) + 1);
-  const rank = new Map();
-  const queue = nodes.filter(node => incoming.get(node.id) === 0).map(node => node.id);
-  const visit = id => {
-    if (!rank.has(id)) rank.set(id, 0);
-    for (const edge of forward.get(id)) {
-      incoming.set(edge.to, incoming.get(edge.to) - 1);
-      rank.set(edge.to, Math.max(rank.get(edge.to) || 0, rank.get(id) + 1));
-      if (incoming.get(edge.to) === 0) queue.push(edge.to);
-    }
-  };
-  for (let cursor = 0; cursor < queue.length; cursor++) visit(queue[cursor]);
-  const nextRow = new Map();
-  return nodes.map(node => {
-    const col = rank.get(node.id);
-    const row = nextRow.get(col) || 0;
-    nextRow.set(col, row + 1);
-    return { ...node, row, col };
-  });
+  // Preserve legacy placement if unfolding feedback exceeds the native grid budget.
+  for (const links of [forward, outgoing]) {
+    const incoming = new Map(nodes.map(node => [node.id, 0]));
+    for (const edges of links.values()) for (const edge of edges) incoming.set(edge.to, incoming.get(edge.to) + 1);
+    const rank = new Map();
+    const queue = nodes.filter(node => incoming.get(node.id) === 0).map(node => node.id);
+    const visit = id => {
+      if (!rank.has(id)) rank.set(id, 0);
+      for (const edge of links.get(id)) {
+        incoming.set(edge.to, incoming.get(edge.to) - 1);
+        rank.set(edge.to, Math.max(rank.get(edge.to) || 0, rank.get(id) + 1));
+        if (incoming.get(edge.to) === 0) queue.push(edge.to);
+      }
+    };
+    for (let cursor = 0; cursor < queue.length; cursor++) visit(queue[cursor]);
+    const columns = nodes.map(node => incoming.get(node.id) === 0 ? rank.get(node.id) : 0);
+    if (links === forward && columns.some(col => col >= maxColumns)) continue;
+    const nextRow = new Map();
+    return nodes.map((node, index) => {
+      const col = columns[index];
+      const row = nextRow.get(col) || 0;
+      nextRow.set(col, row + 1);
+      return { ...node, row, col };
+    });
+  }
 }
 
 /** Compile a small author shorthand into an existing native Archify model. */
@@ -213,7 +218,7 @@ export function compileExplainerDiagram(diagramType, rows, { title, id, line = 1
       }
     }
     duplicateCheck(nodes, context, 'node');
-    const placed = rankedPlacement(nodes, edges);
+    const placed = rankedPlacement(nodes, edges, diagramType === 'architecture' ? 12 : Infinity);
     if (diagramType === 'architecture') {
       const cols = Math.max(1, ...placed.map(node => node.col + 1));
       if (cols > 12) fail(context, 'diagram-shorthand-limit', 'This architecture needs more than twelve native grid columns.', 'Use native JSON with explicit component positions.');

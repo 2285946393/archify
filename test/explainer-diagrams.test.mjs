@@ -274,3 +274,18 @@ test('explainer diagrams: cyclic placement retains disconnected nodes, parallel 
     assert.deepEqual(compileExplainerDiagram(type, rows, { id: 'cycles' }), spec, 'repeat rendering is deterministic');
   }
 });
+
+test('explainer diagrams: cyclic architecture preserves renderable inputs at the native column limit', async () => {
+  const nodes = Array.from({ length: 13 }, (_, index) => `n${index} | Node ${index}`);
+  const chain = Array.from({ length: 12 }, (_, index) => `n${index} > n${index + 1}`);
+  const spec = compileExplainerDiagram('architecture', [...nodes, ...chain, 'n12 > n0'], { id: 'cycle', quality: 'standard' });
+  assert.ok(spec.layout.cols <= 12, 'unfolding a cycle cannot exceed the existing native grid budget');
+  assert.equal(spec.components.length, 13);
+  assert.equal(spec.connections.length, 13);
+  assert.ok(spec.connections.some(edge => edge.from === 'n12' && edge.to === 'n0'));
+  const { diagrams } = await prepareExplainerDiagrams(documentOf([blockOf('architecture', spec)]), { quality: 'standard' });
+  assert.equal(diagrams.architecture.checks.check.ok, true);
+  assert.throws(() => compileExplainerDiagram('architecture', [...nodes, ...chain]),
+    error => error.archifyDiagnostics.some(item => item.code === 'explainer/diagram-shorthand-limit'),
+    'an already unsupported wide acyclic chain keeps its existing diagnostic');
+});
