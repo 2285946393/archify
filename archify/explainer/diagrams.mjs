@@ -568,6 +568,7 @@ export async function prepareExplainerDiagrams(document, { repoRoot, baseDir, qu
           const svg = changesPreview(canonicalSvg, block.changes, semantic, context);
           // Preview styles are derived from html at render time; storing them again would double the page.
           diagrams[block.id] = { diagramType: block.diagramType, spec: original, html, svg, sha256: hash(bytes), bytes: bytes.length,
+            ...(spec.lanes ? { previewLanes: spec.lanes } : {}),
             specification: freezeBytes(originalBytes), checks: { validate: { ok: true }, render: { ok: true }, check }, semantic,
             ...(block.changes ? { changes: block.changes.map(change => ({ ...change })) } : {}) };
           break;

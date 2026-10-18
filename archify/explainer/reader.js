@@ -595,16 +595,18 @@
   };
   function setupSourceCards() {
     const sources = prepared.preparedSources?.sources || {};
-    const card = document.createElement('div'); card.className = 'source-card'; card.hidden = true; card.setAttribute('role','tooltip');
+    const card = document.createElement('div'); card.className = 'source-card'; card.hidden = true; card.setAttribute('role','group'); card.setAttribute('aria-label',say('Source details','来源详情'));
     document.body.append(card);
-    let hideTimer;
-    const hide = () => { hideTimer = setTimeout(()=>{ card.hidden = true; },160); };
+    let hideTimer, opener;
+    const hide = () => { clearTimeout(hideTimer); hideTimer = setTimeout(()=>{ if (!card.contains(document.activeElement)) card.hidden = true; },160); };
     card.addEventListener('mouseenter',()=>clearTimeout(hideTimer)); card.addEventListener('mouseleave',hide);
+    card.addEventListener('focusin',()=>clearTimeout(hideTimer)); card.addEventListener('focusout',hide);
     const show = (link, id = decodeURIComponent(link.getAttribute('href').slice('#source-'.length)), blockId) => {
       const content = blockId && byId(blockId);
       const source = sources[id] || prepared.document?.sources?.find(entry=>entry.id === id) || {};
       if (!Object.keys(source).length && !content) return;
       clearTimeout(hideTimer);
+      opener = link;
       const escapeText = value => String(value ?? '').replace(/[&<>"]/g,character=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[character]));
       // A repository source shows its pinned excerpt; a web page its host; any other note its text.
       const host = (()=>{ try { return new URL(source.url).host.replace(/^www\./,''); } catch { return ''; } })();
@@ -646,7 +648,18 @@
         }
       });
     });
-    document.addEventListener('keydown',event=>{ if (event.key === 'Escape') card.hidden = true; });
+    document.addEventListener('keydown',event=>{
+      if (event.key === 'Escape') {
+        if (card.contains(document.activeElement)) opener?.focus();
+        clearTimeout(hideTimer); card.hidden = true;
+      } else if (event.key === 'Tab' && !card.hidden && opener) {
+        // Visit the floating links after their opener, then resume the document's normal tab order.
+        const links = all('a[href]',card);
+        if (!event.shiftKey && event.target === opener && links.length) { event.preventDefault(); links[0].focus(); }
+        else if (event.shiftKey && event.target === links[0]) { event.preventDefault(); opener.focus(); }
+        else if (!event.shiftKey && event.target === links.at(-1)) { opener.focus(); card.hidden = true; }
+      }
+    });
   }
   // Checklist ticks are the reader's own progress; keep them per page and block across reloads.
   all('.checklist').forEach(list=>{

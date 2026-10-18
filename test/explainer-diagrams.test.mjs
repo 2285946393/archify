@@ -6,7 +6,10 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
 import { SaxesParser } from 'saxes';
+import { parse } from 'parse5';
 import { compileExplainerDiagram, prepareExplainerDiagrams, validateExplainerDiagramTarget } from '../archify/explainer/diagrams.mjs';
+import { renderExplainer } from '../archify/explainer/render.mjs';
+import { unpackPageBundle } from '../archify/explainer/page-bundle.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const hash = bytes => createHash('sha256').update(bytes).digest('hex');
@@ -267,6 +270,33 @@ test('explainer diagrams: converging retry branches keep the complete graph and 
     ['check', 'revise', 'no'], ['verify', 'revise', 'no'], ['record', 'revise', 'error'], ['revise', 'enter', 'retry'],
   ].sort());
   assert.equal(diagrams.retry.spec.edges.find(edge => edge.from === 'revise').variant, 'dashed');
+});
+
+test('cyclic workflow preview follows the selected lanes while preserving authored evidence', async () => {
+  const spec = compileExplainerDiagram('workflow', ['lane a | First phase', 'lane b | Second phase',
+    'n0 | Enter | backend | a', 'n1 | Check | backend | a', 'n2 | Record | backend | b', 'n3 | Retry | backend | b',
+    'n0 > n1', 'n1 > n2', 'n2 > n3', 'n3 > n0'], { id: 'ring' });
+  const authored = JSON.stringify(spec);
+  assert.equal(spec.lanes.length, 2);
+  const document = { schema_version: 1, diagram_type: 'explainer', meta: { id: 'phased-ring', title: 'Review loop', locale: 'en' },
+    answer: { summary: 'Two phases form a review loop.' }, sources: [], panels: [{ id: 'loop', title: 'How does it repeat?', blocks: [blockOf('workflow', spec, { id: 'ring' })] }] };
+  const preparedDiagrams = await prepareExplainerDiagrams(document);
+  const entry = preparedDiagrams.diagrams.ring;
+  assert.equal(entry.checks.check.ok, true);
+  const laneCount = (entry.svg.match(/data-composition-frame-kind="lane"/g) || []).length;
+  assert.ok(laneCount > 0);
+  assert.equal(JSON.stringify(entry.spec), authored);
+  assert.equal(Buffer.from(entry.specification.contentBase64, 'base64').toString(), authored);
+  const html = renderExplainer(document, { preparedDiagrams });
+  const walk = node => [node, ...(node.childNodes || []).flatMap(walk)];
+  const nodes = walk(parse(html));
+  const preview = nodes.find(node => node.attrs?.some(attr => attr.name === 'class' && attr.value.split(' ').includes('diagram-preview')));
+  const classes = preview.attrs.find(attr => attr.name === 'class').value.split(' ');
+  assert.equal(classes.includes('single-lane'), laneCount === 1, 'preview must use the rendered lane arrangement');
+  if (laneCount === 1) assert.ok(classes.includes('bare-lanes'), 'a lone frame is redundant in the preview');
+  const bundle = nodes.find(node => node.attrs?.some(attr => attr.name === 'id' && attr.value === 'archify-explainer-prepared'));
+  const restored = unpackPageBundle(JSON.parse(bundle.childNodes[0].value));
+  assert.equal(renderExplainer(restored.document, restored), html, 'serialized delivery keeps the selected preview layout');
 });
 
 test('explainer diagrams: cyclic placement retains disconnected nodes, parallel returns and downstream exits', async () => {
