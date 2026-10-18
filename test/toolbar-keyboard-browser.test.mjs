@@ -51,7 +51,7 @@ test('Viewer toolbars move focus between enabled top-level controls with directi
           return { count: controls.length, first, second, returned, end, last, home, right, forwardWrap, wrappedFirst, backwardWrap, wrappedLast, modified };
         };
         return {
-          page: run(document.querySelector('.toolbar'), ':scope > .toolbar-group > button'),
+          page: run(document.querySelector('.toolbar'), '#btn-theme, #btn-preset, #btn-motion, #btn-present, #btn-export'),
           dock: run(document.querySelector('.diagram-nav'), ':scope > button'),
           rail: (() => {
             const toolbar = document.querySelector('.rail-controls');
