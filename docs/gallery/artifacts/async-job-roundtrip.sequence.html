@@ -5826,7 +5826,10 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         });
       }
 
-      attachToolbarNavigation(document.querySelector('.toolbar'), ':scope > .toolbar-group > button');
+      attachToolbarNavigation(
+        document.querySelector('.toolbar'),
+        ':scope > .toolbar-group > button, :scope > .toolbar-group > .preset-wrap > #btn-preset, :scope > .export-wrap > #btn-export'
+      );
       attachToolbarNavigation(document.querySelector('.diagram-nav'), ':scope > button');
       attachToolbarNavigation(document.querySelector('.rail-controls'), ':scope > button');
     })();
