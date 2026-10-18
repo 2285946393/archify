@@ -21,16 +21,34 @@ test('compact cyclic diagrams remain deliverable with a stricter quality overrid
   const examples=[{type:'architecture',rows:[...Array.from({length:10},(_,i)=>`n${i} | Node ${i}`),...Array.from({length:10},(_,i)=>`n${i} > n${(i+1)%10}`)]},
     {type:'workflow',rows:[...Array.from({length:8},(_,i)=>`n${7-i} | N${7-i}`),...Array.from({length:8},(_,i)=>`n${i} > n${(i+1)%8}`),'n1 > n0','n1 > n3','n4 > n2']}];
   for(const {type,rows} of examples){
-    const source=`# Ring\n\nKeep every connection readable.\n\n@meta quality_profile=standard\n\n## Connections {#connections}\n\n@${type} id=ring\n${rows.map(row=>`| ${row} |`).join('\n')}\n`;
+    const metadata='@meta quality_profile=standard locale=zh-CN';
+    const source=`# Ring\n\nKeep every connection readable.\n\n${type==='workflow'?metadata+'\n\n':''}## Connections {#connections}\n\n@${type}\n${rows.map(row=>`| ${row} |`).join('\n')}\n${type==='architecture'?'\n'+metadata+'\n':''}`;
     fs.writeFileSync(input,source);
     const delivered=run(['deliver','explainer',input,output,'--quality','showcase','--json']);
     assert.equal(delivered.status,0,delivered.stdout+delivered.stderr);
     assert.equal(bundle(output).quality,'showcase');
     assert.equal(bundle(output).document.meta.quality_profile,'standard');
+    assert.equal(bundle(output).document.meta.locale,'zh-CN');
     assert.equal(fs.readFileSync(input,'utf8'),source);
     const checked=run(['check',output,'--json','--require-provenance']);
     assert.equal(checked.status,0,checked.stdout+checked.stderr);
+    const standardOutput=path.join(dir,'standard',path.basename(output));fs.mkdirSync(path.dirname(standardOutput),{recursive:true});
+    const standard=run(['deliver','explainer',input,standardOutput,'--quality','standard','--json']);
+    assert.equal(standard.status,0,standard.stdout+standard.stderr);
+    assert.deepEqual(bundle(standardOutput).document,bundle(output).document,'render quality cannot change the normalized source or its automatic anchors');
   }
+});
+
+test('patch quality changes resolve shorthand under the new context and preserve other authored panels',t=>{
+  const dir=temporary(t),input=path.join(dir,'draft.md'),output=path.join(dir,'original.html'),replacement=path.join(dir,'panel.md'),patched=path.join(dir,'patched.html');
+  const rows=[...Array.from({length:10},(_,i)=>`n${i} | Node ${i}`),...Array.from({length:10},(_,i)=>`n${i} > n${(i+1)%10}`)];
+  const source=`# Ring\n\nPreserve the graph.\n\n@meta quality_profile=standard\n\n## Notes {#notes}\n\nOriginal note.\n\n## Graph {#graph}\n\n@architecture id=ring\n${rows.join('\n')}\n`;
+  fs.writeFileSync(input,source);fs.writeFileSync(replacement,'## Notes {#notes}\n\nEdited note.\n\n');
+  const first=run(['deliver','explainer',input,output,'--quality','showcase','--json']);assert.equal(first.status,0,first.stdout+first.stderr);
+  const change=run(['patch','explainer',output,'notes',replacement,patched,'--quality','standard','--json']);assert.equal(change.status,0,change.stdout+change.stderr);
+  const saved=bundle(patched);assert.equal(saved.quality,'standard');assert.equal(saved.sourceText,source.replace('Original note.','Edited note.'));
+  assert.equal(saved.document.panels[1].id,'graph');assert.equal(saved.document.panels[1].blocks[0].spec.connections.length,10);
+  const checked=run(['check',patched,'--json','--require-provenance']);assert.equal(checked.status,0,checked.stdout+checked.stderr);
 });
 
 test('explainer CLI binds original draft bytes through validate, deliver and strict check',t=>{

@@ -12,6 +12,17 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const hash = bytes => createHash('sha256').update(bytes).digest('hex');
 const documentOf = blocks => ({ panels: [{ id: 'mechanism', blocks }] });
 const blockOf = (type, spec, extra = {}) => ({ id: type, type: 'diagram', diagramType: type, spec, ...extra });
+function nodeXs(svg) {
+  const positions = new Map(), owners = [], xml = new SaxesParser();
+  xml.on('opentag', tag => {
+    const owner = tag.attributes['data-node-id'] || owners.at(-1);
+    owners.push(owner);
+    if (owner && tag.name === 'rect' && !positions.has(owner)) positions.set(owner, Number(tag.attributes.x));
+  });
+  xml.on('closetag', () => owners.pop());
+  xml.write(svg).close();
+  return positions;
+}
 const rows = {
   sequence: ['actor client | Client | frontend', 'actor api | API | backend', 'actor redis | Redis | database',
     'client | api | Request', 'api | redis | Read', 'redis | api | Miss | return'],
@@ -258,7 +269,7 @@ test('explainer diagrams: converging retry branches keep the complete graph and 
   assert.equal(diagrams.retry.spec.edges.find(edge => edge.from === 'revise').variant, 'dashed');
 });
 
-test('explainer diagrams: cyclic placement retains disconnected nodes, parallel returns and downstream exits', () => {
+test('explainer diagrams: cyclic placement retains disconnected nodes, parallel returns and downstream exits', async () => {
   const flow = ['enter | Enter', 'check | Check?', 'exit | Exit', 'other | Independent',
     'enter > check | request', 'check > enter | retry | dashed', 'check > exit | accepted'];
   const rows = [...flow, 'check > enter | rejected | security', 'other > other | repeat'];
@@ -270,8 +281,9 @@ test('explainer diagrams: cyclic placement retains disconnected nodes, parallel 
     assert.equal(edges.filter(edge => edge.from === 'check' && edge.to === 'enter').length, 2);
     assert.ok(edges.some(edge => edge.from === 'other' && edge.to === 'other'));
     const unfolded = compileExplainerDiagram(type, flow, { id: 'flow' });
-    const forward = unfolded.nodes || unfolded.components;
-    assert.ok(forward.find(node => node.id === 'exit').col > forward.find(node => node.id === 'check').col,
+    const { diagrams } = await prepareExplainerDiagrams(documentOf([blockOf(type, unfolded)]));
+    const forward = nodeXs(diagrams[type].svg);
+    assert.ok(forward.get('exit') > forward.get('check'),
       'an exit after a cycle must remain downstream, rather than falling into column zero');
     assert.deepEqual(compileExplainerDiagram(type, rows, { id: 'cycles' }), spec, 'repeat rendering is deterministic');
   }
@@ -300,7 +312,7 @@ test('cyclic architecture preserves readability under both native quality profil
     assert.equal(spec.connections.length,count);
     const {diagrams}=await prepareExplainerDiagrams(documentOf([blockOf('architecture',spec)]),{quality:'showcase'});
     assert.equal(diagrams.architecture.checks.check.ok,true);
-    if(count===9)assert.ok(spec.components.some(node=>node.col>0),'readable cyclic expansion remains available');
+    if(count===9)assert.ok(new Set(nodeXs(diagrams.architecture.svg).values()).size>1,'readable cyclic expansion remains available');
     const standard=compileExplainerDiagram('architecture',rows,{id:'ring',quality:'standard'});
     const checked=await prepareExplainerDiagrams(documentOf([blockOf('architecture',standard)]),{quality:'standard'});
     assert.equal(checked.diagrams.architecture.checks.check.ok,true);
@@ -314,8 +326,10 @@ test('cyclic architecture keeps deliverable routes and labels clear of other nod
     { count: 6, edges: 9, rows: [...Array.from({ length: 6 }, (_, i) => `n${5 - i} | Node ${5 - i}`),
       'n0 > n1 | step', 'n1 > n2', 'n2 > n3 | step', 'n3 > n4', 'n4 > n5 | step',
       'n5 > n0', 'n5 > n1 | step', 'n3 > n1', 'n3 > n0 | step'] },
+    { count: 3, edges: 6, qualities: ['showcase'], rows: ['n1 | Wide xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx', 'n2 | n2', 'n0 | n0',
+      'n1 > n0', 'n1 > n0', 'n2 > n1 | primary', 'n1 > n2 | a', 'n0 > n2', 'n1 > n2 | secondary'] },
   ];
-  for (const { count, edges, rows } of examples) for (const quality of ['standard', 'showcase']) {
+  for (const { count, edges, rows, qualities = ['standard', 'showcase'] } of examples) for (const quality of qualities) {
     const spec = compileExplainerDiagram('architecture', rows, { id: 'routes', quality });
     const frozen = JSON.stringify(spec);
     const { diagrams } = await prepareExplainerDiagrams(documentOf([blockOf('architecture', spec)]), { quality });
@@ -331,14 +345,32 @@ test('cyclic workflow preserves deliverability after folding return routes into 
   const examples = [
     { edges: 11, rows: [...Array.from({ length: 8 }, (_, i) => `n${7 - i} | N${7 - i}`), ...ring, 'n1 > n0', 'n1 > n3', 'n4 > n2'] },
     { edges: 8, rows: [...Array.from({ length: 8 }, (_, i) => `n${i} | A detailed verification step with a long label that stays readable on its own row ${i}`), ...ring] },
+    { count: 6, edges: 9, qualities: ['showcase'], rows: [
+      ...Array.from({ length: 6 }, (_, i) => `n${i} | N${i}`),
+      ...Array.from({ length: 6 }, (_, i) => `n${i} > n${(i + 1) % 6}`), 'n0 > n4', 'n1 > n3', 'n2 > n5'] },
   ];
-  for (const { rows, edges } of examples) for (const quality of ['standard', 'showcase']) {
+  for (const { rows, edges, count = 8, qualities = ['standard', 'showcase'] } of examples) for (const quality of qualities) {
     const spec = compileExplainerDiagram('workflow', rows, { id: 'routes', quality });
     const frozen = JSON.stringify(spec);
     const { diagrams } = await prepareExplainerDiagrams(documentOf([blockOf('workflow', spec)]), { quality });
     assert.equal(diagrams.workflow.checks.check.ok, true);
-    assert.equal(diagrams.workflow.semantic.nodes.length, 8);
+    assert.equal(diagrams.workflow.semantic.nodes.length, count);
     assert.equal(diagrams.workflow.semantic.edges.length, edges);
     assert.equal(JSON.stringify(spec), frozen);
   }
+});
+
+test('automatic alternatives do not override explicit or subsequently edited native geometry', async () => {
+  const rows = [...Array.from({length:6},(_,i)=>`n${i} | N${i}`),
+    ...Array.from({length:6},(_,i)=>`n${i} > n${(i+1)%6}`),'n0 > n4','n1 > n3','n2 > n5'];
+  const spec = compileExplainerDiagram('workflow',rows,{id:'ring'});
+  await assert.rejects(prepareExplainerDiagrams(documentOf([blockOf('workflow',structuredClone(spec))])),
+    error=>error.archifyDiagnostics?.some(entry=>entry.code==='explainer/diagram-render'));
+  const prepared = await prepareExplainerDiagrams(documentOf([blockOf('workflow',spec)]));
+  assert.equal(prepared.diagrams.workflow.checks.check.ok,true);
+  assert.equal(prepared.diagrams.workflow.semantic.edges.length,9);
+  const edited = compileExplainerDiagram('architecture',['a | A','b | B','a > b','b > a']);
+  edited.components[0].col = 99;
+  await assert.rejects(prepareExplainerDiagrams(documentOf([blockOf('architecture',edited)])),
+    error=>error.archifyDiagnostics?.length>0);
 });

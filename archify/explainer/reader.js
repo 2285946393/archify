@@ -377,8 +377,8 @@
   all('[data-open-diagram]').forEach(button=>button.addEventListener('click',()=>openViewer(button.dataset.openDiagram,'',button)));
   // A node clicked in the preview opens the interactive view focused on it, with its links.
   all('.diagram-preview').forEach(preview=>preview.addEventListener('click',event=>{
-    const node = event.target.closest('[data-node-id]')?.dataset.nodeId, block = preview.closest('.block');
-    if (node) openViewer(block.id,`focus=${encodeURIComponent(node)}`,block.querySelector('[data-open-diagram]'));
+    const node = event.target.closest('[data-node-id]'), block = preview.closest('.block');
+    if (node) openViewer(block.id,`focus=${encodeURIComponent(node.dataset.nodeId)}`,node.hasAttribute('tabindex') ? node : block.querySelector('[data-open-diagram]'));
   }));
   // One spotlight for every text-to-diagram link: the named nodes and edges stay lit, the rest dims.
   const previewOf = id => byId(id)?.querySelector('.diagram-preview');
