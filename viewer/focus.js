@@ -913,7 +913,7 @@
           inspectRelationship(target.getAttribute('data-relationship-key'));
         });
         relationshipHitOverlay.addEventListener('keydown', function (event) {
-          if (event.isComposing) return;
+          if (event.isComposing || event.keyCode === 229) return;
           var target = event.target.closest('[data-relationship-hit-key]');
           if (!target) return;
           if (event.key === 'Escape' && pinnedRelationshipKey) {
@@ -1500,6 +1500,7 @@
         syncRelationshipPreview();
       });
       relationshipList.addEventListener('keydown', function (event) {
+        if (event.ctrlKey || event.altKey || event.metaKey || event.shiftKey) return;
         if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp' && event.key !== 'Home' && event.key !== 'End') return;
         var buttons = Array.prototype.slice.call(relationshipList.querySelectorAll('[data-relationship-target]'));
         if (!buttons.length) return;
