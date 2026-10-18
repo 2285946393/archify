@@ -180,6 +180,29 @@ test('an authored page style is kept and limited to the shipped styles',()=>{
   assert.equal(validateExplainer(parse('# T\n\nA.\n\n@meta style=neon\n\n## Q {#q}\n\nText.').document).ok,false);
 });
 
+test('node content references reuse explicit prose IDs and follow body edits without changing the native graph',()=>{
+  const draft='# T\n\nRead one shared explanation.\n\n@source docs title="Reference" url=https://example.com\n\n## How? {#how}\n\n@sequence id=flow\n| actor api | API | backend | block:api-notes | source:docs |\n| actor db | DB | database |\n| api | db | Read |\n\n@prose id=api-notes\n| First explanation. |';
+  const original=parse(draft), edited=parse(draft.replace('First explanation.','Updated explanation.'));
+  const block=original.document.panels[0].blocks[0];
+  assert.deepEqual(block.nodeBlocks,{api:'api-notes'});
+  assert.deepEqual(block.nodeSources,{api:'docs'});
+  const reordered=parse(draft.replace('| backend | block:api-notes | source:docs |','| source:docs | backend | block:api-notes |'));
+  assert.deepEqual(reordered.document.panels[0].blocks[0],block,'source cells keep their previously accepted positions');
+  assert.deepEqual(edited.document.panels[0].blocks[0],block);
+  assert.equal(edited.document.panels[0].blocks[1].text,'Updated explanation.');
+  assert.ok(!JSON.stringify(block.spec).includes('api-notes'));
+  assert.equal(validateExplainer(original.document).ok,true);
+  const invalid=parse(draft.replace('block:api-notes','block:missing'));
+  const result=validateExplainer(invalid.document,{sourceMap:invalid.sourceMap});
+  const diagnostic=result.diagnostics.find(entry=>entry.code==='explainer/unresolved-reference');
+  assert.equal(diagnostic.subject.line,10,'a missing reference points to its node row');
+  assert.equal(parseExplainer(draft.replace('block:api-notes','block:api-notes | block:other')).document,null);
+  const recursive=parse(draft.replace('block:api-notes','block:flow'));
+  assert.ok(validateExplainer(recursive.document).diagnostics.some(entry=>entry.code==='explainer/content-reference'));
+  const wrongNode=structuredClone(original.document);wrongNode.panels[0].blocks[0].nodeBlocks={missing:'api-notes'};
+  assert.ok(validateExplainer(wrongNode).diagnostics.some(entry=>entry.code==='explainer/diagram-node'));
+});
+
 test('a badge-only comparison cell and a route written in the node column are accepted',()=>{
   const {document}=parse('# T\n\nA.\n\n## Q {#q}\n\n| Trap | Verdict |\n| --- | --- |\n| Flood car | {bad:Drop} |\n\n@sequence id=flow\n| actor a | A |\n| actor b | B |\n| a | b | hi |\n\n@steps id=walk\n| one | Hello | Detail | flow | a~b |\n| two | Back | Detail | flow | b |');
   assert.deepEqual(document.panels[0].blocks[0].rows[0].cells[0],{text:'Drop',assessment:'bad',verdict:'Drop'});

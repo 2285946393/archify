@@ -236,3 +236,41 @@ test('explainer diagrams: a phase that recurs later in the flow keeps phase rows
   assert.equal(spec.lanes.length, 2, 'the recurring phase stays a lane');
   assert.equal(spec.phases, undefined);
 });
+
+test('explainer diagrams: converging retry branches keep the complete graph and pass native validation', async () => {
+  const declarations = ['enter | Enter', 'check | Check?', 'verify | Verify?', 'record | Record', 'done | Done', 'revise | Revise'];
+  const relations = [
+    'enter > check', 'check > verify | yes', 'verify > record | yes', 'record > done',
+    'check > revise | no', 'verify > revise | no', 'record > revise | error', 'revise > enter | retry | dashed',
+  ];
+  const authored = [...declarations, ...relations];
+  const spec = compileExplainerDiagram('workflow', authored, { id: 'retry', title: 'Review and retry' });
+  const frozen = JSON.stringify(spec);
+  const { diagrams } = await prepareExplainerDiagrams(documentOf([blockOf('workflow', spec, { id: 'retry' })]));
+  assert.equal(diagrams.retry.checks.check.ok, true);
+  assert.equal(JSON.stringify(spec), frozen, 'native layout cannot rewrite the input');
+  assert.deepEqual(authored, [...declarations, ...relations]);
+  assert.deepEqual(diagrams.retry.semantic.nodes.map(node => node.id).sort(), ['enter', 'check', 'verify', 'record', 'done', 'revise'].sort());
+  assert.deepEqual(diagrams.retry.semantic.edges.map(({ from, to, label }) => [from, to, label]).sort(), [
+    ['enter', 'check', ''], ['check', 'verify', 'yes'], ['verify', 'record', 'yes'], ['record', 'done', ''],
+    ['check', 'revise', 'no'], ['verify', 'revise', 'no'], ['record', 'revise', 'error'], ['revise', 'enter', 'retry'],
+  ].sort());
+  assert.equal(diagrams.retry.spec.edges.find(edge => edge.from === 'revise').variant, 'dashed');
+});
+
+test('explainer diagrams: cyclic placement retains disconnected nodes, parallel returns and downstream exits', () => {
+  const rows = ['enter | Enter', 'check | Check?', 'exit | Exit', 'other | Independent',
+    'enter > check | request', 'check > enter | retry | dashed', 'check > enter | rejected | security',
+    'check > exit | accepted', 'other > other | repeat'];
+  for (const type of ['workflow', 'architecture']) {
+    const spec = compileExplainerDiagram(type, rows, { id: 'cycles' });
+    const nodes = spec.nodes || spec.components, edges = spec.edges || spec.connections;
+    assert.equal(nodes.length, 4);
+    assert.equal(edges.length, 5);
+    assert.equal(edges.filter(edge => edge.from === 'check' && edge.to === 'enter').length, 2);
+    assert.ok(edges.some(edge => edge.from === 'other' && edge.to === 'other'));
+    assert.ok(nodes.find(node => node.id === 'exit').col > nodes.find(node => node.id === 'check').col,
+      'an exit after a cycle must remain downstream, rather than falling into column zero');
+    assert.deepEqual(compileExplainerDiagram(type, rows, { id: 'cycles' }), spec, 'repeat rendering is deterministic');
+  }
+});

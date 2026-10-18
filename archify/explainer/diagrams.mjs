@@ -79,25 +79,40 @@ function workflowWidth(nodes, edges) {
 // ports, routes, labels, and all quality validation.
 function rankedPlacement(nodes, edges) {
   const ids = new Set(nodes.map(node => node.id));
+  const outgoing = new Map(nodes.map(node => [node.id, []]));
+  for (const edge of edges) if (ids.has(edge.from) && ids.has(edge.to) && edge.from !== edge.to) outgoing.get(edge.from).push(edge);
+  // Only the placement graph omits DFS back edges. The native spec keeps every
+  // authored relationship, including returns, parallel edges and self loops.
+  const forward = new Map(nodes.map(node => [node.id, []]));
+  const state = new Map();
+  for (const node of nodes) {
+    if (state.has(node.id)) continue;
+    const stack = [{ id: node.id, next: 0 }];
+    state.set(node.id, 1);
+    while (stack.length) {
+      const frame = stack.at(-1), edge = outgoing.get(frame.id)[frame.next++];
+      if (!edge) { state.set(frame.id, 2); stack.pop(); continue; }
+      if (state.get(edge.to) === 1) continue;
+      forward.get(frame.id).push(edge);
+      if (!state.has(edge.to)) { state.set(edge.to, 1); stack.push({ id: edge.to, next: 0 }); }
+    }
+  }
   const incoming = new Map(nodes.map(node => [node.id, 0]));
-  for (const edge of edges) if (ids.has(edge.from) && ids.has(edge.to) && edge.from !== edge.to) incoming.set(edge.to, incoming.get(edge.to) + 1);
+  for (const links of forward.values()) for (const edge of links) incoming.set(edge.to, incoming.get(edge.to) + 1);
   const rank = new Map();
   const queue = nodes.filter(node => incoming.get(node.id) === 0).map(node => node.id);
   const visit = id => {
     if (!rank.has(id)) rank.set(id, 0);
-    for (const edge of edges.filter(edge => edge.from === id && edge.to !== id)) {
-      if (!ids.has(edge.to)) continue;
+    for (const edge of forward.get(id)) {
       incoming.set(edge.to, incoming.get(edge.to) - 1);
       rank.set(edge.to, Math.max(rank.get(edge.to) || 0, rank.get(id) + 1));
       if (incoming.get(edge.to) === 0) queue.push(edge.to);
     }
   };
   for (let cursor = 0; cursor < queue.length; cursor++) visit(queue[cursor]);
-  // A cyclic remainder stays a deterministic separate row; no authored edge is
-  // dropped or converted into an invented forward relation.
   const nextRow = new Map();
   return nodes.map(node => {
-    const col = rank.has(node.id) && incoming.get(node.id) === 0 ? rank.get(node.id) : 0;
+    const col = rank.get(node.id);
     const row = nextRow.get(col) || 0;
     nextRow.set(col, row + 1);
     return { ...node, row, col };
