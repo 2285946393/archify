@@ -29,6 +29,7 @@ export const browserTestFiles = [
   'crossover-state-browser.test.mjs',
   'semantic-passport-move-browser.test.mjs',
   'export-browser.test.mjs',
+  'menu-modifier-browser.test.mjs',
   'export-selection-browser.test.mjs',
   'sequence-note-export-browser.test.mjs',
   'viewer-identifiers-browser.test.mjs',
@@ -41,4 +42,6 @@ export const browserTestFiles = [
   'lifecycle-note-contrast-browser.test.mjs',
   'sequence-segment-contrast-browser.test.mjs',
   'toolbar-keyboard-browser.test.mjs',
+  'bottom-node-index-browser.test.mjs',
+  'explainer-browser.test.mjs',
 ];
