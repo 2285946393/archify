@@ -16,18 +16,21 @@ function temporary(t) {const dir=fs.mkdtempSync(path.join(os.tmpdir(),'archify-e
 function write(dir,document=fixture()) {const input=path.join(dir,'author-draft.json');fs.writeFileSync(input,JSON.stringify(document,null,2)+'\n');return input;}
 function bundle(file) {const scripts=scanHtml(fs.readFileSync(file,'utf8')).scripts;return JSON.parse(scripts.find(script=>script.attrs.id==='archify-explainer-prepared').text);}
 
-test('compact cyclic architecture remains deliverable with a stricter quality override',t=>{
+test('compact cyclic diagrams remain deliverable with a stricter quality override',t=>{
   const dir=temporary(t),input=path.join(dir,'ring.archify.md'),output=path.join(dir,'ring.html');
-  const rows=[...Array.from({length:10},(_,i)=>`n${i} | Node ${i}`),...Array.from({length:10},(_,i)=>`n${i} > n${(i+1)%10}`)];
-  const source=`# Ring\n\nKeep every connection readable.\n\n@meta quality_profile=standard\n\n## Connections {#connections}\n\n@architecture id=ring\n${rows.map(row=>`| ${row} |`).join('\n')}\n`;
-  fs.writeFileSync(input,source);
-  const delivered=run(['deliver','explainer',input,output,'--quality','showcase','--json']);
-  assert.equal(delivered.status,0,delivered.stdout+delivered.stderr);
-  assert.equal(bundle(output).quality,'showcase');
-  assert.equal(bundle(output).document.meta.quality_profile,'standard');
-  assert.equal(fs.readFileSync(input,'utf8'),source);
-  const checked=run(['check',output,'--json','--require-provenance']);
-  assert.equal(checked.status,0,checked.stdout+checked.stderr);
+  const examples=[{type:'architecture',rows:[...Array.from({length:10},(_,i)=>`n${i} | Node ${i}`),...Array.from({length:10},(_,i)=>`n${i} > n${(i+1)%10}`)]},
+    {type:'workflow',rows:[...Array.from({length:8},(_,i)=>`n${7-i} | N${7-i}`),...Array.from({length:8},(_,i)=>`n${i} > n${(i+1)%8}`),'n1 > n0','n1 > n3','n4 > n2']}];
+  for(const {type,rows} of examples){
+    const source=`# Ring\n\nKeep every connection readable.\n\n@meta quality_profile=standard\n\n## Connections {#connections}\n\n@${type} id=ring\n${rows.map(row=>`| ${row} |`).join('\n')}\n`;
+    fs.writeFileSync(input,source);
+    const delivered=run(['deliver','explainer',input,output,'--quality','showcase','--json']);
+    assert.equal(delivered.status,0,delivered.stdout+delivered.stderr);
+    assert.equal(bundle(output).quality,'showcase');
+    assert.equal(bundle(output).document.meta.quality_profile,'standard');
+    assert.equal(fs.readFileSync(input,'utf8'),source);
+    const checked=run(['check',output,'--json','--require-provenance']);
+    assert.equal(checked.status,0,checked.stdout+checked.stderr);
+  }
 });
 
 test('explainer CLI binds original draft bytes through validate, deliver and strict check',t=>{

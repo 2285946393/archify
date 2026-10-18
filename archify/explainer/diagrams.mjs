@@ -9,9 +9,10 @@ import { textUnits, SEMANTIC_SIGIL_FOOTPRINT } from '../renderers/shared/utils.m
 import { minimumNodeTextWidth, fittedNodeFontSize } from '../renderers/shared/text-fit.mjs';
 import { declaredWideReadabilityBudget, projectedNodeTextPx, MIN_PROJECTED_NODE_TEXT_PX } from '../renderers/shared/desktop-readability.mjs';
 import { gridLayout, resolveComponentPos } from '../renderers/architecture/grid.mjs';
+import { compileWorkflow } from '../renderers/workflow/workflow-compiler.mjs';
 import { createArchitectureRouter, connectionLabelBoxAt } from '../renderers/architecture/routing.mjs';
 import { cleanFlowProblems, cleanAmbiguousCorridorProblems, cleanRouteRhythmProblems, collectArrowheadCollisions, labelPoint, rectsOverlap } from '../renderers/shared/geometry.mjs';
-import { throwDiagnosticError, withDiagnosticRecordingSuppressed } from '../renderers/shared/diagnostics.mjs';
+import { throwDiagnosticError, withDiagnosticRecordingSuppressed, withIsolatedDiagnosticRecording } from '../renderers/shared/diagnostics.mjs';
 import { createOwnedTempDirectory } from '../renderers/shared/owned-temp-directory.mjs';
 
 const runFile = promisify(execFile);
@@ -244,8 +245,78 @@ export function compileExplainerDiagram(diagramType, rows, { title, id, line = 1
       return { layout: { ...architectureLayout, cols },
         components: placed.map(node => ({ ...node, row: rowOf.get(node.id), ...(fitWidth(node) > 120 ? { size: [fitWidth(node), 60] } : {}) })), connections: edges };
     };
+    const workflowModel = placed => {
+      const model = {};
+      if (lanes.size) {
+        for (const [id, { lane, context: ctx }] of nodeLanes) if (!lanes.has(lane)) fail(ctx, 'diagram-lane', `Node ${id} names an undeclared lane.`, 'lane locate | Locate the cause');
+        const first = lanes.keys().next().value;
+        const order = [...lanes.keys()];
+        const ranked = [...placed].sort((a, b) => a.col - b.col || a.row - b.row).map(({ row, col, ...node }) => ({ ...node, lane: nodeLanes.get(node.id)?.lane || first }));
+        // Prefer, in order: one row with phase labels above it; phase rows that step down so each hand-off
+        // edge drops straight; phase rows that each restart at the left. Take the first that stays within
+        // the readable width, since a wider canvas shrinks its edge labels below the native text floor.
+        const row = [...ranked].sort((a, b) => order.indexOf(a.lane) - order.indexOf(b.lane));
+        const used = [...lanes.values()].filter(lane => ranked.some(node => node.lane === lane.id));
+        const sizes = used.map(lane => ranked.filter(node => node.lane === lane.id).length);
+        const wrapped = stair => {
+          const starts = sizes.map((_, i) => stair ? sizes.slice(0, i).reduce((sum, size) => sum + size - 1, 0) : 0);
+          const nextCol = new Map(used.map((lane, i) => [lane.id, starts[i]]));
+          return ranked.map(node => { const col = nextCol.get(node.lane); nextCol.set(node.lane, col + 1); return { ...node, col }; });
+        };
+        const single = row.map(({ lane, ...node }, col) => ({ ...node, lane: 'flow', col }));
+        // Grouping by phase keeps the flow order only when each phase is one stretch of the flow.
+        const inOrder = ranked.every((node, i) => i === 0 || order.indexOf(node.lane) >= order.indexOf(ranked[i - 1].lane));
+        const candidates = [
+          ...(inOrder && ranked.length <= 6 && placed.every(node => node.row === 0) ? [{ nodes: single, single: true }] : []),
+          ...(inOrder && sizes.reduce((sum, size) => sum + size, 0) - (sizes.length - 1) <= 6 ? [{ nodes: wrapped(true) }] : []),
+          { nodes: wrapped(false) },
+        ];
+        const chosen = candidates.find(candidate => workflowWidth(candidate.nodes, edges) <= READABLE_WORKFLOW_WIDTH) || candidates.at(-1);
+        model.nodes = chosen.nodes;
+        if (chosen.single) {
+          model.lanes = [{ id: 'flow', label: spec.meta.title }];
+          model.phases = order.map(id => ({ id, label: lanes.get(id).label, cols: row.flatMap((node, col) => node.lane === id ? [col] : []) })).filter(phase => phase.cols.length).map(({ cols, ...phase }) => ({ ...phase, fromCol: cols[0], toCol: cols.at(-1) }));
+        } else model.lanes = used;
+        if (model.nodes.some(node => node.col > 5)) fail(context, 'diagram-shorthand-limit', 'A workflow lane holds at most six nodes.', 'Split the process into another lane.');
+        model.edges = edges;
+      } else {
+        // A process too wide for one readable row wraps by columns into stacked bands, keeping each
+        // band's branch rows, and steps each band down under the end of the previous one where six
+        // columns allow, the same way declared phases do.
+        const fits = laid => laid.every(node => node.col <= 5) && workflowWidth(laid, edges) <= READABLE_WORKFLOW_WIDTH;
+        let wrapped;
+        if (!fits(placed)) {
+          const branchRows = Math.max(...placed.map(node => node.row)) + 1;
+          for (let size = 5; size >= 2 && !wrapped; size--) {
+            for (const stair of [true, false]) {
+              const laid = placed.map(node => { const band = Math.floor(node.col / size); return { ...node, row: band * branchRows + node.row, col: (stair ? band * (size - 1) : 0) + node.col - band * size }; });
+              const used = [...new Set(laid.map(node => node.row))].sort((a, b) => a - b);
+              const compact = laid.map(node => ({ ...node, row: used.indexOf(node.row) }));
+              if (fits(compact)) { wrapped = compact; break; }
+            }
+          }
+        }
+        const rows = wrapped || placed;
+        if (rows.some(node => node.col > 5)) fail(context, 'diagram-shorthand-limit', 'Native workflow columns are limited to 0–5.', 'Declare phase lanes with "lane <id> | label" rows and assign nodes to them.');
+        model.lanes = Array.from({ length: Math.max(1, ...rows.map(node => node.row + 1)) }, (_, row) => ({ id: `lane-${row}`, label: wrapped ? `${spec.meta.title} · ${row + 1}` : row ? `分支 ${row}` : spec.meta.title }));
+        model.nodes = rows.map(({ row, ...node }) => ({ ...node, lane: `lane-${row}` }));
+        model.edges = edges;
+      }
+      return model;
+    };
     const acceptsPlacement = placed => {
-      if (!architectureLayout) return true;
+      if (!architectureLayout) {
+        return withIsolatedDiagnosticRecording(() => {
+          let workflow;
+          try { workflow = { ...spec, ...workflowModel(placed) }; }
+          catch (error) {
+            if (error.archifyDiagnostics?.every(diagnostic => diagnostic.code === 'explainer/diagram-shorthand-limit')) return false;
+            throw error;
+          }
+          // Check both supported profiles so a later CLI override stays safe.
+          return ['standard', 'showcase'].every(qualityProfile => compileWorkflow({ workflow, qualityProfile }).ok);
+        });
+      }
       const model = architectureModel(placed), grid = gridLayout(model);
       const measured = model.components.map(node => {
         const [x, y] = resolveComponentPos(node, grid), [width, height] = node.size || [120, 60];
@@ -276,63 +347,7 @@ export function compileExplainerDiagram(diagramType, rows, { title, id, line = 1
       });
     };
     const placed = rankedPlacement(nodes, edges, diagramType === 'architecture' ? 12 : Infinity, acceptsPlacement);
-    if (diagramType === 'architecture') {
-      Object.assign(spec, architectureModel(placed));
-    } else if (lanes.size) {
-      for (const [id, { lane, context: ctx }] of nodeLanes) if (!lanes.has(lane)) fail(ctx, 'diagram-lane', `Node ${id} names an undeclared lane.`, 'lane locate | Locate the cause');
-      const first = lanes.keys().next().value;
-      const order = [...lanes.keys()];
-      const ranked = [...placed].sort((a, b) => a.col - b.col || a.row - b.row).map(({ row, col, ...node }) => ({ ...node, lane: nodeLanes.get(node.id)?.lane || first }));
-      // Prefer, in order: one row with phase labels above it; phase rows that step down so each hand-off
-      // edge drops straight; phase rows that each restart at the left. Take the first that stays within
-      // the readable width, since a wider canvas shrinks its edge labels below the native text floor.
-      const row = [...ranked].sort((a, b) => order.indexOf(a.lane) - order.indexOf(b.lane));
-      const used = [...lanes.values()].filter(lane => ranked.some(node => node.lane === lane.id));
-      const sizes = used.map(lane => ranked.filter(node => node.lane === lane.id).length);
-      const wrapped = stair => {
-        const starts = sizes.map((_, i) => stair ? sizes.slice(0, i).reduce((sum, size) => sum + size - 1, 0) : 0);
-        const nextCol = new Map(used.map((lane, i) => [lane.id, starts[i]]));
-        return ranked.map(node => { const col = nextCol.get(node.lane); nextCol.set(node.lane, col + 1); return { ...node, col }; });
-      };
-      const single = row.map(({ lane, ...node }, col) => ({ ...node, lane: 'flow', col }));
-      // Grouping by phase keeps the flow order only when each phase is one stretch of the flow.
-      const inOrder = ranked.every((node, i) => i === 0 || order.indexOf(node.lane) >= order.indexOf(ranked[i - 1].lane));
-      const candidates = [
-        ...(inOrder && ranked.length <= 6 && placed.every(node => node.row === 0) ? [{ nodes: single, single: true }] : []),
-        ...(inOrder && sizes.reduce((sum, size) => sum + size, 0) - (sizes.length - 1) <= 6 ? [{ nodes: wrapped(true) }] : []),
-        { nodes: wrapped(false) },
-      ];
-      const chosen = candidates.find(candidate => workflowWidth(candidate.nodes, edges) <= READABLE_WORKFLOW_WIDTH) || candidates.at(-1);
-      spec.nodes = chosen.nodes;
-      if (chosen.single) {
-        spec.lanes = [{ id: 'flow', label: spec.meta.title }];
-        spec.phases = order.map(id => ({ id, label: lanes.get(id).label, cols: row.flatMap((node, col) => node.lane === id ? [col] : []) })).filter(phase => phase.cols.length).map(({ cols, ...phase }) => ({ ...phase, fromCol: cols[0], toCol: cols.at(-1) }));
-      } else spec.lanes = used;
-      if (spec.nodes.some(node => node.col > 5)) fail(context, 'diagram-shorthand-limit', 'A workflow lane holds at most six nodes.', 'Split the process into another lane.');
-      spec.edges = edges;
-    } else {
-      // A process too wide for one readable row wraps by columns into stacked bands, keeping each
-      // band's branch rows, and steps each band down under the end of the previous one where six
-      // columns allow, the same way declared phases do.
-      const fits = laid => laid.every(node => node.col <= 5) && workflowWidth(laid, edges) <= READABLE_WORKFLOW_WIDTH;
-      let wrapped;
-      if (!fits(placed)) {
-        const branchRows = Math.max(...placed.map(node => node.row)) + 1;
-        for (let size = 5; size >= 2 && !wrapped; size--) {
-          for (const stair of [true, false]) {
-            const laid = placed.map(node => { const band = Math.floor(node.col / size); return { ...node, row: band * branchRows + node.row, col: (stair ? band * (size - 1) : 0) + node.col - band * size }; });
-            const used = [...new Set(laid.map(node => node.row))].sort((a, b) => a - b);
-            const compact = laid.map(node => ({ ...node, row: used.indexOf(node.row) }));
-            if (fits(compact)) { wrapped = compact; break; }
-          }
-        }
-      }
-      const rows = wrapped || placed;
-      if (rows.some(node => node.col > 5)) fail(context, 'diagram-shorthand-limit', 'Native workflow columns are limited to 0–5.', 'Declare phase lanes with "lane <id> | label" rows and assign nodes to them.');
-      spec.lanes = Array.from({ length: Math.max(1, ...rows.map(node => node.row + 1)) }, (_, row) => ({ id: `lane-${row}`, label: wrapped ? `${spec.meta.title} · ${row + 1}` : row ? `分支 ${row}` : spec.meta.title }));
-      spec.nodes = rows.map(({ row, ...node }) => ({ ...node, lane: `lane-${row}` }));
-      spec.edges = edges;
-    }
+    Object.assign(spec, architectureLayout ? architectureModel(placed) : workflowModel(placed));
   } else if (diagramType === 'tree') {
     spec.nodes = entries.map((entry, index) => {
       expect(entry, 2, 3, 'api | API 服务 | root');

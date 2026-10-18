@@ -259,9 +259,9 @@ test('explainer diagrams: converging retry branches keep the complete graph and 
 });
 
 test('explainer diagrams: cyclic placement retains disconnected nodes, parallel returns and downstream exits', () => {
-  const rows = ['enter | Enter', 'check | Check?', 'exit | Exit', 'other | Independent',
-    'enter > check | request', 'check > enter | retry | dashed', 'check > enter | rejected | security',
-    'check > exit | accepted', 'other > other | repeat'];
+  const flow = ['enter | Enter', 'check | Check?', 'exit | Exit', 'other | Independent',
+    'enter > check | request', 'check > enter | retry | dashed', 'check > exit | accepted'];
+  const rows = [...flow, 'check > enter | rejected | security', 'other > other | repeat'];
   for (const type of ['workflow', 'architecture']) {
     const spec = compileExplainerDiagram(type, rows, { id: 'cycles' });
     const nodes = spec.nodes || spec.components, edges = spec.edges || spec.connections;
@@ -269,7 +269,9 @@ test('explainer diagrams: cyclic placement retains disconnected nodes, parallel 
     assert.equal(edges.length, 5);
     assert.equal(edges.filter(edge => edge.from === 'check' && edge.to === 'enter').length, 2);
     assert.ok(edges.some(edge => edge.from === 'other' && edge.to === 'other'));
-    assert.ok(nodes.find(node => node.id === 'exit').col > nodes.find(node => node.id === 'check').col,
+    const unfolded = compileExplainerDiagram(type, flow, { id: 'flow' });
+    const forward = unfolded.nodes || unfolded.components;
+    assert.ok(forward.find(node => node.id === 'exit').col > forward.find(node => node.id === 'check').col,
       'an exit after a cycle must remain downstream, rather than falling into column zero');
     assert.deepEqual(compileExplainerDiagram(type, rows, { id: 'cycles' }), spec, 'repeat rendering is deterministic');
   }
@@ -321,5 +323,22 @@ test('cyclic architecture keeps deliverable routes and labels clear of other nod
     assert.equal(diagrams.architecture.semantic.nodes.length, count);
     assert.equal(diagrams.architecture.semantic.edges.length, edges);
     assert.equal(JSON.stringify(spec), frozen, 'native checks preserve the compiled input');
+  }
+});
+
+test('cyclic workflow preserves deliverability after folding return routes into lanes', async () => {
+  const ring = Array.from({ length: 8 }, (_, i) => `n${i} > n${(i + 1) % 8}`);
+  const examples = [
+    { edges: 11, rows: [...Array.from({ length: 8 }, (_, i) => `n${7 - i} | N${7 - i}`), ...ring, 'n1 > n0', 'n1 > n3', 'n4 > n2'] },
+    { edges: 8, rows: [...Array.from({ length: 8 }, (_, i) => `n${i} | A detailed verification step with a long label that stays readable on its own row ${i}`), ...ring] },
+  ];
+  for (const { rows, edges } of examples) for (const quality of ['standard', 'showcase']) {
+    const spec = compileExplainerDiagram('workflow', rows, { id: 'routes', quality });
+    const frozen = JSON.stringify(spec);
+    const { diagrams } = await prepareExplainerDiagrams(documentOf([blockOf('workflow', spec)]), { quality });
+    assert.equal(diagrams.workflow.checks.check.ok, true);
+    assert.equal(diagrams.workflow.semantic.nodes.length, 8);
+    assert.equal(diagrams.workflow.semantic.edges.length, edges);
+    assert.equal(JSON.stringify(spec), frozen);
   }
 });
