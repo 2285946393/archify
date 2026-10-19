@@ -153,30 +153,29 @@ test('labels that cannot be displayed faithfully fail before replacing a previou
   const before = context.run(JSON.stringify([{ name: 'Ordinary', value: 60 }, { name: 'Second', value: 40 }]));
   includesLabels(successful(before), ['Ordinary', 'Second']);
   for (const label of [
-    'North\u0000South', 'North\tSouth', ' North', 'North ', 'North  South', 'North\ud800South',
+    'North\u0000South', 'North\ud800South', '', ' \t ',
     'North\u0085South', 'North\u2028South', 'North\u2029South',
-    'North\n South', 'North \nSouth',
   ]) {
     rejectedWithoutPublication(context, JSON.stringify([{ name: label, value: 60 }]), before.html, JSON.stringify(label));
   }
 });
 
-test('CSV label whitespace is not silently trimmed into another category', t => {
-  const context = setup(t);
-  const before = context.run('name,value\nOrdinary,60\nSecond,40\n');
-  successful(before);
-  for (const csv of [
-    'name,value\n" North",60\n',
-    'name,value\n"North ",60\n',
-    'name,value\n North,60\n',
-    'name,value\nNorth ,60\n',
-    'name,value\n"North\tSouth",60\n',
-  ]) rejectedWithoutPublication(context, csv, before.html, 'CSV label whitespace');
+test('ordinary label whitespace is normalized for display without changing data', t => {
+  const csv = setup(t);
+  includesLabels(successful(csv.run('name,value\n" North  America ",60\n"South\tWest",40\n"East\n Coast",20\n')),
+    ['North America', 'South West', 'East\nCoast']);
+  const series = ' p99\tms ', unit = ' ms  wall ';
+  const json = setup(t, { file: 'values.json', kind: 'line', y: [series], unit });
+  includesLabels(successful(json.run(JSON.stringify([{ name: ' North ', [series]: 60 }, { name: 'South\n East', [series]: 40 }]))),
+    ['North', 'South\nEast', 'p99 ms', 'ms wall']);
+  const pie = setup(t, { file: 'values.json', kind: 'pie' });
+  includesLabels(successful(pie.run(JSON.stringify([{ name: ' North  America ', value: 60 }, { name: 'South\tWest', value: 40 }]))),
+    ['North America · 60 (60%)', 'South West · 40 (40%)']);
 });
 
 test('unrepresentable series names and units are diagnosed without publishing a modified label', t => {
   // 横轴标签、序列名与单位都会进入图表文本；仅检验横轴会漏掉另外两个入口。
-  for (const [field, value] of [['series', 'p99\tms'], ['unit', 'ms  wall']]) {
+  for (const [field, value] of [['series', 'p99\u0000ms'], ['unit', 'ms\u0000wall']]) {
     const context = setup(t, { file: 'values.json', ...(field === 'series' ? { y: [value] } : { unit: value }) });
     const bytes = JSON.stringify([{ name: 'Ordinary', [field === 'series' ? value : 'value']: 60 }]);
     const result = context.run(bytes);

@@ -209,7 +209,7 @@ Name each series (`bar "Before" [...]`) so the chart gets a legend. Bars show th
 
 分类标签、系列名称和单位中的双引号与反斜线按原文显示。CSV 中含逗号或换行的字段须用双引号包围，字段内的字面双引号写成 `""`；引号内的 CRLF、CR 或 LF 作为字段内换行处理，不拆成新记录。未闭合引号、引号后多余内容、重复的选中列名或列数不匹配会报错，并提供行、字段或列名等定位信息和修复提示。
 
-解析后的标签含无法忠实显示的控制字符、Unicode 行／段落分隔符（U+2028／U+2029，请改用 LF）、孤立 Unicode 代理项、每行首尾空白、制表符或连续空格时，交付报错并保留旧产物，不会静默删改标签；CSV 标签字段无论是否加引号都适用。表头仍去掉列名两侧的空白。现有图表类型、数值规则、文件范围检查、依赖冻结和原子交付机制保持不变。
+解析后的标签含无法忠实显示的控制字符、Unicode 行／段落分隔符（U+2028／U+2029，请改用 LF）、孤立 Unicode 代理项，或标签仅含空白时，交付报错并保留旧产物，不会静默删改标签；普通标签的每行首尾空白会去除，Tab 和连续空格按单个空格显示，保留换行；这属于显示排版，不修改原始数据文件，也不阻断交付。CSV 标签字段无论是否加引号都适用。表头仍去掉列名两侧的空白。现有图表类型、数值规则、文件范围检查、依赖冻结和原子交付机制保持不变。
 
 A chart states where its numbers come from the same way text does: measured, from a source, estimated or illustrative, in its caption or in scope. Quote every label that contains spaces or non-ASCII text. Flowcharts, sequences, class, ER, state, timeline and mind-map Mermaid use the native shorthand above, which Archify validates and lets readers explore.
 

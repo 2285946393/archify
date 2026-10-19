@@ -108,16 +108,14 @@ function dataLabel(value, subject) {
       || (typeof value === 'number' && !Number.isFinite(value))) {
     return { error: `${subject} must be text, a finite number or a boolean. Supply an explicit category label.` };
   }
-  const text = String(value).replace(/\r\n?/gu, '\n');
+  let text = String(value).replace(/\r\n?/gu, '\n');
   if (/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f\u2028\u2029\ud800-\udfff]/u.test(text)) {
     return { error: `${subject} contains a control character, Unicode line/paragraph separator or unpaired surrogate that the chart renderer cannot preserve. Use valid display text and LF line breaks.` };
   }
-  if (!text || text.trim() !== text || text.split('\n').some(line => line.trim() !== line)) {
-    return { error: `${subject} is empty or has whitespace at a line boundary that the chart renderer trims. Supply a label without leading or trailing whitespace on each line.` };
-  }
-  if (/\t| {2,}/u.test(text)) {
-    return { error: `${subject} contains tabs or repeated spaces that the chart renderer collapses. Use single spaces or explicit line breaks in the label.` };
-  }
+  // Ordinary label spacing is presentation, not a reason to reject a chart.
+  // Keep line breaks and original data bytes; normalize only the display label.
+  text = text.split('\n').map(line => line.replace(/[ \t]+/gu, ' ').trim()).join('\n').trim();
+  if (!text) return { error: `${subject} is empty. Supply a nonblank category label.` };
   return { text: `"${text.replace(/[&"\\<>#%:¶]/gu, character => DATA_LABEL_ENTITIES[character])}"` };
 }
 
