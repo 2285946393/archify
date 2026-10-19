@@ -7,7 +7,7 @@
   "source": {
     "repository": "https://github.com/tt-a1i/archify",
     "ref": "v3.2.0",
-    "treeSha": "7f87451866bb04eb0fadcac4c67bdc5cf351bd73"
+    "treeSha": "39069dd190f574064fe410aa3af1b6dfd98a522c"
   },
   "artifact": {
     "sha256": "70e210265c59f24dcbdf2a502ff671104b5454e7ee7d3554aecd86bad32384f5"
