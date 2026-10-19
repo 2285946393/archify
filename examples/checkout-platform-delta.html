@@ -14229,6 +14229,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           inspectRelationship(target.getAttribute(&#39;data-relationship-key&#39;));
         });
         relationshipHitOverlay.addEventListener(&#39;keydown&#39;, function (event) {
+          if (event.isComposing || event.keyCode === 229) return;
           var target = event.target.closest(&#39;[data-relationship-hit-key]&#39;);
           if (!target) return;
           if (event.key === &#39;Escape&#39; &amp;&amp; pinnedRelationshipKey) {
@@ -15655,6 +15656,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         chooseRail(RAIL_PLACEMENT_KEY, toBottom ? &#39;bottom&#39; : &#39;right&#39;);
       });
       document.addEventListener(&#39;keydown&#39;, function (event) {
+        if (event.isComposing || event.keyCode === 229) return;
         if (event.key === &#39;Escape&#39; &amp;&amp; html.getAttribute(&#39;data-reader-rail&#39;) === &#39;overlay&#39;) collapseRail();
       });
       document.addEventListener(&#39;pointerdown&#39;, function (event) {
@@ -17245,6 +17247,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         if (node) focusNode(node.getAttribute(&#39;data-radar-node-id&#39;));
       });
       surface.addEventListener(&#39;keydown&#39;, function (event) {
+        if (event.isComposing || event.keyCode === 229) return;
         if (event.key === &#39;Escape&#39;) {
           event.preventDefault();
           event.stopPropagation();
@@ -17273,6 +17276,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         sync();
       });
       document.addEventListener(&#39;keydown&#39;, function (event) {
+        if (event.isComposing || event.keyCode === 229) return;
         if (!panelDrag || event.key !== &#39;Escape&#39;) return;
         finishPanelDrag({
           pointerId: panelDrag.pointerId,
@@ -17310,6 +17314,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         count: function () { return nodes.length; }
       };
     })();
+
 
     /* ============================================================
        Presentation Stage — a shareable, viewport-filling live view.
@@ -17604,6 +17609,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       closeBtn.addEventListener(&#39;click&#39;, function () { close(); });
       input.addEventListener(&#39;input&#39;, function () { render(input.value); });
       input.addEventListener(&#39;keydown&#39;, function (event) {
+        if (event.isComposing || event.keyCode === 229) return;
         if (event.ctrlKey || event.altKey || event.metaKey || event.shiftKey) return;
         var buttons = resultButtons();
         if (event.key === &#39;ArrowDown&#39; &amp;&amp; buttons.length) {
@@ -17615,6 +17621,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         }
       });
       results.addEventListener(&#39;keydown&#39;, function (event) {
+        if (event.isComposing || event.keyCode === 229) return;
         if (event.ctrlKey || event.altKey || event.metaKey || event.shiftKey) return;
         var buttons = resultButtons();
         var index = buttons.indexOf(document.activeElement);
@@ -17630,6 +17637,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         }
       });
       panel.addEventListener(&#39;keydown&#39;, function (event) {
+        if (event.isComposing || event.keyCode === 229) return;
         if (event.key !== &#39;Escape&#39;) return;
         event.preventDefault();
         event.stopPropagation();
@@ -19443,6 +19451,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         if (next !== null) { event.preventDefault(); buttons[next].focus(); }
       });
       panel.addEventListener(&#39;keydown&#39;, function (event) {
+        if (event.isComposing || event.keyCode === 229) return;
         if (event.key !== &#39;Escape&#39;) return;
         event.preventDefault();
         event.stopPropagation();
@@ -19604,6 +19613,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         execute(button.getAttribute(&#39;data-guide-action&#39;));
       });
       panel.addEventListener(&#39;keydown&#39;, function (event) {
+        if (event.isComposing || event.keyCode === 229) return;
         if (event.key === &#39;Escape&#39; || event.key === &#39;?&#39;) {
           event.preventDefault();
           event.stopPropagation();
@@ -29377,6 +29387,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           inspectRelationship(target.getAttribute(&#39;data-relationship-key&#39;));
         });
         relationshipHitOverlay.addEventListener(&#39;keydown&#39;, function (event) {
+          if (event.isComposing || event.keyCode === 229) return;
           var target = event.target.closest(&#39;[data-relationship-hit-key]&#39;);
           if (!target) return;
           if (event.key === &#39;Escape&#39; &amp;&amp; pinnedRelationshipKey) {
@@ -30803,6 +30814,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         chooseRail(RAIL_PLACEMENT_KEY, toBottom ? &#39;bottom&#39; : &#39;right&#39;);
       });
       document.addEventListener(&#39;keydown&#39;, function (event) {
+        if (event.isComposing || event.keyCode === 229) return;
         if (event.key === &#39;Escape&#39; &amp;&amp; html.getAttribute(&#39;data-reader-rail&#39;) === &#39;overlay&#39;) collapseRail();
       });
       document.addEventListener(&#39;pointerdown&#39;, function (event) {
@@ -32393,6 +32405,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         if (node) focusNode(node.getAttribute(&#39;data-radar-node-id&#39;));
       });
       surface.addEventListener(&#39;keydown&#39;, function (event) {
+        if (event.isComposing || event.keyCode === 229) return;
         if (event.key === &#39;Escape&#39;) {
           event.preventDefault();
           event.stopPropagation();
@@ -32421,6 +32434,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         sync();
       });
       document.addEventListener(&#39;keydown&#39;, function (event) {
+        if (event.isComposing || event.keyCode === 229) return;
         if (!panelDrag || event.key !== &#39;Escape&#39;) return;
         finishPanelDrag({
           pointerId: panelDrag.pointerId,
@@ -32458,6 +32472,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         count: function () { return nodes.length; }
       };
     })();
+
 
     /* ============================================================
        Presentation Stage — a shareable, viewport-filling live view.
@@ -32752,6 +32767,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       closeBtn.addEventListener(&#39;click&#39;, function () { close(); });
       input.addEventListener(&#39;input&#39;, function () { render(input.value); });
       input.addEventListener(&#39;keydown&#39;, function (event) {
+        if (event.isComposing || event.keyCode === 229) return;
         if (event.ctrlKey || event.altKey || event.metaKey || event.shiftKey) return;
         var buttons = resultButtons();
         if (event.key === &#39;ArrowDown&#39; &amp;&amp; buttons.length) {
@@ -32763,6 +32779,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         }
       });
       results.addEventListener(&#39;keydown&#39;, function (event) {
+        if (event.isComposing || event.keyCode === 229) return;
         if (event.ctrlKey || event.altKey || event.metaKey || event.shiftKey) return;
         var buttons = resultButtons();
         var index = buttons.indexOf(document.activeElement);
@@ -32778,6 +32795,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         }
       });
       panel.addEventListener(&#39;keydown&#39;, function (event) {
+        if (event.isComposing || event.keyCode === 229) return;
         if (event.key !== &#39;Escape&#39;) return;
         event.preventDefault();
         event.stopPropagation();
@@ -34591,6 +34609,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         if (next !== null) { event.preventDefault(); buttons[next].focus(); }
       });
       panel.addEventListener(&#39;keydown&#39;, function (event) {
+        if (event.isComposing || event.keyCode === 229) return;
         if (event.key !== &#39;Escape&#39;) return;
         event.preventDefault();
         event.stopPropagation();
@@ -34752,6 +34771,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         execute(button.getAttribute(&#39;data-guide-action&#39;));
       });
       panel.addEventListener(&#39;keydown&#39;, function (event) {
+        if (event.isComposing || event.keyCode === 229) return;
         if (event.key === &#39;Escape&#39; || event.key === &#39;?&#39;) {
           event.preventDefault();
           event.stopPropagation();
