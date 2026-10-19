@@ -35,6 +35,12 @@ test('Viewer toolbars move focus between enabled top-level controls with directi
         const run = (toolbar, selector) => {
           const controls = [...toolbar.querySelectorAll(selector)].filter(button => !button.disabled && !button.hidden && button.getClientRects().length);
           const identify = () => document.activeElement.id || document.activeElement.getAttribute('data-view');
+          const sequence = [];
+          controls[0].focus();
+          for (let i = 0; i < controls.length; i++) {
+            sequence.push(identify());
+            document.activeElement.dispatchEvent(key('ArrowRight'));
+          }
           const last = controls[controls.length - 1].id || controls[controls.length - 1].getAttribute('data-view');
           controls[0].focus(); const first = identify();
           const right = controls[0].dispatchEvent(key('ArrowRight')); const second = identify();
@@ -48,7 +54,7 @@ test('Viewer toolbars move focus between enabled top-level controls with directi
             const allowed = controls[0].dispatchEvent(key('ArrowRight', { [modifier]: true }));
             return { allowed, focus: identify() };
           });
-          return { count: controls.length, first, second, returned, end, last, home, right, forwardWrap, wrappedFirst, backwardWrap, wrappedLast, modified };
+          return { sequence, count: controls.length, first, second, returned, end, last, home, right, forwardWrap, wrappedFirst, backwardWrap, wrappedLast, modified };
         };
         return {
           page: run(document.querySelector('.toolbar'), '#btn-theme, #btn-preset, #btn-motion, #btn-present, #btn-export'),
@@ -63,6 +69,7 @@ test('Viewer toolbars move focus between enabled top-level controls with directi
       })()`, returnByValue: true,
     });
     assert.equal(result.exceptionDetails, undefined, result.exceptionDetails?.exception?.description);
+    assert.deepEqual(result.result.value.page.sequence, ['btn-theme', 'btn-preset', 'btn-motion', 'btn-present', 'btn-export'], `${width}: every visible page-toolbar trigger is reachable in order`);
     for (const [name, value] of Object.entries(result.result.value)) {
       assert.ok(value.count > 1, `${width}/${name}: expected multiple enabled controls`);
       assert.notEqual(value.first, value.second, `${width}/${name}: ArrowRight moves focus`);
