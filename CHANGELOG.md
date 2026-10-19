@@ -29,6 +29,8 @@ All notable changes are documented here. Format loosely follows [Keep a Changelo
 
 - **Blank chart data is an error, not zero.** An empty CSV cell, a JSON `null` or a missing field in a charted column no longer becomes a zero bar. Finalize names the column and row instead.
 
+- **Explainer 数据图表标签与 CSV 记录（#1008）。** CSV/JSON 的分类标签、系列名称和单位保留双引号与反斜线；CSV 引号内的换行和双写引号正确归入同一字段。畸形 CSV 提供错误定位和修复提示；无法忠实显示的控制字符、孤立 Unicode 代理项及解析后会被裁剪或折叠的标签空白明确报错，保留旧交付。图表类型、数值规则、行／切片上限、文件范围检查、依赖冻结及原子交付保持不变。
+
 - **Workflow migration semantic contracts (#497).** Layout planning no longer checks full-topology requirements against a temporary graph with routed edges removed. Migrated documents retain their authored contracts and must pass complete validation before publication.
 
 - **Timeline 时区刻度（#926）。** 刻度按显示时区在各真实时刻的 UTC 偏移对齐，修复跨夏令时后日刻度漂移到 01:00／23:00、半小时跳变后小时刻度漂移的问题。回拨的重复时刻保持独立，跳过的小时或日期不生成虚构刻度；事件时间、标签精度、时间轴比例与断轴规则保持不变。
