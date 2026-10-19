@@ -4,7 +4,14 @@ All notable changes are documented here. Format loosely follows [Keep a Changelo
 
 ## [Unreleased]
 
-> Development identity: `v3.1.1-dev.1`. Not a stable release.
+> Development identity: `v3.2.1-dev.1`. Not a stable release.
+
+### Fixed
+
+- Viewer toolbar arrow-key and Home/End navigation includes visible Style and Export triggers (#899).
+- Finder and Semantic Lens preserve input-method composition before handling navigation shortcuts (#928).
+
+## [3.2.0] — 2026-10-18
 
 ### Added
 
@@ -34,7 +41,13 @@ All notable changes are documented here. Format loosely follows [Keep a Changelo
 - **Timeline time-zone ticks (#926).** Ticks align with the display time zone’s UTC offset at each actual instant, fixing daily ticks drifting to 01:00/23:00 across daylight-saving transitions and hourly ticks drifting after half-hour offset changes. Repeated times during clock rollbacks remain distinct, and skipped hours or dates do not produce fictitious ticks. Event times, label precision, timeline scaling, and axis-break rules remain unchanged.
 
 ### Changed
-- **Post-release development baseline.** Starts the 3.1.1-dev.1 development cycle from the released 3.1.0 code and verification artifacts, synchronizing the development identity and reproducible examples, comparison diagrams, and website artifacts. The stable update manifest continues to point to the published 3.1.0 release; this change does not create a release or alter published versions.
+- **Reader controls and node index.** Compact bottom index rows keep descriptions below titles; menu and roving keyboard navigation respect modifier keys.
+- **Update notices.** Available updates include a release summary and an offer to help update. Network failures remain non-blocking.
+- **Website and portability.** The bilingual homepage and gallery introduce one-page answers while retaining guides and source-backed cases. Browser discovery, Windows command paths, source-directory whitespace and temporary-worktree cleanup receive focused fixes.
+
+### Release follow-up
+- The stable update manifest remains on v3.1.0 until the v3.2.0 GitHub Release is published and its ZIP digest is verified.
+- The separately versioned DSH plugin is not republished with this release; maintainers must select a pinned source and complete its host/package acceptance in a separate follow-up.
 
 ## [3.1.0] — 2026-10-14
 
