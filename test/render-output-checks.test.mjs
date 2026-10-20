@@ -1065,6 +1065,18 @@ test('render output check: single_svg does not self-close a root on an unquoted 
   assert.deepEqual(finite.details, ['rect x="NaN"']);
 });
 
+test('render output check: single_svg does not self-close a root on a spaced slash', () => {
+  const { result } = checkRawHtml('spaced-slash-root', `<!doctype html><html><body>
+<svg viewBox="0 0 240 154" / ><rect x="NaN" y="0" width="10" height="10"/></svg>
+</body></html>`);
+  const single = result.checks.find(item => item.name === 'single_svg');
+  assert.equal(single.ok, true);
+  assert.deepEqual(single.details, ['found 1 <svg> block(s)']);
+  const finite = result.checks.find(item => item.name === 'finite_svg');
+  assert.equal(finite.ok, false);
+  assert.deepEqual(finite.details, ['rect x="NaN"']);
+});
+
 test('render output check: single_svg ignores svg-like text inside CDATA', () => {
   const { result } = checkRawHtml('cdata-svg', `<!doctype html><html><body>
 <svg viewBox="0 0 240 154"><![CDATA[<svg>]]><rect x="0" y="0" width="10" height="10"/></svg>

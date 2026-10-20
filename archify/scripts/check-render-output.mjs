@@ -124,7 +124,7 @@ const SVG_BLOCK_TOKEN = new RegExp(SVG_TAG_TOKEN.source, 'gi');
 function isSelfClosingTag(token) {
   const unquoted = token.replace(/"[^"]*"|'[^']*'/g, '""');
   if (/=[^\s"'=<>`]*\/\s*>$/.test(unquoted)) return false;
-  return /\/\s*>$/.test(unquoted);
+  return /\/>$/.test(unquoted);
 }
 
 // Collect each top-level <svg> block. Matching lazily to the first </svg>
