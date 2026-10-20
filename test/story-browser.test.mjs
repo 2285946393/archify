@@ -39,6 +39,7 @@ test('a public story attaches once, follows native appearance and retains source
   assert.equal(await evaluate('[...document.querySelectorAll(".story-panel-controls button,.story-panel-controls input")].some(control=>control.disabled)'),false);
   assert.equal(await evaluate('document.querySelector(".story-panel iframe").contentDocument.querySelector(".figure-caption").textContent'),'The original endpoints retain their direction.');
   assert.equal(await evaluate('document.querySelector(".story-panel iframe").contentDocument.documentElement.lang'),'en');
+  assert.equal(await evaluate('document.querySelector(".story-panel iframe").contentWindow.Story.plan.eyebrow'),'ARCHIFY');
   assert.equal(await evaluate('document.querySelector(".story-panel iframe").contentDocument.querySelector(".branch-figure").getAttribute("aria-label")'),'Connections from one node');
   for(const preset of ['classic','signal-flow','blueprint','editorial'])for(const theme of ['light','dark']){
     await evaluate(`document.querySelector('[data-preset-value="${preset}"]').click();if(document.documentElement.dataset.theme!==${JSON.stringify(theme)})document.querySelector('#btn-theme').click();`);
@@ -91,6 +92,16 @@ test('a public story attaches once, follows native appearance and retains source
     }});return result;
   })()`,true);
   assert.equal(rendered.render,true);assert.notDeepEqual(rendered.first,rendered.next,'export keeps authored camera motion despite the viewer preference');assert.ok(Number(rendered.wash)>0);
+  await send('Emulation.setEmulatedMedia',{features:[{name:'prefers-reduced-motion',value:'no-preference'}]});
+  await evaluate('localStorage.setItem("archify-motion","live");Archify.story.setView("still")',true);
+  assert.equal(await evaluate('localStorage.getItem("archify-motion")'),'live','programmatic changes do not overwrite a saved reader preference');
+  await evaluate('document.querySelector("#btn-motion").click()');await evaluate('Archify.story.setView("story")',true);
+  await evaluate('document.querySelector("#btn-motion").click()');
+  assert.equal(await evaluate('localStorage.getItem("archify-motion")'),'live','clicking from Story to Live saves the preference');
+  await evaluate('new Promise(resolve=>requestAnimationFrame(resolve))',true);await evaluate('document.querySelector("#btn-motion").click()');
+  assert.equal(await evaluate('localStorage.getItem("archify-motion")'),null,'clicking Still clears the saved Live preference');
+  const reloaded=browser.cdp.waitFor('Page.loadEventFired',session);await send('Page.reload');await reloaded;
+  assert.equal(await evaluate('Archify.motionGovernor.mode()'),'still','the reader selection survives reload');
   const longLoaded=browser.cdp.waitFor('Page.loadEventFired',session);await send('Page.navigate',{url:pathToFileURL(longOutput).href});await longLoaded;
   await evaluate('Archify.story.setView("story")',true);
   const rejected=await evaluate(`(async()=>{
@@ -103,5 +114,23 @@ test('a public story attaches once, follows native appearance and retains source
     try{await task;return 'Unexpected success';}catch(error){return error.name;}
   })()`,true);
   assert.equal(supported,'AbortError','a normal full-story range passes preflight without encoding in this cancellation probe');
+  const audio=await evaluate(`(async()=>{
+    const win=document.querySelector('.story-panel iframe').contentWindow,allocations=[],starts=[],sources=[];
+    let refill;const refilled=new Promise(resolve=>refill=resolve);
+    const ArrayType=win.Float32Array;win.Float32Array=new Proxy(ArrayType,{construct(target,args){if(typeof args[0]==='number'&&args[0]>48000*30)throw Error('Unbounded soundtrack allocation');return Reflect.construct(target,args);}});
+    const proto=win.AudioContext.prototype,createBuffer=proto.createBuffer,createSource=proto.createBufferSource;
+    proto.createBuffer=function(channels,length,rate){allocations.push(length/rate);if(length>rate*4)throw Error('Unbounded playback buffer');return createBuffer.call(this,channels,length,rate);};
+    proto.createBufferSource=function(){const source=createSource.call(this),start=source.start.bind(source);sources.push(source);source.start=(at,...args)=>{starts.push(at);const result=start(at,...args);if(starts.length===3)refill();return result;};return source;};
+    win.Story.seek(8);win.Story.setSound(true);await win.Story.play();
+    let timeout;try{await Promise.race([refilled,new Promise((_,reject)=>timeout=setTimeout(()=>reject(Error('Audio buffers were not replenished')),8000))]);}finally{clearTimeout(timeout);}
+    const playing=win.Story.metrics().audioPlaying;win.Story.pause();
+    const count=allocations.length;await new Promise(resolve=>setTimeout(resolve,100));const stopped=sources.every(source=>source.buffer===null);
+    win.Story.seek(99990);await win.Story.play();const latePlaying=win.Story.metrics().audioPlaying;win.Story.pause();
+    return {allocations,starts:starts.slice(0,count),playing,latePlaying,stopped,afterPause:allocations.length-count};
+  })()`,true);
+  assert.equal(audio.playing,true);assert.equal(audio.latePlaying,true);assert.equal(audio.stopped,true);
+  assert.ok(audio.allocations.every(seconds=>seconds<=4));assert.ok(audio.starts.length>=3,'playback replenishes its scheduled buffers');
+  for(let i=1;i<audio.starts.length;i++)assert.ok(Math.abs(audio.starts[i]-audio.starts[i-1]-4)<.00001,'adjacent audio blocks share the same clock boundary');
+  assert.equal(audio.afterPause,2,'only the explicit late-seek play allocates after pause');
   assert.deepEqual(errors,[]);
 });

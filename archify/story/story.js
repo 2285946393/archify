@@ -141,7 +141,8 @@
   }
   let cameras=[],stageWidth=0,viewW=0,viewH=0,layout,current=-1,t=0,playing=false,raf=0,started=0,playbackStart=0,painted=-1,samples=[],soundOn=true,timeLabel='',lastViewBox='',annotations=[],nativeAnimations=[];
   const openingScans=new Map();
-  let audioContext,audioBuffer,audioSource,audioOrigin=0,audioToken=0;
+  let audioContext,audioOrigin=null,audioToken=0;
+  const audioSources=new Set();
   const format=s=>`${Math.floor(s/60).toString().padStart(2,'0')}:${Math.floor(s%60).toString().padStart(2,'0')}`;
   const noteWidth=note=>note?.excerpt?440:note?.body?350:250;
   function camera(ids,overview=false,note,expand=false,connections=[]){
@@ -205,7 +206,7 @@
       if(localCue)localCue.move=true;
       else cues.push({kind:'move',at:stop.at,duration:cameraDuration,pan:0,shot:stop.shot});
     }
-    audioCues.splice(0,audioCues.length,...cues.sort((a,b)=>a.at-b.at));audioBuffer=null;seek(t,syncSound!==false);
+    audioCues.splice(0,audioCues.length,...cues.sort((a,b)=>a.at-b.at));seek(t,syncSound!==false);
   }
 
   function nativeFrame(local,shot){
@@ -433,20 +434,31 @@
     if(syncSound&&playing){playbackStart=t;started=performance.now();stopAudio();startAudio();}
     return {time:t,shot:i,headline:shot.headline,camera:{scale,x,y}};
   }
-  function stopAudio(){audioToken++;if(audioSource){audioSource.stop();audioSource.disconnect();audioSource=null;}}
+  function stopAudio(){audioToken++;for(const source of audioSources){source.onended=null;source.stop();source.disconnect();source.buffer=null;}audioSources.clear();audioOrigin=null;}
   async function startAudio(){
     if(!soundOn||!playing)return;
     const token=++audioToken;
     try{
       audioContext??=new AudioContext({sampleRate:48000});
-      if(!audioBuffer){const sound=StorySound.render(total,audioCues);audioBuffer=audioContext.createBuffer(2,sound.channels[0].length,sound.rate);sound.channels.forEach((data,index)=>audioBuffer.copyToChannel(data,index));}
       await audioContext.resume();if(token!==audioToken||!playing||!soundOn)return;
-      audioSource=audioContext.createBufferSource();audioSource.buffer=audioBuffer;audioSource.connect(audioContext.destination);
-      audioOrigin=audioContext.currentTime-t;audioSource.start(0,Math.min(t,total-.001));
+      let cursor=t;
+      const next=StorySound.renderer(total,audioCues,cursor);
+      const schedule=()=>{
+        if(token!==audioToken||!playing||!soundOn||cursor>=total)return;
+        const sound=next(Math.min(4,total-cursor)),length=sound.channels[0].length;if(!length)return;
+        const buffer=audioContext.createBuffer(2,length,sound.rate);sound.channels.forEach((data,index)=>buffer.copyToChannel(data,index));
+        const source=audioContext.createBufferSource();source.buffer=buffer;source.connect(audioContext.destination);audioSources.add(source);
+        audioOrigin??=audioContext.currentTime-t+.05;
+        const at=audioOrigin+cursor;cursor+=length/sound.rate;
+        source.onended=()=>{audioSources.delete(source);source.disconnect();source.buffer=null;try{schedule();}catch(error){stopAudio();console.warn('Audio playback unavailable',error);}};
+        source.start(at);
+      };
+      // Keep two short buffers scheduled; synthesis and retained audio stay bounded.
+      schedule();schedule();
       started=performance.now();playbackStart=t;
-    }catch(error){soundButton.textContent='Enable sound';console.warn('Audio playback unavailable',error);}
+    }catch(error){stopAudio();soundButton.textContent='Enable sound';console.warn('Audio playback unavailable',error);}
   }
-  function tick(now){if(!playing)return;const next=audioSource?audioContext.currentTime-audioOrigin:playbackStart+(now-started)/1000,frame=Math.floor(next*60);if(frame!==painted||next>=total){const begin=performance.now();seek(next,false);samples.push(performance.now()-begin);painted=frame;}if(next<total)raf=requestAnimationFrame(tick);else pause();}
+  function tick(now){if(!playing)return;const next=audioOrigin!==null?Math.max(playbackStart,audioContext.currentTime-audioOrigin):playbackStart+(now-started)/1000,frame=Math.floor(next*60);if(frame!==painted||next>=total){const begin=performance.now();seek(next,false);samples.push(performance.now()-begin);painted=frame;}if(next<total)raf=requestAnimationFrame(tick);else pause();}
   async function play(){if(playing)return;if(t>=total)seek(0);playing=true;started=performance.now();painted=-1;playbackStart=t;playButton.textContent='Pause';await startAudio();if(playing)raf=requestAnimationFrame(tick);}
   function pause(){playing=false;cancelAnimationFrame(raf);stopAudio();started=0;playButton.textContent='Play';}
   function setSound(on){soundOn=!!on;soundButton.textContent=soundOn?'Sound on':'Sound off';soundButton.setAttribute('aria-pressed',soundOn);playbackStart=t;started=performance.now();stopAudio();if(soundOn&&playing)startAudio();return soundOn;}
@@ -464,6 +476,6 @@
   playButton.onclick=()=>playing?pause():play();$('[data-replay]').onclick=()=>{pause();seek(0);play();};range.max=total;range.oninput=()=>{pause();seek(range.value);};soundButton.onclick=()=>setSound(!soundOn);
   document.addEventListener('keydown',e=>{if(e.target.matches('input'))return;if(e.code==='Space'){e.preventDefault();playing?pause():play();}if(e.key==='ArrowRight'){pause();seek(t+2);}if(e.key==='ArrowLeft'){pause();seek(t-2);}});
   new ResizeObserver(resize).observe(stage);
-  window.Story={seek,play,pause,setSound,setAppearance,duration:total,shots,plan,mode,actions,audioCues,metrics(){return {samples:[...samples],sourceNodes:nodes.length,sourceEdges:edgeById.size,nativeAnimations:nativeAnimations.length,openingView:openingScans.has(0)?'scan-'+openingScans.get(0).axis:'fit',sound:soundOn,audioTime:audioSource?audioContext.currentTime-audioOrigin:t,audioPlaying:!!audioSource,playing};},resetMetrics(){samples=[];}};
+  window.Story={seek,play,pause,setSound,setAppearance,duration:total,shots,plan,mode,actions,audioCues,metrics(){return {samples:[...samples],sourceNodes:nodes.length,sourceEdges:edgeById.size,nativeAnimations:nativeAnimations.length,openingView:openingScans.has(0)?'scan-'+openingScans.get(0).axis:'fit',sound:soundOn,audioTime:audioOrigin!==null?Math.max(playbackStart,audioContext.currentTime-audioOrigin):t,audioPlaying:!!audioSources.size,playing};},resetMetrics(){samples=[];}};
   document.fonts.ready.then(()=>{resize();document.documentElement.dataset.storyReady='true';window.storyReady=true;});
 })();

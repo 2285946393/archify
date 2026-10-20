@@ -35,6 +35,7 @@ For a narrated walkthrough with camera framing, explanations, captions and
 synchronized audio, use [Story authoring](story-authoring.md). The `story attach`
 command adds Story to the native motion control and Story video to Export.
 The player loads on first use and follows the existing preset and theme controls.
+Playback schedules two short audio buffers ahead instead of synthesizing the whole timeline.
 Very large video exports are rejected before rendering. Use
 `Archify.story.exportVideo({start, seconds})` for a shorter range when needed.
 

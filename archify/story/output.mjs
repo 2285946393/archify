@@ -33,6 +33,8 @@ export function writeStoryOutput(file,content,guard=()=>{},{createOnly=false}={}
 export function rollbackStoryOutput(output){
   const owned=captureRegularFileBinding(output.file,{subject:'story-companion',expectedIdentity:output.identity,expectedBytes:output.bytes,expectedSha256:output.sha256});
   if(owned.status!=='captured')return {status:owned.reason?.systemCode==='ENOENT'?'absent':['different','unsupported'].includes(owned.status)?'preserved':owned.status};
-  try{return quarantineRemoveRegularFileBinding(owned.binding,output.file,{subject:'story-companion'});}
-  finally{if(releaseRegularFileBinding(owned.binding).status!=='released')throw Error('The source map rollback handle could not be released.');}
+  let removal,released;
+  try{removal=quarantineRemoveRegularFileBinding(owned.binding,output.file,{subject:'story-companion'});}
+  finally{released=releaseRegularFileBinding(owned.binding);}
+  return {...removal,...(released.status!=='released'?{release:released}:{})};
 }

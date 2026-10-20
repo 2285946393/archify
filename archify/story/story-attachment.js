@@ -38,7 +38,7 @@
       const selected=selectedMode();label.textContent=selected==='story'?'Story':selected==='live'?'Live':'Still';
       motion.setAttribute('aria-label','Switch view: '+label.textContent);motion.setAttribute('aria-pressed',String(selected!=='still'));motion.title='Switch to '+nextMode();motion.disabled=false;
     }
-    motion.addEventListener('click',event=>{event.preventDefault();event.stopImmediatePropagation();Archify.exportMenu.close(false);Archify.preset?.close(false);setView(nextMode()).catch(showError);},true);
+    motion.addEventListener('click',event=>{event.preventDefault();event.stopImmediatePropagation();Archify.exportMenu.close(false);Archify.preset?.close(false);setView(nextMode(),{persist:true}).catch(showError);},true);
     new MutationObserver(refresh).observe(root,{attributes:true,attributeFilter:['data-motion']});
     function loadFrame(frame,frozenAppearance,render=false){
       return new Promise((resolve,reject)=>{
@@ -58,7 +58,7 @@
       player=element('iframe');player.title='Diagram story';player.allow='autoplay';loading=loadFrame(player);panel.prepend(player);
       try{const win=await loading;range.max=win.Story.duration;for(const control of [play,range,sound])control.disabled=false;return win;}catch(error){player.remove();player=undefined;loading=undefined;throw error;}
     }
-    async function setView(next){
+    async function setView(next,{persist=false}={}){
       if(!['live','still','story'].includes(next))throw Error('Unknown Viewer mode.');
       const version=++viewVersion;
       if(next==='story'){
@@ -68,7 +68,7 @@
       }else{
         if(loading)await loading.catch(()=>{});if(version!==viewVersion)return state();
         if(document.fullscreenElement===panel)await document.exitFullscreen();cancelAnimationFrame(controlFrame);
-        player?.contentWindow?.Story?.pause();view='native';panel.hidden=true;showNotes(false);root.removeAttribute('data-story-active');diagram.inert=nativeInert;resumeNative?.();resumeNative=undefined;Archify.motionGovernor.setMode(next,{persist:false});refresh();
+        player?.contentWindow?.Story?.pause();view='native';panel.hidden=true;showNotes(false);root.removeAttribute('data-story-active');diagram.inert=nativeInert;resumeNative?.();resumeNative=undefined;Archify.motionGovernor.setMode(next,{persist});refresh();
       }
       return state();
     }

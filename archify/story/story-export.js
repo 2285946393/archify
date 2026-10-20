@@ -40,7 +40,7 @@ globalThis.StoryExport=(()=>{
     const pcmBytes=Math.ceil((start+seconds)*48000)*2*4,encodedRate=(videoBitrate+audioBitrate)/8;
     if(reserveBytes+pcmBytes+seconds*encodedRate>maxBufferedBytes)throw Error('Video export exceeds the supported buffer budget; choose a shorter range.');
     if(typeof VideoEncoder==='undefined'||typeof AudioEncoder==='undefined')throw Error('Video export needs a browser with WebCodecs video and audio encoding.');
-    const vc={codec:'vp09.00.10.08',width,height,framerate:fps,bitrate:videoBitrate,latencyMode:'quality'},ac={codec:'opus',sampleRate:48000,numberOfChannels:2,bitrate:audioBitrate};
+    const vc={codec:'vp09.00.41.08',width,height,framerate:fps,bitrate:videoBitrate,latencyMode:'quality'},ac={codec:'opus',sampleRate:48000,numberOfChannels:2,bitrate:audioBitrate};
     if(!(await VideoEncoder.isConfigSupported(vc)).supported||!(await AudioEncoder.isConfigSupported(ac)).supported)throw Error('This browser does not support the required video or audio encoder.');
     abort(signal);Story.pause();Story.setSound(false);
     const target=canvas(),capture=captureStage(),video=[],audio=[];let failure,opusHead,encodedBytes=0;

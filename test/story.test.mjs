@@ -5,7 +5,8 @@ import os from 'node:os';
 import path from 'node:path';
 import {execFileSync,spawnSync} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
-import {scanStory,buildStory} from '../archify/story/tool.mjs';
+import vm from 'node:vm';
+import {scanStory,buildStory,draftStory} from '../archify/story/tool.mjs';
 import {compileBrief,draftBrief} from '../archify/story/story-plan.mjs';
 import {writeStoryOutput,rollbackStoryOutput} from '../archify/story/output.mjs';
 import {fixture as repositoryFixture} from './helpers/repository-evidence-fixture.mjs';
@@ -97,6 +98,25 @@ test('companion rollback preserves a replacement or an in-place edit by another 
     if(replace)fs.renameSync(file,file+'.old');fs.writeFileSync(file,'new owner');
     assert.equal(rollbackStoryOutput(output).status,'preserved');assert.equal(fs.readFileSync(file,'utf8'),'new owner');
   }
+});
+
+test('draft failure retains its publication error when releasing the rollback handle fails',t=>{
+  const dir=workspace(t),file=path.join(dir,'brief.json'),map=path.join(dir,'brief.source.json');
+  fs.symlinkSync(path.join(dir,'missing','brief.json'),file,'file');
+  const rename=fs.renameSync.bind(fs),close=fs.closeSync.bind(fs);let rollingBack=false,failed=false;
+  t.mock.method(fs,'renameSync',(from,to)=>{const result=rename(from,to);if(path.basename(from)==='brief.source.json')rollingBack=true;return result;});
+  t.mock.method(fs,'closeSync',descriptor=>{close(descriptor);if(rollingBack&&!failed){failed=true;throw Object.assign(Error('Injected close failure'),{code:'EIO'});}});
+  assert.throws(()=>draftStory(native,file),error=>/parent-inspection-failed/.test(error.message)&&/rollback.*removed.*release/i.test(error.message));
+  assert.equal(failed,true);assert.equal(fs.existsSync(map),false);
+});
+
+test('streamed soundtrack blocks preserve samples and cues across a block boundary',()=>{
+  const context=vm.createContext({});vm.runInContext(fs.readFileSync(path.join(skill,'story/story-audio.js'),'utf8'),context);
+  const sound=context.StorySound,cues=[{kind:'move',at:3.7,duration:1},{kind:'local',at:3.8,duration:1.1},{kind:'enter',at:4,duration:.5}],duration=4.75;
+  const whole=sound.render(duration,cues),next=sound.renderer(duration,cues),parts=[next(4),next(4)];
+  for(let channel=0;channel<2;channel++)assert.deepEqual(Buffer.concat(parts.map(part=>Buffer.from(part.channels[channel].buffer))),Buffer.from(whole.channels[channel].buffer));
+  assert.equal(next(4).channels[0].length,0);
+  assert.equal(sound.renderer(100000,cues,99990)(4).channels[0].length,4*48000,'a late seek only synthesizes the requested window');
 });
 
 test('all ten native families retain their source notation and valid default actions',t=>{

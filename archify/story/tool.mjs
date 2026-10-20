@@ -166,8 +166,16 @@ export function draftStory(file,target){
   const companion=writeStoryOutput(sourceMap,map,()=>resolveOutputPath({requestedOutput:sourceMap,requiredExtension:'.json',inputPaths:[file],otherOutputPaths:[target]}),{createOnly:true});
   try{writeStoryOutput(target,brief,()=>resolveOutputPath(guard),{createOnly:true});}
   catch(error){
-    const cleanup=rollbackStoryOutput(companion);
-    if(!['removed','absent','preserved'].includes(cleanup.status))throw Error(error.message+' The source map rollback could not be verified; choose a new draft path.');
+    let detail;
+    try{
+      const cleanup=rollbackStoryOutput(companion);
+      if(!['removed','absent','preserved'].includes(cleanup.status)||cleanup.release)detail=cleanup.status+(cleanup.release?'; handle release: '+(cleanup.release.reason?.code||cleanup.release.status):'');
+    }catch(cleanupError){detail=cleanupError.message;}
+    if(detail){
+      const message=' Source map rollback: '+detail+'; choose a new draft path.';
+      error.message+=message;
+      for(const diagnostic of error.archifyDiagnostics||[])diagnostic.message+=message;
+    }
     throw error;
   }
   return {brief:target,sourceMap,nodes:facts.nodes.length,edges:facts.edges.length};
