@@ -1180,6 +1180,33 @@ test('render output check: single_svg is not hidden by a quote in an unquoted at
   assert.deepEqual(single.details, ['found 2 <svg> block(s)']);
 });
 
+test('render output check: single_svg does not self-close a root on a slash after an apostrophe in an unquoted value', () => {
+  // The apostrophe in data-note=it's is literal text inside an unquoted
+  // value, so the '/' after it is value text too, not the self-closing
+  // flag; the root runs to its </svg> and the rect stays in scope.
+  const { result } = checkRawHtml('apostrophe-slash-root', `<!doctype html><html><body>
+<svg viewBox="0 0 240 154" data-note=it's/><rect x="NaN" y="0" width="10" height="10"/></svg>
+</body></html>`);
+  const single = result.checks.find(item => item.name === 'single_svg');
+  assert.equal(single.ok, true);
+  assert.deepEqual(single.details, ['found 1 <svg> block(s)']);
+  const finite = result.checks.find(item => item.name === 'finite_svg');
+  assert.equal(finite.ok, false);
+  assert.deepEqual(finite.details, ['rect x="NaN"']);
+});
+
+test('render output check: single_svg counts an svg after a bogus declaration holding a comment opener', () => {
+  // A <! that opens neither a comment nor a CDATA section is a bogus
+  // comment per the HTML tokenizer and ends at the first '>'; the <!--
+  // inside it opens nothing, so the svg after that '>' is real markup.
+  const { result } = checkRawHtml('bogus-declaration-svg', `<!doctype html><html><body>
+<svg viewBox="0 0 240 154"></svg><!x<!--y><svg viewBox="0 0 240 154"><rect x="NaN"/></svg>-->
+</body></html>`);
+  const single = result.checks.find(item => item.name === 'single_svg');
+  assert.equal(single.ok, false);
+  assert.deepEqual(single.details, ['found 2 <svg> block(s)']);
+});
+
 test('render output check: finite_svg ignores prose that mentions NaN or Infinity', () => {
   const { result } = checkHtml('finite-prose', `
     <g data-node-id="solver" data-node-tag="returns a NaN leaf" aria-label="Focus Solver">
