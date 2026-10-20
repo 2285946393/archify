@@ -10903,7 +10903,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           .replace(/\s+Architecture(\s+Diagram)?$/i, &#39;&#39;)
           .replace(/\s+Diagram$/i, &#39;&#39;)
           .trim();
-        return title.replace(/[^a-z0-9_\-]+/gi, &#39;-&#39;)
+        return title.replace(/[^\p{L}\p{M}\p{N}_\-]+/gu, &#39;-&#39;)
                     .toLowerCase()
                     .replace(/^-+|-+$/g, &#39;&#39;) || &#39;diagram&#39;;
       }
@@ -26089,7 +26089,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           .replace(/\s+Architecture(\s+Diagram)?$/i, &#39;&#39;)
           .replace(/\s+Diagram$/i, &#39;&#39;)
           .trim();
-        return title.replace(/[^a-z0-9_\-]+/gi, &#39;-&#39;)
+        return title.replace(/[^\p{L}\p{M}\p{N}_\-]+/gu, &#39;-&#39;)
                     .toLowerCase()
                     .replace(/^-+|-+$/g, &#39;&#39;) || &#39;diagram&#39;;
       }

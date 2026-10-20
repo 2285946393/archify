@@ -36,7 +36,7 @@
           .replace(/\s+Architecture(\s+Diagram)?$/i, '')
           .replace(/\s+Diagram$/i, '')
           .trim();
-        return title.replace(/[^a-z0-9_\-]+/gi, '-')
+        return title.replace(/[^\p{L}\p{M}\p{N}_\-]+/gu, '-')
                     .toLowerCase()
                     .replace(/^-+|-+$/g, '') || 'diagram';
       }
