@@ -8,6 +8,34 @@ import {fileURLToPath,pathToFileURL} from 'node:url';
 import {ChromeVisualBrowser,findChrome} from '../archify/bin/visual-check.mjs';
 
 const skill=fileURLToPath(new URL('../archify/',import.meta.url)),chrome=process.env.ARCHIFY_CHROME?findChrome():null;
+test('attachment preserves localized native state labels and localizes the Story transition',{
+  skip:chrome?false:'Set ARCHIFY_CHROME for the real-browser story check.',
+},async t=>{
+  const dir=fs.mkdtempSync(path.join(os.tmpdir(),'archify-story-locale-'));t.after(()=>fs.rmSync(dir,{recursive:true,force:true}));
+  const browser=new ChromeVisualBrowser(chrome);t.after(()=>browser.close());const session=await browser.sessionPromise;
+  const send=(method,params={})=>browser.cdp.send(method,params,session,30000);
+  const evaluate=async expression=>{const r=await send('Runtime.evaluate',{expression,awaitPromise:true,returnByValue:true,userGesture:true});assert.equal(r.exceptionDetails,undefined,r.exceptionDetails?.text);return r.result?.value;};
+  await send('Network.enable');await send('Network.setBlockedURLs',{urls:['http://*','https://*']});
+  const navigate=async file=>{const loaded=browser.cdp.waitFor('Page.loadEventFired',session);await send('Page.navigate',{url:pathToFileURL(file).href});await loaded;};
+  const locales=[['zh-CN','讲解','切换视图：'],['zh-TW','講解','切換檢視：'],['es','Recorrido','Cambiar vista: '],['ko','해설','보기 전환: '],['ar','الشرح','تبديل العرض: '],['en','Story','Switch view: '],['fr','Story','Switch view: ']];
+  for(const [locale,storyLabel,switchPrefix] of locales){
+    const model=JSON.parse(fs.readFileSync(path.join(skill,'examples/agent-tool-call.workflow.json'),'utf8'));model.meta.locale=locale;
+    if(locale==='fr')model.meta.translations={'viewer.motion.live':'Animé','viewer.motion.still':'Fixe'};
+    const input=path.join(dir,locale+'.json'),source=path.join(dir,locale+'.html'),brief=path.join(dir,locale+'-brief.json'),output=path.join(dir,locale+'-story.html'),cli=path.join(skill,'bin/archify.mjs');
+    fs.writeFileSync(input,JSON.stringify(model));execFileSync(process.execPath,[cli,'render','workflow',input,source],{stdio:'pipe'});
+    execFileSync(process.execPath,[cli,'story','draft',source,brief,'--json']);
+    const plan=JSON.parse(fs.readFileSync(brief,'utf8'));plan.intro='Context';plan.outro='Recap';for(const scene of plan.scenes)for(const point of scene.points)point.text='Node explanation.';
+    fs.writeFileSync(brief,JSON.stringify(plan));execFileSync(process.execPath,[cli,'story','attach',source,brief,output,'--json']);
+    await navigate(source);await evaluate('localStorage.removeItem("archify-motion");Archify.motionGovernor.setMode("still",{persist:false})');
+    const expected=await evaluate('({locale:Archify.locale,still:viewerText("viewer.motion.still"),live:viewerText("viewer.motion.live")})');
+    await navigate(output);
+    const read='({label:document.querySelector("#motion-label").textContent,aria:document.querySelector("#btn-motion").getAttribute("aria-label"),title:document.querySelector("#btn-motion").title})';
+    let state=await evaluate(read);assert.equal(state.label,expected.still,locale+' retains its native Still label before Story opens');assert.equal(state.aria,switchPrefix+expected.still);
+    await evaluate('Archify.story.setView("live")');state=await evaluate(read);assert.equal(state.label,expected.live);assert.equal(state.aria,switchPrefix+expected.live);
+    await evaluate('Archify.story.setView("story")');state=await evaluate(read);assert.equal(state.label,storyLabel);assert.equal(state.aria,switchPrefix+storyLabel);assert.ok(state.title.includes(expected.live));
+    await evaluate('Archify.story.setView("still")');assert.equal((await evaluate(read)).label,expected.still);
+  }
+});
 test('a public story attaches once, follows native appearance and retains source notes and exports',{
   skip:chrome?false:'Set ARCHIFY_CHROME for the real-browser story check.',
 },async t=>{

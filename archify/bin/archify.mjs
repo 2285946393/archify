@@ -6169,7 +6169,7 @@ async function commandDoctor(args) {
   const missingExplainerRuntime = explainerRuntime.filter(file => !fs.existsSync(path.join(skillRoot, 'explainer', file))).length;
   checks.push({label:'Explainer runtime and reader assets',ok:missingExplainerRuntime===0,missing:missingExplainerRuntime});
 
-  const storyRuntime = ['cli.mjs','tool.mjs','output.mjs','story-plan.mjs','story.js','story.css','story-audio.js','story-webm.js','story-export.js','story-attachment.mjs','story-attachment.js','story-attachment.css','scope-field.js','brand.svg','native-motion.js','vendor/html-parser.mjs'];
+  const storyRuntime = ['cli.mjs','tool.mjs','output.mjs','story-plan.mjs','story.js','story.css','story-audio.js','story-webm.js','story-export.js','story-attachment.mjs','story-attachment.js','story-attachment.css','messages.json','scope-field.js','brand.svg','native-motion.js','vendor/html-parser.mjs'];
   const missingStoryRuntime = storyRuntime.filter(file => !fs.existsSync(path.join(skillRoot, 'story', file))).length;
   checks.push({label:'Story runtime and playback assets',ok:missingStoryRuntime===0,missing:missingStoryRuntime});
 

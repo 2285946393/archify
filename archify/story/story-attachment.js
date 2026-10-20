@@ -3,11 +3,13 @@
     const payload=JSON.parse(document.querySelector('#archify-story-payload').textContent),root=document.documentElement;
     const motion=document.querySelector('#btn-motion'),label=document.querySelector('#motion-label'),diagram=document.querySelector('.diagram-container'),exportMenu=document.querySelector('#export-menu');
     if(!motion||!diagram||!exportMenu||!window.Archify?.motionGovernor)throw Error('The native Viewer does not provide the story entry points.');
+    const messages=payload.messages[Archify.locale]||payload.messages.en;
+    for(const [key,value]of Object.entries(messages))if(!Object.hasOwn(archifyI18nData.messages,key))archifyI18nData.messages[key]=value;
     let page,player,loading,view='native',resumeNative,wasPlaying=false,scrubbing=false,job,statusTimer,controlFrame,viewVersion=0;
     const nativeInert=diagram.inert;
     const decode=()=>page??=new TextDecoder().decode(Uint8Array.from(atob(payload.html),c=>c.charCodeAt(0)));
     const element=(tag,cls,text)=>{const node=document.createElement(tag);if(cls)node.className=cls;if(text!==undefined)node.textContent=text;return node;};
-    const panel=element('section','story-panel');panel.hidden=true;panel.setAttribute('aria-label','Story');diagram.after(panel);
+    const panel=element('section','story-panel');panel.lang='en';panel.hidden=true;panel.setAttribute('aria-label','Story');diagram.after(panel);
     const cards=document.querySelector('#reader-rail > .cards')||document.querySelector('.container > .cards'),cardsHome=document.createComment('Native notes position');
     function showNotes(active){
       if(active&&cards&&!cardsHome.isConnected){cards.before(cardsHome);cards.classList.replace('cards','story-notes');panel.after(cards);}
@@ -34,9 +36,10 @@
     const selectedMode=()=>view==='story'?'story':Archify.motionGovernor.mode();
     const nextMode=()=>modes[(modes.indexOf(selectedMode())+1)%modes.length];
     motion.hidden=false;
+    const modeLabel=mode=>viewerText(mode==='story'?'viewer.story.label':'viewer.motion.'+mode);
     function refresh(){
-      const selected=selectedMode();label.textContent=selected==='story'?'Story':selected==='live'?'Live':'Still';
-      motion.setAttribute('aria-label','Switch view: '+label.textContent);motion.setAttribute('aria-pressed',String(selected!=='still'));motion.title='Switch to '+nextMode();motion.disabled=false;
+      const selected=selectedMode();label.textContent=modeLabel(selected);
+      motion.setAttribute('aria-label',viewerText('viewer.story.switch',{view:label.textContent}));motion.setAttribute('aria-pressed',String(selected!=='still'));motion.title=viewerText('viewer.story.next',{view:modeLabel(nextMode())});motion.disabled=false;
     }
     motion.addEventListener('click',event=>{event.preventDefault();event.stopImmediatePropagation();Archify.exportMenu.close(false);Archify.preset?.close(false);setView(nextMode(),{persist:true}).catch(showError);},true);
     new MutationObserver(refresh).observe(root,{attributes:true,attributeFilter:['data-motion']});
@@ -91,10 +94,10 @@
     },true);
     document.querySelector('#btn-present')?.addEventListener('click',event=>{if(view!=='story')return;event.preventDefault();event.stopImmediatePropagation();(document.fullscreenElement?document.exitFullscreen():panel.requestFullscreen()).catch(showError);},true);
     const section=element('div','export-menu-section'),videoButton=element('button'),videoCopy=element('span','export-item-copy');
-    section.setAttribute('role','group');section.setAttribute('aria-label','Story');videoButton.type='button';videoButton.dataset.action='story-video';videoButton.setAttribute('role','menuitem');videoButton.tabIndex=-1;
+    section.lang='en';section.setAttribute('role','group');section.setAttribute('aria-label','Story');videoButton.type='button';videoButton.dataset.action='story-video';videoButton.setAttribute('role','menuitem');videoButton.tabIndex=-1;
     videoCopy.append(element('strong','','Story video'),element('small','hint','1080p · 60 fps'));videoButton.append(videoCopy);section.append(videoButton);exportMenu.append(section);
     const nativeVideo=exportMenu.querySelector('[data-format="webm"]');if(nativeVideo)videoButton.style.setProperty('--story-export-icon',getComputedStyle(nativeVideo,'::before').maskImage);
-    const status=element('div','story-export-status'),statusText=element('span'),cancel=element('button','','Cancel');status.setAttribute('role','status');status.hidden=true;cancel.type='button';status.append(statusText,cancel);document.body.append(status);cancel.onclick=()=>job?.abort();
+    const status=element('div','story-export-status'),statusText=element('span'),cancel=element('button','','Cancel');status.lang='en';status.setAttribute('role','status');status.hidden=true;cancel.type='button';status.append(statusText,cancel);document.body.append(status);cancel.onclick=()=>job?.abort();
     function message(text,cancellable=false){clearTimeout(statusTimer);status.hidden=false;statusText.textContent=text;cancel.hidden=!cancellable;if(!cancellable)statusTimer=setTimeout(()=>status.hidden=true,6000);}
     function showError(error){message(error.name==='AbortError'?'Export cancelled.':error.message||String(error));}
     async function render(kind,options={}){
