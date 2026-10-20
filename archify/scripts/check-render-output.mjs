@@ -112,11 +112,34 @@ function addCheck(name, ok, details = []) {
   checks.push({ name, ok, details });
 }
 
-const svgMatches = [...html.matchAll(/<svg\b[\s\S]*?<\/svg>/gi)];
-addCheck('single_svg', svgMatches.length === 1, [`found ${svgMatches.length} <svg> block(s)`]);
+// Collect each top-level <svg> block. Matching lazily to the first </svg>
+// would cut a root short at a nested <svg> (for example inside foreignObject)
+// and drop the rest of the root from every check below; markup inside HTML
+// comments is not an element and must not count as a block either.
+function extractSvgBlocks(source) {
+  const blocks = [];
+  let depth = 0;
+  let start = -1;
+  for (const match of source.matchAll(/<!--[\s\S]*?-->|<svg\b[^>]*>|<\/svg\s*>/gi)) {
+    const token = match[0];
+    if (token.startsWith('<!--')) continue;
+    if (token.startsWith('</')) {
+      if (depth > 0 && --depth === 0) blocks.push(source.slice(start, match.index + token.length));
+    } else if (/\/\s*>$/.test(token)) {
+      if (depth === 0) blocks.push(token);
+    } else {
+      if (depth === 0) start = match.index;
+      depth += 1;
+    }
+  }
+  return blocks;
+}
 
-if (svgMatches.length === 1) {
-  const svg = svgMatches[0][0];
+const svgBlocks = extractSvgBlocks(html);
+addCheck('single_svg', svgBlocks.length === 1, [`found ${svgBlocks.length} <svg> block(s)`]);
+
+if (svgBlocks.length === 1) {
+  const svg = svgBlocks[0];
   const svgRoot = svg.match(/<svg\b[^>]*>/i)?.[0] || '';
   const svgAttrs = parseAttrs(svgRoot);
   const qualityProfile = svgAttrs['data-quality-profile'] || 'standard';
