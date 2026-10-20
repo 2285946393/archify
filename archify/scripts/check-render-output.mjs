@@ -148,17 +148,29 @@ function extractSvgBlocks(source) {
       if (source[lt + 4] === '>') end = lt + 5;
       else if (source.startsWith('->', lt + 4)) end = lt + 6;
       else {
-        const plain = source.indexOf('-->', lt + 4);
-        const bang = source.indexOf('--!>', lt + 4);
-        if (plain !== -1 && (bang === -1 || plain < bang)) end = plain + 3;
-        else if (bang !== -1) end = bang + 4;
+        // Walk each '--' once instead of probing for --!> with a fresh
+        // suffix search per comment: with no --!> anywhere, that probe
+        // rescans the remaining suffix from every comment (quadratic).
+        let p = lt + 4;
+        while ((p = source.indexOf('--', p)) !== -1) {
+          if (source[p + 2] === '>') { end = p + 3; break; }
+          if (source[p + 2] === '!' && source[p + 3] === '>') { end = p + 4; break; }
+          p += 1;
+        }
       }
       i = end === -1 ? source.length : end;
       continue;
     }
     if (source.startsWith('<![CDATA[', lt)) {
-      const end = source.indexOf(']]>', lt + 9);
-      i = end === -1 ? source.length : end + 3;
+      if (depth > 0) {
+        const end = source.indexOf(']]>', lt + 9);
+        i = end === -1 ? source.length : end + 3;
+      } else {
+        // Outside foreign content, <![CDATA[ is a bogus comment in HTML: it
+        // ends at the first '>' and the markup after it is real.
+        const end = source.indexOf('>', lt + 9);
+        i = end === -1 ? source.length : end + 1;
+      }
       continue;
     }
     let j = lt + 1;
@@ -175,16 +187,25 @@ function extractSvgBlocks(source) {
       continue;
     }
     // Consume the tag through its '>', honoring quoted attribute values.
+    // Per HTML, a quote opens a quoted value only right after '='; inside a
+    // name or an unquoted value it is literal text and the tag still ends
+    // at its '>'.
     let quote = null;
+    let value = 'none'; // 'none' | 'pending' (just after '=') | 'unquoted'
     let k = j;
     while (k < source.length) {
       const ch = source[k];
       if (quote !== null) {
-        if (ch === quote) quote = null;
-      } else if (ch === '"' || ch === "'") {
-        quote = ch;
+        if (ch === quote) { quote = null; value = 'none'; }
       } else if (ch === '>') {
         break;
+      } else if (value === 'pending') {
+        if (ch === '"' || ch === "'") quote = ch;
+        else if (!/[ \t\n\f\r]/.test(ch)) value = 'unquoted';
+      } else if (value === 'unquoted') {
+        if (/[ \t\n\f\r]/.test(ch)) value = 'none';
+      } else if (ch === '=') {
+        value = 'pending';
       }
       k += 1;
     }

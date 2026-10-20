@@ -1141,6 +1141,45 @@ test('render output check: single_svg ends an abruptly closed empty comment', ()
   assert.deepEqual(single.details, ['found 1 <svg> block(s)']);
 });
 
+test('render output check: single_svg stays fast on many ordinary comments', () => {
+  // Probing each comment for a --!> close must stay bounded by the comment
+  // itself: with no --!> anywhere, an unbounded probe rescans the remaining
+  // suffix per comment (~256 KB of comments took tens of seconds that way).
+  const startedAt = Date.now();
+  const { result } = checkRawHtml('many-comments', `<!doctype html><html><body>
+<svg viewBox="0 0 240 154"></svg>${'<!--x-->'.repeat(32000)}
+</body></html>`);
+  const elapsedMs = Date.now() - startedAt;
+  const single = result.checks.find(item => item.name === 'single_svg');
+  assert.equal(single.ok, true);
+  assert.deepEqual(single.details, ['found 1 <svg> block(s)']);
+  assert.ok(elapsedMs < 10000, `block scan took ${elapsedMs}ms`);
+});
+
+test('render output check: single_svg counts an svg after top-level CDATA text', () => {
+  // Outside foreign content, <![CDATA[ is a bogus comment that ends at the
+  // first '>' per the HTML tokenizer; the svg after it is real markup, not
+  // CDATA text, so a second root must still be counted.
+  const { result } = checkRawHtml('toplevel-cdata-svg', `<!doctype html><html><body>
+<svg viewBox="0 0 240 154"></svg><![CDATA[x><svg viewBox="0 0 240 154"><rect x="NaN"/></svg>]]>
+</body></html>`);
+  const single = result.checks.find(item => item.name === 'single_svg');
+  assert.equal(single.ok, false);
+  assert.deepEqual(single.details, ['found 2 <svg> block(s)']);
+});
+
+test('render output check: single_svg is not hidden by a quote in an unquoted attribute value', () => {
+  // A quote inside an unquoted attribute value is literal text per the HTML
+  // tokenizer and the tag still ends at its '>'; quote mode starts only on a
+  // quote that opens a value after '='.
+  const { result } = checkRawHtml('unquoted-attr-quote-svg', `<!doctype html><html><body>
+<svg viewBox="0 0 240 154"></svg><div data=x"><svg viewBox="0 0 240 154"><rect x="NaN"/></svg>
+</body></html>`);
+  const single = result.checks.find(item => item.name === 'single_svg');
+  assert.equal(single.ok, false);
+  assert.deepEqual(single.details, ['found 2 <svg> block(s)']);
+});
+
 test('render output check: finite_svg ignores prose that mentions NaN or Infinity', () => {
   const { result } = checkHtml('finite-prose', `
     <g data-node-id="solver" data-node-tag="returns a NaN leaf" aria-label="Focus Solver">
