@@ -143,8 +143,17 @@ function extractSvgBlocks(source) {
     const lt = source.indexOf('<', i);
     if (lt === -1) break;
     if (source.startsWith('<!--', lt)) {
-      const end = source.indexOf('-->', lt + 4);
-      i = end === -1 ? source.length : end + 3;
+      // HTML also ends a comment on --!> and closes <!--> / <!---> outright.
+      let end = -1;
+      if (source[lt + 4] === '>') end = lt + 5;
+      else if (source.startsWith('->', lt + 4)) end = lt + 6;
+      else {
+        const plain = source.indexOf('-->', lt + 4);
+        const bang = source.indexOf('--!>', lt + 4);
+        if (plain !== -1 && (bang === -1 || plain < bang)) end = plain + 3;
+        else if (bang !== -1) end = bang + 4;
+      }
+      i = end === -1 ? source.length : end;
       continue;
     }
     if (source.startsWith('<![CDATA[', lt)) {
@@ -159,7 +168,9 @@ function extractSvgBlocks(source) {
     while (j < source.length && /[\w:-]/.test(source[j])) j += 1;
     const name = source.slice(nameStart, j);
     const after = source[j];
-    if (!/^[A-Za-z]/.test(name) || (after !== undefined && !/[\s/>]/.test(after))) {
+    // Tag names end only at ASCII whitespace, '/' or '>' — JavaScript \s
+    // would also accept U+00A0 and friends, which HTML joins into the name.
+    if (!/^[A-Za-z]/.test(name) || (after !== undefined && !/[ \t\n\f\r/>]/.test(after))) {
       i = lt + 1;
       continue;
     }

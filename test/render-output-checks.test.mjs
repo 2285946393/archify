@@ -1109,6 +1109,38 @@ test('render output check: single_svg ignores svg-like text in a quoted child at
   assert.deepEqual(single.details, ['found 1 <svg> block(s)']);
 });
 
+test('render output check: single_svg does not treat a non-breaking space as a tag delimiter', () => {
+  // HTML tag names end only at ASCII whitespace, '/' or '>'. A U+00A0 after
+  // the name joins the tag name, so the document holds no svg element even
+  // though JavaScript \s accepts the character as whitespace.
+  const { result } = checkRawHtml('nbsp-tag-delimiter', '<!doctype html><html><body>\n<svg\u00a0viewBox="0 0 240 154"><rect x="0" y="0" width="10" height="10"/></svg>\n</body></html>');
+  const single = result.checks.find(item => item.name === 'single_svg');
+  assert.equal(single.ok, false);
+  assert.deepEqual(single.details, ['found 0 <svg> block(s)']);
+});
+
+test('render output check: single_svg ends a comment on the HTML bang close', () => {
+  // A comment also ends at --!> per the HTML tokenizer, so the svg after it
+  // is real markup and a second root must still be counted.
+  const { result } = checkRawHtml('bang-close-comment-svg', `<!doctype html><html><body>
+<svg viewBox="0 0 240 154"></svg><!-- note --!><svg viewBox="0 0 240 154"></svg>
+</body></html>`);
+  const single = result.checks.find(item => item.name === 'single_svg');
+  assert.equal(single.ok, false);
+  assert.deepEqual(single.details, ['found 2 <svg> block(s)']);
+});
+
+test('render output check: single_svg ends an abruptly closed empty comment', () => {
+  // <!--> is a complete (empty) comment per the HTML tokenizer; the svg
+  // after it is real markup, not comment text.
+  const { result } = checkRawHtml('abrupt-comment-svg', `<!doctype html><html><body>
+<!--><svg viewBox="0 0 240 154"><rect x="0" y="0" width="10" height="10"/></svg>
+</body></html>`);
+  const single = result.checks.find(item => item.name === 'single_svg');
+  assert.equal(single.ok, true);
+  assert.deepEqual(single.details, ['found 1 <svg> block(s)']);
+});
+
 test('render output check: finite_svg ignores prose that mentions NaN or Infinity', () => {
   const { result } = checkHtml('finite-prose', `
     <g data-node-id="solver" data-node-tag="returns a NaN leaf" aria-label="Focus Solver">
