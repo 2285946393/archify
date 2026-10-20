@@ -112,12 +112,6 @@ function addCheck(name, ok, details = []) {
   checks.push({ name, ok, details });
 }
 
-// Scan top-level <svg> blocks with the same quote/CDATA-aware tokenizer the
-// other static checks use, so `<svg>` text inside comments, CDATA sections, or
-// quoted attribute values never moves the depth counter. Case-insensitive like
-// the HTML parser: <SVG> is the same element as <svg>.
-const SVG_BLOCK_TOKEN = new RegExp(SVG_TAG_TOKEN.source, 'gi');
-
 // A '/' that ends an unquoted attribute value (for example data-note=value/>)
 // is value text per HTML, not the self-closing flag: parse5 keeps it, and the
 // finite_svg tests document x1="NaN/" for <line x1=NaN/>.
@@ -131,20 +125,68 @@ function isSelfClosingTag(token) {
 // would cut a root short at a nested <svg> (for example inside foreignObject)
 // and drop the rest of the root from every check below; markup inside HTML
 // comments is not an element and must not count as a block either.
+//
+// The scan walks the source once, left to right, with the same quote- and
+// CDATA-aware token rules the other static checks use, so `<svg>` text inside
+// comments, CDATA sections, or quoted attribute values never moves the depth
+// counter. Case-insensitive like the HTML parser: <SVG> is the same element
+// as <svg>. A regex tokenizer is not used here: it retries its tag pattern
+// at every '<', so on a truncated candidate ending in unterminated quoted
+// tags each retry rescans the remaining suffix (quadratic overall), while
+// this scan consumes every position once.
 function extractSvgBlocks(source) {
   const blocks = [];
   let depth = 0;
   let start = -1;
-  for (const match of source.matchAll(SVG_BLOCK_TOKEN)) {
-    const token = match[0];
-    if (token.startsWith('<!--') || token.startsWith('<![CDATA[')) continue;
-    if (match[2]?.toLowerCase() !== 'svg') continue;
-    if (match[1]) {
-      if (depth > 0 && --depth === 0) blocks.push(source.slice(start, match.index + token.length));
+  let i = 0;
+  while (i < source.length) {
+    const lt = source.indexOf('<', i);
+    if (lt === -1) break;
+    if (source.startsWith('<!--', lt)) {
+      const end = source.indexOf('-->', lt + 4);
+      i = end === -1 ? source.length : end + 3;
+      continue;
+    }
+    if (source.startsWith('<![CDATA[', lt)) {
+      const end = source.indexOf(']]>', lt + 9);
+      i = end === -1 ? source.length : end + 3;
+      continue;
+    }
+    let j = lt + 1;
+    const closing = source[j] === '/';
+    if (closing) j += 1;
+    const nameStart = j;
+    while (j < source.length && /[\w:-]/.test(source[j])) j += 1;
+    const name = source.slice(nameStart, j);
+    const after = source[j];
+    if (!/^[A-Za-z]/.test(name) || (after !== undefined && !/[\s/>]/.test(after))) {
+      i = lt + 1;
+      continue;
+    }
+    // Consume the tag through its '>', honoring quoted attribute values.
+    let quote = null;
+    let k = j;
+    while (k < source.length) {
+      const ch = source[k];
+      if (quote !== null) {
+        if (ch === quote) quote = null;
+      } else if (ch === '"' || ch === "'") {
+        quote = ch;
+      } else if (ch === '>') {
+        break;
+      }
+      k += 1;
+    }
+    if (k >= source.length) break; // unterminated tag: the rest is its text
+    const token = source.slice(lt, k + 1);
+    i = k + 1;
+    if (name.toLowerCase() !== 'svg') continue;
+    if (closing) {
+      if (depth > 0 && --depth === 0) blocks.push(source.slice(start, k + 1));
     } else if (isSelfClosingTag(token)) {
       if (depth === 0) blocks.push(token);
     } else {
-      if (depth === 0) start = match.index;
+      if (depth === 0) start = lt;
       depth += 1;
     }
   }

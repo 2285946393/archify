@@ -1086,6 +1086,20 @@ test('render output check: single_svg ignores svg-like text inside CDATA', () =>
   assert.deepEqual(single.details, ['found 1 <svg> block(s)']);
 });
 
+test('render output check: single_svg stays fast on a truncated candidate of unterminated quoted tags', () => {
+  // A truncated candidate can end inside thousands of unterminated quoted
+  // tags (~360 KB here, no <svg> anywhere). A tokenizer that retries its tag
+  // pattern at every '<' rescans the remaining suffix per candidate and
+  // needs ~50s; a single-pass scan returns at once.
+  const startedAt = Date.now();
+  const { result } = checkRawHtml('unterminated-quoted-tags', '<x a="'.repeat(60000));
+  const elapsedMs = Date.now() - startedAt;
+  const single = result.checks.find(item => item.name === 'single_svg');
+  assert.equal(single.ok, false);
+  assert.deepEqual(single.details, ['found 0 <svg> block(s)']);
+  assert.ok(elapsedMs < 10000, `block scan took ${elapsedMs}ms`);
+});
+
 test('render output check: single_svg ignores svg-like text in a quoted child attribute', () => {
   const { result } = checkRawHtml('quoted-attr-svg', `<!doctype html><html><body>
 <svg viewBox="0 0 240 154"><text data-x="<svg>">hi</text></svg>
