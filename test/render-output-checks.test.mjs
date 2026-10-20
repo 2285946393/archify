@@ -1041,6 +1041,48 @@ test('render output check: single_svg still rejects two root svg elements', () =
   assert.deepEqual(single.details, ['found 2 <svg> block(s)']);
 });
 
+test('render output check: single_svg keeps a root with a quoted slash-gt inside an attribute', () => {
+  const { result } = checkRawHtml('quoted-slash-gt-root', `<!doctype html><html><body>
+<svg viewBox="0 0 240 154" data-note="a/>b"><rect x="NaN" y="0" width="10" height="10"/></svg>
+</body></html>`);
+  const single = result.checks.find(item => item.name === 'single_svg');
+  assert.equal(single.ok, true);
+  assert.deepEqual(single.details, ['found 1 <svg> block(s)']);
+  const finite = result.checks.find(item => item.name === 'finite_svg');
+  assert.equal(finite.ok, false);
+  assert.deepEqual(finite.details, ['rect x="NaN"']);
+});
+
+test('render output check: single_svg does not self-close a root on an unquoted trailing slash', () => {
+  const { result } = checkRawHtml('unquoted-slash-root', `<!doctype html><html><body>
+<svg viewBox="0 0 240 154" data-note=value/><rect x="NaN" y="0" width="10" height="10"/></svg>
+</body></html>`);
+  const single = result.checks.find(item => item.name === 'single_svg');
+  assert.equal(single.ok, true);
+  assert.deepEqual(single.details, ['found 1 <svg> block(s)']);
+  const finite = result.checks.find(item => item.name === 'finite_svg');
+  assert.equal(finite.ok, false);
+  assert.deepEqual(finite.details, ['rect x="NaN"']);
+});
+
+test('render output check: single_svg ignores svg-like text inside CDATA', () => {
+  const { result } = checkRawHtml('cdata-svg', `<!doctype html><html><body>
+<svg viewBox="0 0 240 154"><![CDATA[<svg>]]><rect x="0" y="0" width="10" height="10"/></svg>
+</body></html>`);
+  const single = result.checks.find(item => item.name === 'single_svg');
+  assert.equal(single.ok, true);
+  assert.deepEqual(single.details, ['found 1 <svg> block(s)']);
+});
+
+test('render output check: single_svg ignores svg-like text in a quoted child attribute', () => {
+  const { result } = checkRawHtml('quoted-attr-svg', `<!doctype html><html><body>
+<svg viewBox="0 0 240 154"><text data-x="<svg>">hi</text></svg>
+</body></html>`);
+  const single = result.checks.find(item => item.name === 'single_svg');
+  assert.equal(single.ok, true);
+  assert.deepEqual(single.details, ['found 1 <svg> block(s)']);
+});
+
 test('render output check: finite_svg ignores prose that mentions NaN or Infinity', () => {
   const { result } = checkHtml('finite-prose', `
     <g data-node-id="solver" data-node-tag="returns a NaN leaf" aria-label="Focus Solver">
