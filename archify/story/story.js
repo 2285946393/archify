@@ -1,6 +1,8 @@
 (() => {
   const {plan,facts}=JSON.parse(document.querySelector('#story-data').textContent);
   const mode='explain';
+  const motionPreference=matchMedia('(prefers-reduced-motion: reduce)');
+  const reducedMotion=()=>motionPreference.matches&&!document.body.hasAttribute('data-story-render');
   const $=s=>document.querySelector(s),stage=$('.stage'),viewport=$('.viewport'),svg=$('.art svg');
   const headline=$('h1'),oldHeadline=$('.headline-old'),subtitle=$('.subtitle'),rail=$('.phase-rail');
   const playButton=$('[data-play]'),range=$('.timeline'),clock=$('.clock'),soundButton=$('[data-sound]');
@@ -284,7 +286,7 @@
     const connections=ids.map(id=>edgeById.get(id)),sharedFrom=connections.length>1&&connections.every(edge=>!edge.ends&&!edge.kind&&edge.from===connections[0].from);
     if(sharedFrom){
       figure.style.setProperty('--figure-count',1);
-      const drawing=vector('svg',{viewBox:`0 0 350 ${connections.length*58+18}`,class:'branch-figure','aria-label':'同一节点的多个连接'}),height=connections.length*58+18;
+      const drawing=vector('svg',{viewBox:`0 0 350 ${connections.length*58+18}`,class:'branch-figure','aria-label':'Connections from one node'}),height=connections.length*58+18;
       const drawNode=(id,x,y)=>figureNode(drawing,id,x,y,132,36,10);
       drawNode(connections[0].from,0,height/2-18);
       for(const [index,edge]of connections.entries()){
@@ -376,7 +378,7 @@
   function seek(value,syncSound=true){
     t=Math.max(0,Math.min(total,Number(value)||0));let i=shots.findIndex(s=>t<s.end);if(i<0)i=shots.length-1;if(i!==current)enter(i);
     const shot=shots[i],local=t-shot.start,stop=Math.max(0,cameras.findLastIndex(c=>c.at<=t)),to=cameras[stop],from=stop?cameras[stop-1]:{scale:to.scale*.97,x:viewW/2+(to.x-viewW/2)*.97,y:viewH/2+(to.y-viewH/2)*.97};
-    const progress=(t-to.at)/(to.duration??shot.motion.cameraDuration),travel=to.pan?clamp(progress):ease(progress),target=to;
+    const progress=(t-to.at)/(to.duration??shot.motion.cameraDuration),travel=reducedMotion()?1:to.pan?clamp(progress):ease(progress),target=to;
     const scale=mix(from.scale,target.scale,travel),x=mix(from.x,target.x,travel),y=mix(from.y,target.y,travel);
     const left=(mix(from.region?.left??layout.left,to.region.left,travel)-layout.left)/(layout.right-layout.left)*100,right=(mix(from.region?.right??layout.right,to.region.right,travel)-layout.left)/(layout.right-layout.left)*100;
     viewport.style.maskImage=`linear-gradient(90deg,transparent ${left}%,#000 ${left+1.3}%,#000 ${right-1.3}%,transparent ${right}%)`;
@@ -426,7 +428,7 @@
       frame.classList.toggle('lane-muted',!overview&&!activeLanes.has(lane.label));
     }
     phaseEls.forEach((n,j)=>n.style.setProperty('--phase-fill',j<shot.phase?1:j===shot.phase?mix(.18,1,ease(local/shot.duration)):0));
-    const wash=$('.transition-light'),sweep=clamp(local/1.3);wash.style.opacity=String(Math.sin(sweep*Math.PI)*.55);wash.style.transform=`translateX(${sweep*600-100}%)`;
+    const wash=$('.transition-light'),sweep=clamp(local/1.3);wash.style.opacity=reducedMotion()?'0':String(Math.sin(sweep*Math.PI)*.55);wash.style.transform=`translateX(${sweep*600-100}%)`;
     const label=`${format(t)} / ${format(total)}`;if(label!==timeLabel){timeLabel=label;clock.textContent=label;}range.value=t;
     if(syncSound&&playing){playbackStart=t;started=performance.now();stopAudio();startAudio();}
     return {time:t,shot:i,headline:shot.headline,camera:{scale,x,y}};
@@ -442,12 +444,12 @@
       audioSource=audioContext.createBufferSource();audioSource.buffer=audioBuffer;audioSource.connect(audioContext.destination);
       audioOrigin=audioContext.currentTime-t;audioSource.start(0,Math.min(t,total-.001));
       started=performance.now();playbackStart=t;
-    }catch(error){soundButton.textContent='点击开启声音';console.warn('Audio playback unavailable',error);}
+    }catch(error){soundButton.textContent='Enable sound';console.warn('Audio playback unavailable',error);}
   }
   function tick(now){if(!playing)return;const next=audioSource?audioContext.currentTime-audioOrigin:playbackStart+(now-started)/1000,frame=Math.floor(next*60);if(frame!==painted||next>=total){const begin=performance.now();seek(next,false);samples.push(performance.now()-begin);painted=frame;}if(next<total)raf=requestAnimationFrame(tick);else pause();}
-  async function play(){if(playing)return;if(t>=total)seek(0);playing=true;started=performance.now();painted=-1;playbackStart=t;playButton.textContent='暂停';await startAudio();if(playing)raf=requestAnimationFrame(tick);}
-  function pause(){playing=false;cancelAnimationFrame(raf);stopAudio();started=0;playButton.textContent='播放';}
-  function setSound(on){soundOn=!!on;soundButton.textContent=soundOn?'声音已开':'声音已关';soundButton.setAttribute('aria-pressed',soundOn);playbackStart=t;started=performance.now();stopAudio();if(soundOn&&playing)startAudio();return soundOn;}
+  async function play(){if(playing)return;if(t>=total)seek(0);playing=true;started=performance.now();painted=-1;playbackStart=t;playButton.textContent='Pause';await startAudio();if(playing)raf=requestAnimationFrame(tick);}
+  function pause(){playing=false;cancelAnimationFrame(raf);stopAudio();started=0;playButton.textContent='Play';}
+  function setSound(on){soundOn=!!on;soundButton.textContent=soundOn?'Sound on':'Sound off';soundButton.setAttribute('aria-pressed',soundOn);playbackStart=t;started=performance.now();stopAudio();if(soundOn&&playing)startAudio();return soundOn;}
   let appearanceVariables=[];
   function setAppearance({theme,preset,variables={},titleFont}={}){
     for(const target of [document.documentElement,svg]){

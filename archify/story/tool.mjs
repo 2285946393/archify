@@ -5,7 +5,7 @@ import {fileURLToPath} from 'node:url';
 import {createHash} from 'node:crypto';
 import {compileBrief,draftBrief,nativeMotions,openingModes} from './story-plan.mjs';
 import {resolveOutputPath} from '../renderers/shared/output-path.mjs';
-import {writeStoryOutput} from './output.mjs';
+import {writeStoryOutput,rollbackStoryOutput} from './output.mjs';
 import {parse,serializeOuter} from './vendor/html-parser.mjs';
 import {attachStory} from './story-attachment.mjs';
 
@@ -96,6 +96,7 @@ export function buildStory(file,planFile,out,{standalone=false,repoRoot}={}){
   const outputGuard={requestedOutput:out,inputPaths:[file,planFile],inputDescription:'the source HTML or brief'};
   out=resolveOutputPath(outputGuard).outputPath;
   const source=read(file),facts=factsOf(source),input=JSON.parse(fs.readFileSync(planFile,'utf8'));
+  if(!input||typeof input!=='object'||Array.isArray(input))throw Error('The story brief must be a JSON object.');
   if(attach&&!['btn-motion','motion-label','export-menu'].every(id=>source.tree.some(node=>attr(node,'id')===id)))throw Error('Story attachment needs the native Viewer controls; generate the source with archify render first.');
   const plan=input.version===2?compileBrief(input,facts):input;
   plan.defaultMode='explain';
@@ -143,10 +144,10 @@ export function buildStory(file,planFile,out,{standalone=false,repoRoot}={}){
     const motion=source.svg.attrs.find(attribute=>attribute.name==='data-motion-choreography');
     if(motion)motion.value=plan.motion;else source.svg.attrs.push({name:'data-motion-choreography',value:plan.motion});
   }
-  const storyHtml=`<!doctype html><html lang="zh-CN" data-theme="light" style="--accent:${esc(plan.accent||'#477bbe')}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(plan.title)} · Archify Story Studio</title><style>${styles}</style><style id="story-style">${fs.readFileSync(path.join(here,'story.css'),'utf8')}</style></head><body>
-<div class="lab"><header class="lab-head"><b>Archify · Story Studio / 详细讲解</b><nav><a data-mode="explain" aria-current="page">详细讲解</a><a href="${esc(scriptRef)}">分镜脚本 ↗</a></nav></header>
+  const storyHtml=`<!doctype html><html lang="${esc(attr(source.tree.find(node=>node.tagName==='html'),'lang')||'en')}" data-theme="light" style="--accent:${esc(plan.accent||'#477bbe')}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(plan.title)} · Archify Story Studio</title><style>${styles}</style><style id="story-style">${fs.readFileSync(path.join(here,'story.css'),'utf8')}</style></head><body>
+<div class="lab"><header class="lab-head" lang="en"><b>Archify · Story Studio / Detailed walkthrough</b><nav><a data-mode="explain" aria-current="page">Detailed walkthrough</a><a href="${esc(scriptRef)}">Story brief ↗</a></nav></header>
 <main class="stage"><div class="ambient"></div><div class="mast"><div class="brand"><img src="${brandRef}" alt="">Archify<span>STORY STUDIO</span></div><div class="chapter"></div></div><div class="heading"><div class="eyebrow">${esc(plan.eyebrow)}</div><div class="headlines"><div class="headline-old" aria-hidden="true"></div><h1>${esc(plan.title)}</h1></div></div><div class="phase-rail"></div><div class="plot-safe-area" aria-hidden="true"></div><div class="viewport"><div class="art diagram-container">${serializeOuter(source.svg)}</div></div><div class="callouts"></div><div class="subtitle-wrap"><div class="subtitle"></div></div><div class="transition-light"></div></main>
-<div class="controls"><button data-play>播放</button><button data-replay>重播</button><input class="timeline" aria-label="播放位置" type="range" min="0" max="30" step="0.01" value="0"><span class="clock"></span><button data-sound aria-pressed="true">声音已开</button></div><p class="notes">原生节点入场、连线与声音共用分镜时间轴。空格播放／暂停。</p></div><div hidden><button id="btn-motion"><span id="motion-label"></span></button></div>
+<div class="controls" lang="en"><button data-play>Play</button><button data-replay>Replay</button><input class="timeline" aria-label="Story playback position" type="range" min="0" max="30" step="0.01" value="0"><span class="clock"></span><button data-sound aria-pressed="true">Sound on</button></div><p class="notes" lang="en">Native node entrances, connections and sound share the story timeline. Space to play or pause.</p></div><div hidden><button id="btn-motion"><span id="motion-label"></span></button></div>
 <script type="application/json" id="story-data">${data}</script><script>if(new URLSearchParams(location.search).has('export'))document.body.classList.add('export');window.Archify={};function viewerText(key){return key;}</script><script>${nativeMotion}</script><script>${fs.readFileSync(path.join(here,'story-audio.js'),'utf8')}</script><script>${fs.readFileSync(path.join(here,'scope-field.js'),'utf8')}</script><script>${fs.readFileSync(path.join(here,'story.js'),'utf8')}</script><script>${fs.readFileSync(path.join(here,'story-webm.js'),'utf8')}</script><script>${fs.readFileSync(path.join(here,'story-export.js'),'utf8')}</script></body></html>`;
   const html=attach?attachStory(source.html,storyHtml):storyHtml;
   writeStoryOutput(out,html,()=>resolveOutputPath(outputGuard));
@@ -162,7 +163,12 @@ export function draftStory(file,target){
   resolveOutputPath(guard);resolveOutputPath({requestedOutput:sourceMap,requiredExtension:'.json',inputPaths:[file],otherOutputPaths:[target]});
   if(fs.existsSync(target)||fs.existsSync(sourceMap))throw Error('Draft output already exists; choose a new brief path.');
   const brief=JSON.stringify(draftBrief(facts),null,2)+'\n',map=JSON.stringify(facts,null,2)+'\n';
-  writeStoryOutput(sourceMap,map,()=>resolveOutputPath({requestedOutput:sourceMap,requiredExtension:'.json',inputPaths:[file],otherOutputPaths:[target]}),{createOnly:true});
-  writeStoryOutput(target,brief,()=>resolveOutputPath(guard),{createOnly:true});
+  const companion=writeStoryOutput(sourceMap,map,()=>resolveOutputPath({requestedOutput:sourceMap,requiredExtension:'.json',inputPaths:[file],otherOutputPaths:[target]}),{createOnly:true});
+  try{writeStoryOutput(target,brief,()=>resolveOutputPath(guard),{createOnly:true});}
+  catch(error){
+    const cleanup=rollbackStoryOutput(companion);
+    if(!['removed','absent','preserved'].includes(cleanup.status))throw Error(error.message+' The source map rollback could not be verified; choose a new draft path.');
+    throw error;
+  }
   return {brief:target,sourceMap,nodes:facts.nodes.length,edges:facts.edges.length};
 }

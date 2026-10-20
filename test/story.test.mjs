@@ -7,6 +7,7 @@ import {execFileSync,spawnSync} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
 import {scanStory,buildStory} from '../archify/story/tool.mjs';
 import {compileBrief,draftBrief} from '../archify/story/story-plan.mjs';
+import {writeStoryOutput,rollbackStoryOutput} from '../archify/story/output.mjs';
 import {fixture as repositoryFixture} from './helpers/repository-evidence-fixture.mjs';
 
 const root=fileURLToPath(new URL('../',import.meta.url)),skill=path.join(root,'archify'),cli=path.join(skill,'bin/archify.mjs');
@@ -28,6 +29,7 @@ test('public story draft returns source identities and attach preserves the enti
   assert.equal(html.slice(0,start)+html.slice(html.lastIndexOf('</body>')),source);
   assert.equal(fs.readFileSync(native,'utf8'),source);
   const payload=JSON.parse(/id="story-data">([\s\S]*?)<\/script>/.exec(embedded(html))[1]);
+  assert.match(embedded(html),/<html lang="en"/);
   assert.deepEqual(payload.facts.nodes.map(node=>node.id),facts.nodes.map(node=>node.id));
   assert.deepEqual(payload.facts.edges.map(edge=>[edge.id,edge.from,edge.to]),facts.edges.map(edge=>[edge.id,edge.from,edge.to]));
   assert.ok(payload.plan.shots.filter(shot=>shot.preset==='establish').every(shot=>shot.duration<=6));
@@ -56,6 +58,45 @@ test('draft refuses existing files and scan fails closed on conflicting native m
   assert.equal(run(['scan',input],dir).status,1);
   fs.writeFileSync(input,'<html><body><p>No native diagram</p></body></html>');assert.equal(run(['scan',input],dir).status,1);
   fs.writeFileSync(input,Buffer.from([0xff,0xfe,0x00]));assert.equal(run(['scan',input],dir).status,1);
+});
+
+test('attachment uses the HTML body boundary instead of script or comment literals',t=>{
+  const dir=workspace(t),input=path.join(dir,'source.html'),file=path.join(dir,'brief.json'),output=path.join(dir,'enhanced.html');
+  const original=fs.readFileSync(native,'utf8'),closing=original.lastIndexOf('</body>');
+  const before=original.slice(0,closing).replace('<html lang="en"','<html lang="fr"').replace('</head>','<script>window.bodyLiteral="</BoDy >";</script></head>');
+  const after=original.slice(closing)+'<!-- A trailing example: </body> -->';
+  fs.writeFileSync(input,before+after);fs.writeFileSync(file,JSON.stringify(brief(scanStory(input))));
+  const result=run(['attach',input,file,output],dir);assert.equal(result.status,0,result.stdout+result.stderr);
+  const html=fs.readFileSync(output,'utf8'),at=html.indexOf('<style id="archify-story-attachment-style">');
+  assert.ok(html.slice(0,at)===before,'the addon starts after the complete native body content');assert.ok(html.endsWith(after));
+  assert.match(embedded(html),/<html lang="fr"/);
+  assert.equal(scanStory(output).nodes.length,scanStory(input).nodes.length);
+});
+
+test('non-object briefs have actionable diagnostics and preserve existing output',t=>{
+  const dir=workspace(t),file=path.join(dir,'brief.json'),output=path.join(dir,'enhanced.html');fs.writeFileSync(output,'previous artifact');
+  for(const value of [null,[],true,1,'brief']){
+    fs.writeFileSync(file,JSON.stringify(value));const result=run(['attach',native,file,output],dir);
+    assert.equal(result.status,1);assert.match(JSON.parse(result.stdout).diagnostics[0].message,/brief must be a JSON object/);
+    assert.equal(fs.readFileSync(output,'utf8'),'previous artifact');
+  }
+});
+
+test('a failed brief publication rolls back its owned source map so the draft can be retried',t=>{
+  const dir=workspace(t),file=path.join(dir,'brief.json'),map=path.join(dir,'brief.source.json'),destination=path.join(dir,'missing','brief.json');
+  fs.symlinkSync(destination,file,'file');
+  const failed=run(['draft',native,file],dir);assert.equal(failed.status,1);assert.equal(fs.existsSync(map),false,'a failed pair must not leave its companion behind');
+  assert.ok(fs.lstatSync(file).isSymbolicLink(),'the caller-owned alias stays intact');
+  fs.mkdirSync(path.dirname(destination));const retried=run(['draft',native,file],dir);assert.equal(retried.status,0,retried.stdout+retried.stderr);assert.ok(fs.existsSync(map));
+});
+
+test('companion rollback preserves a replacement or an in-place edit by another writer',t=>{
+  const dir=workspace(t);
+  for(const replace of [false,true]){
+    const file=path.join(dir,replace?'replaced.json':'edited.json'),output=writeStoryOutput(file,'owned map');
+    if(replace)fs.renameSync(file,file+'.old');fs.writeFileSync(file,'new owner');
+    assert.equal(rollbackStoryOutput(output).status,'preserved');assert.equal(fs.readFileSync(file,'utf8'),'new owner');
+  }
 });
 
 test('all ten native families retain their source notation and valid default actions',t=>{

@@ -14,9 +14,11 @@ test('a public story attaches once, follows native appearance and retains source
   const dir=fs.mkdtempSync(path.join(os.tmpdir(),'archify-story-browser-'));t.after(()=>fs.rmSync(dir,{recursive:true,force:true}));
   const source=path.join(dir,'source.html'),plan=path.join(dir,'brief.json'),output=path.join(dir,'enhanced.html'),cli=path.join(skill,'bin/archify.mjs');
   execFileSync(process.execPath,[cli,'render','workflow',path.join(skill,'examples/agent-tool-call.workflow.json'),source]);
-  const receipt=JSON.parse(execFileSync(process.execPath,[cli,'story','draft',source,plan,'--json'],{encoding:'utf8'})),facts=JSON.parse(fs.readFileSync(receipt.sourceMap,'utf8')),edge=facts.edges[0];
-  fs.writeFileSync(plan,JSON.stringify({version:2,title:'Explain one source handoff',intro:'Establish its context.',outro:'Return to the complete graph.',scenes:[{title:'Read the selected relationship',points:[{anchor:edge.to,via:edge.id,title:'Follow this handoff',text:'The explanation uses the native relationship and its original endpoints.',figureCaption:'The original endpoints retain their direction.'}]}]}));
+  const receipt=JSON.parse(execFileSync(process.execPath,[cli,'story','draft',source,plan,'--json'],{encoding:'utf8'})),facts=JSON.parse(fs.readFileSync(receipt.sourceMap,'utf8')),branches=facts.edges.filter(edge=>edge.from==='approval');
+  fs.writeFileSync(plan,JSON.stringify({version:2,title:'Explain one source handoff',intro:'Establish its context.',outro:'Return to the complete graph.',scenes:[{title:'Read the selected relationship',points:[{anchor:'approval',via:branches.map(edge=>edge.id),title:'Follow this handoff',text:'The explanation uses the native relationship and its original endpoints.',figureCaption:'The original endpoints retain their direction.'}]}]}));
   execFileSync(process.execPath,[cli,'story','attach',source,plan,output,'--json']);
+  const longPlan=path.join(dir,'long-brief.json'),longOutput=path.join(dir,'long-story.html'),longBrief=JSON.parse(fs.readFileSync(plan,'utf8'));longBrief.scenes[0].points[0].seconds=100000;
+  fs.writeFileSync(longPlan,JSON.stringify(longBrief));execFileSync(process.execPath,[cli,'story','attach',source,longPlan,longOutput,'--json']);
   const browser=new ChromeVisualBrowser(chrome);t.after(()=>browser.close());const session=await browser.sessionPromise,errors=[];
   browser.cdp.subscribe(event=>{if(event.method==='Runtime.exceptionThrown')errors.push(event.params.exceptionDetails.exception?.description||event.params.exceptionDetails.text);});
   const send=(method,params={})=>browser.cdp.send(method,params,session,30000);
@@ -36,6 +38,8 @@ test('a public story attaches once, follows native appearance and retains source
   assert.equal(await evaluate('document.querySelector(".story-notes")===window.nativeNotes'),true);
   assert.equal(await evaluate('[...document.querySelectorAll(".story-panel-controls button,.story-panel-controls input")].some(control=>control.disabled)'),false);
   assert.equal(await evaluate('document.querySelector(".story-panel iframe").contentDocument.querySelector(".figure-caption").textContent'),'The original endpoints retain their direction.');
+  assert.equal(await evaluate('document.querySelector(".story-panel iframe").contentDocument.documentElement.lang'),'en');
+  assert.equal(await evaluate('document.querySelector(".story-panel iframe").contentDocument.querySelector(".branch-figure").getAttribute("aria-label")'),'Connections from one node');
   for(const preset of ['classic','signal-flow','blueprint','editorial'])for(const theme of ['light','dark']){
     await evaluate(`document.querySelector('[data-preset-value="${preset}"]').click();if(document.documentElement.dataset.theme!==${JSON.stringify(theme)})document.querySelector('#btn-theme').click();`);
     await evaluate('new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))',true);
@@ -73,5 +77,31 @@ test('a public story attaches once, follows native appearance and retains source
   await evaluate('Promise.all([Archify.story.setView("story"),Archify.story.setView("still")])',true);assert.equal(await evaluate('Archify.story.state().view'),'native');
   await evaluate('Promise.all([Archify.story.play(),Archify.story.setView("still")])',true);
   assert.equal(await evaluate('Archify.story.state().view'),'native');assert.equal(await evaluate('Archify.story.state().playing'),false,'switching away cancels a pending play request');
+  await evaluate('Archify.story.setView("story")',true);
+  await evaluate('new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))',true);
+  const cameraSamples=`(()=>{const win=document.querySelector('.story-panel iframe').contentWindow,start=win.Story.shots[1].start;return {first:win.Story.seek(start+.1).camera,next:win.Story.seek(start+.8).camera,wash:win.document.querySelector('.transition-light').style.opacity,duration:win.Story.duration};})()`;
+  const normal=await evaluate(cameraSamples);assert.notDeepEqual(normal.first,normal.next,'ordinary playback interpolates its camera');
+  await send('Emulation.setEmulatedMedia',{features:[{name:'prefers-reduced-motion',value:'reduce'}]});
+  await evaluate('new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))',true);
+  const reduced=await evaluate(cameraSamples);assert.deepEqual(reduced.first,reduced.next,'reduced-motion playback cuts directly to the target');assert.equal(reduced.wash,'0');assert.equal(reduced.duration,normal.duration);
+  const rendered=await evaluate(`(async()=>{
+    let result;await Archify.story.exportVideo({seconds:.1,onProgress:()=>{
+      if(result)return;const win=document.querySelector('.story-render-frame').contentWindow,start=win.Story.shots[1].start;
+      result={render:win.document.body.hasAttribute('data-story-render'),first:win.Story.seek(start+.1).camera,next:win.Story.seek(start+.8).camera,wash:win.document.querySelector('.transition-light').style.opacity};
+    }});return result;
+  })()`,true);
+  assert.equal(rendered.render,true);assert.notDeepEqual(rendered.first,rendered.next,'export keeps authored camera motion despite the viewer preference');assert.ok(Number(rendered.wash)>0);
+  const longLoaded=browser.cdp.waitFor('Page.loadEventFired',session);await send('Page.navigate',{url:pathToFileURL(longOutput).href});await longLoaded;
+  await evaluate('Archify.story.setView("story")',true);
+  const rejected=await evaluate(`(async()=>{
+    Archify.story.seek(8);const task=Archify.story.exportVideo();Archify.story.cancelExport();
+    try{await task;return {message:'Unexpected success'};}catch(error){return {message:error.message,frames:document.querySelectorAll('.story-render-frame').length,time:Archify.story.state().time};}
+  })()`,true);
+  assert.match(rejected.message,/supported buffer budget/,'oversized export is rejected before cancellation or frame encoding');assert.equal(rejected.frames,0);assert.equal(rejected.time,8);
+  const supported=await evaluate(`(async()=>{
+    const task=Archify.story.exportVideo({seconds:110});Archify.story.cancelExport();
+    try{await task;return 'Unexpected success';}catch(error){return error.name;}
+  })()`,true);
+  assert.equal(supported,'AbortError','a normal full-story range passes preflight without encoding in this cancellation probe');
   assert.deepEqual(errors,[]);
 });

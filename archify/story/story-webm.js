@@ -1,10 +1,9 @@
 // WebM uses microsecond timestamps so offline frames retain their exact cadence.
 globalThis.StoryWebM=(()=>{
-  const concat=parts=>{const out=new Uint8Array(parts.reduce((n,p)=>n+p.length,0));let at=0;for(const part of parts){out.set(part,at);at+=part.length;}return out;};
   const bytes=id=>{const a=[];do{a.unshift(id%256);id=Math.floor(id/256);}while(id);return new Uint8Array(a);};
   function size(value){let n=1;while(value>=2**(7*n)-1)n++;const out=new Uint8Array(n);for(let i=n-1;i>=0;i--){out[i]=value%256;value=Math.floor(value/256);}out[0]|=1<<(8-n);return out;}
-  const element=(id,data)=>concat([bytes(id),size(data.length),data]);
-  const group=(id,children)=>element(id,concat(children));
+  const element=(id,data)=>new Blob([bytes(id),size(data.size??data.byteLength),data]);
+  const group=(id,children)=>element(id,new Blob(children));
   function uint(id,value,width){const data=width?new Uint8Array(width):bytes(value);if(width)for(let i=width-1;i>=0;i--){data[i]=value%256;value=Math.floor(value/256);}return element(id,data);}
   const str=(id,text)=>element(id,new TextEncoder().encode(text));
   function float(id,value){const a=new Uint8Array(8);new DataView(a.buffer).setFloat64(0,value);return element(id,a);}
@@ -21,19 +20,19 @@ globalThis.StoryWebM=(()=>{
     const trackData=group(0x1654ae6b,tracks);
     const seekHead=positions=>group(0x114d9b74,[seek(0x1549a966,positions[0]),seek(0x1654ae6b,positions[1]),seek(0x1c53bb6b,positions[2])]);
     const emptyHead=seekHead([0,0,0]);
-    let position=emptyHead.length+info.length+trackData.length;
+    let position=emptyHead.size+info.size+trackData.size;
     const cues=[],clusters=[],chunks=[...video.map(c=>({...c,track:1})),...audio.map(c=>({...c,track:2}))].sort((a,b)=>a.timestamp-b.timestamp||a.track-b.track);
     const origin=chunks.reduce((min,chunk)=>Math.min(min,chunk.timestamp),0);
     for(let i=0;i<chunks.length;){
       const time=Math.max(0,Math.round(chunks[i].timestamp-origin)),blocks=[];
       while(i<chunks.length&&Math.round(chunks[i].timestamp-origin)-time<30000){
         const chunk=chunks[i++],at=Math.round(chunk.timestamp-origin),head=new Uint8Array(4);head[0]=0x80|chunk.track;new DataView(head.buffer).setInt16(1,at-time);head[3]=chunk.key?0x80:0;
-        blocks.push(element(0xa3,concat([head,chunk.data])));
+        blocks.push(group(0xa3,[head,chunk.data]));
         if(chunk.track===1&&chunk.key)cues.push(group(0xbb,[uint(0xb3,at),group(0xb7,[uint(0xf7,1),uint(0xf1,position)])]));
       }
-      const cluster=group(0x1f43b675,[uint(0xe7,time),...blocks]);clusters.push(cluster);position+=cluster.length;
+      const cluster=group(0x1f43b675,[uint(0xe7,time),...blocks]);clusters.push(cluster);position+=cluster.size;
     }
-    const cueData=group(0x1c53bb6b,cues),head=seekHead([emptyHead.length,emptyHead.length+info.length,position]);
+    const cueData=group(0x1c53bb6b,cues),head=seekHead([emptyHead.size,emptyHead.size+info.size,position]);
     return new Blob([header,group(0x18538067,[head,info,trackData,...clusters,cueData])],{type:'video/webm'});
   }
   return {mux};

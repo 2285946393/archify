@@ -1,5 +1,6 @@
 globalThis.StoryExport=(()=>{
   const width=1920,height=1080,fps=60;
+  const videoBitrate=14000000,audioBitrate=192000,maxBufferedBytes=512*1024*1024,reserveBytes=32*1024*1024;
   const svgProps=['fill','fill-opacity','stroke','stroke-width','stroke-opacity','stroke-dasharray','stroke-dashoffset','stroke-linecap','stroke-linejoin','stroke-miterlimit','vector-effect','paint-order','stop-color','stop-opacity','text-anchor','dominant-baseline','r'];
   const commonProps=['opacity','visibility','transform','transform-origin','transform-box','filter','clip-path','mask-image','display','font-family','font-size','font-weight','letter-spacing','color'];
   const yieldTask=()=>new Promise(resolve=>setTimeout(resolve,0));
@@ -36,12 +37,18 @@ globalThis.StoryExport=(()=>{
   }
   async function video({start=0,seconds=Story.duration-start,signal,onProgress=()=>{}}={}){
     if(!Number.isFinite(start)||!Number.isFinite(seconds)||start<0||seconds<=0||start+seconds>Story.duration+.001)throw Error('Invalid export range.');
+    const pcmBytes=Math.ceil((start+seconds)*48000)*2*4,encodedRate=(videoBitrate+audioBitrate)/8;
+    if(reserveBytes+pcmBytes+seconds*encodedRate>maxBufferedBytes)throw Error('Video export exceeds the supported buffer budget; choose a shorter range.');
     if(typeof VideoEncoder==='undefined'||typeof AudioEncoder==='undefined')throw Error('Video export needs a browser with WebCodecs video and audio encoding.');
-    const vc={codec:'vp09.00.10.08',width,height,framerate:fps,bitrate:14000000,latencyMode:'quality'},ac={codec:'opus',sampleRate:48000,numberOfChannels:2,bitrate:192000};
+    const vc={codec:'vp09.00.10.08',width,height,framerate:fps,bitrate:videoBitrate,latencyMode:'quality'},ac={codec:'opus',sampleRate:48000,numberOfChannels:2,bitrate:audioBitrate};
     if(!(await VideoEncoder.isConfigSupported(vc)).supported||!(await AudioEncoder.isConfigSupported(ac)).supported)throw Error('This browser does not support the required video or audio encoder.');
     abort(signal);Story.pause();Story.setSound(false);
-    const target=canvas(),capture=captureStage(),video=[],audio=[];let failure,opusHead;
-    const save=(list,chunk)=>{const data=new Uint8Array(chunk.byteLength);chunk.copyTo(data);list.push({timestamp:chunk.timestamp,key:chunk.type==='key',data});};
+    const target=canvas(),capture=captureStage(),video=[],audio=[];let failure,opusHead,encodedBytes=0;
+    const save=(list,chunk)=>{
+      if(failure)return;encodedBytes+=chunk.byteLength;
+      if(reserveBytes+pcmBytes+encodedBytes>maxBufferedBytes){failure=Error('Video export exceeded the supported buffer budget; choose a shorter range.');return;}
+      const data=new Uint8Array(chunk.byteLength);chunk.copyTo(data);list.push({timestamp:chunk.timestamp,key:chunk.type==='key',data:new Blob([data])});
+    };
     const ve=new VideoEncoder({output:chunk=>save(video,chunk),error:error=>failure=error});
     const ae=new AudioEncoder({output:(chunk,metadata)=>{save(audio,chunk);if(metadata?.decoderConfig?.description)opusHead=new Uint8Array(metadata.decoderConfig.description).slice();},error:error=>failure=error});
     try{

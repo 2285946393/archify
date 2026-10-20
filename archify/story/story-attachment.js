@@ -40,7 +40,7 @@
     }
     motion.addEventListener('click',event=>{event.preventDefault();event.stopImmediatePropagation();Archify.exportMenu.close(false);Archify.preset?.close(false);setView(nextMode()).catch(showError);},true);
     new MutationObserver(refresh).observe(root,{attributes:true,attributeFilter:['data-motion']});
-    function loadFrame(frame,frozenAppearance){
+    function loadFrame(frame,frozenAppearance,render=false){
       return new Promise((resolve,reject)=>{
         const timer=setTimeout(()=>reject(Error('The story could not initialize.')),15000);
         frame.addEventListener('load',async()=>{
@@ -50,7 +50,7 @@
             if(!win.storyReady)throw Error('The story could not initialize.');win.Story.pause();win.Story.setAppearance(frozenAppearance||appearance());clearTimeout(timer);resolve(win);
           }catch(error){clearTimeout(timer);reject(error);}
         },{once:true});
-        frame.srcdoc=decode().replace(/<body>/,'<body class="export">');
+        frame.srcdoc=decode().replace(/<body>/,'<body class="export"'+(render?' data-story-render':'')+'>');
       });
     }
     async function ensurePlayer(){
@@ -100,7 +100,7 @@
     async function render(kind,options={}){
       if(job)throw Error('A story export is already running.');job=new AbortController();const controller=job,frame=element('iframe','story-render-frame');frame.title='Story export';frame.setAttribute('aria-hidden','true');
       videoButton.disabled=true;message(kind==='video'?'Preparing story video · 1080p · 60 fps…':'Exporting story image…',true);
-      const sourceTime=options.time??state().time,ready=loadFrame(frame,appearance());document.body.append(frame);
+      const sourceTime=options.time??state().time,ready=loadFrame(frame,appearance(),true);document.body.append(frame);
       try{
         const win=await ready;win.Story.setSound(false);
         const blob=kind==='video'?await win.StoryExport.video({...options,signal:controller.signal,onProgress:event=>{message('Exporting story video · '+Math.round(event.fraction*100)+'% · 1080p · 60 fps',true);options.onProgress?.(event);}}):await win.StoryExport.image({time:sourceTime,signal:controller.signal,format:kind});
