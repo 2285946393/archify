@@ -97,6 +97,7 @@ export function buildStory(file,planFile,out,{standalone=false,repoRoot}={}){
   out=resolveOutputPath(outputGuard).outputPath;
   const source=read(file),facts=factsOf(source),input=JSON.parse(fs.readFileSync(planFile,'utf8'));
   if(!input||typeof input!=='object'||Array.isArray(input))throw Error('The story brief must be a JSON object.');
+  if(input.accent!==undefined&&(typeof input.accent!=='string'||!/^#(?:[\da-f]{3,4}|[\da-f]{6}|[\da-f]{8})$/i.test(input.accent)))throw Error('Accent must be a literal hex color (#rgb, #rgba, #rrggbb or #rrggbbaa).');
   if(attach&&!['btn-motion','motion-label','export-menu'].every(id=>source.tree.some(node=>attr(node,'id')===id)))throw Error('Story attachment needs the native Viewer controls; generate the source with archify render first.');
   const plan=input.version===2?compileBrief(input,facts):input;
   plan.defaultMode='explain';

@@ -90,6 +90,20 @@ test('non-object briefs have actionable diagnostics and preserve existing output
   }
 });
 
+test('story accent accepts literal hex colors and rejects CSS declarations without replacing output',t=>{
+  const dir=workspace(t),file=path.join(dir,'brief.json'),output=path.join(dir,'enhanced.html'),plan=brief(scanStory(native));
+  for(const value of ['#fff;display:none','#fff;background:url(https://example.invalid/image)','red;display:none','not-a-color','#12','#12345',null,12]){
+    fs.writeFileSync(output,'previous artifact');fs.writeFileSync(file,JSON.stringify({...plan,accent:value}));
+    const result=run(['attach',native,file,output],dir);
+    assert.equal(result.status,1,'invalid accent must fail before publication');assert.match(JSON.parse(result.stdout).diagnostics[0].message,/Accent.*hex color/);
+    assert.equal(fs.readFileSync(output,'utf8'),'previous artifact');
+  }
+  for(const accent of ['#AbC','#AbC8','#477bbe','#477bbecc']){
+    fs.writeFileSync(file,JSON.stringify({...plan,accent}));const result=run(['attach',native,file,output],dir);
+    assert.equal(result.status,0,result.stdout);assert.ok(embedded(fs.readFileSync(output,'utf8')).includes('style="--accent:'+accent+'"'));
+  }
+});
+
 test('a failed brief publication rolls back its owned source map so the draft can be retried',t=>{
   const dir=workspace(t),file=path.join(dir,'brief.json'),map=path.join(dir,'brief.source.json'),destination=path.join(dir,'missing','brief.json');
   if(!fileSymlink(t,destination,file))return;

@@ -64,6 +64,8 @@ Keep default timing unless needed. Point `seconds` sets reading time (at least
 4); `travel` sets transfer duration (0.5–3 seconds). Top-level `opening` accepts
 `auto`, `fit`, `scan-x` or `scan-y`; `auto` tours long graphs when needed for
 legibility. The opening is capped at six seconds automatically.
+Optional top-level `accent` is a literal hex color: `#rgb`, `#rgba`, `#rrggbb`
+or `#rrggbbaa` (for example, `#477bbe`).
 
 For code excerpts, pass `--repo-root <repository>` to `story attach`. Point
 `code` selects `node` (default: anchor), source index `source` (default: 0),
