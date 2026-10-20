@@ -15,6 +15,13 @@ const root=fileURLToPath(new URL('../',import.meta.url)),skill=path.join(root,'a
 const cases={architecture:'web-app-rendered.html',workflow:'workflow-agent-tool-call-rendered.html',sequence:'sequence-cache-miss-request.html',dataflow:'dataflow-product-analytics.html',lifecycle:'lifecycle-agent-run.html',erd:'erd-orders-rendered.html',class:'class-payments-rendered.html',tree:'tree-payment-platform-rendered.html',timeline:'timeline-payment-incident-rendered.html',waterfall:'waterfall-checkout-request-rendered.html'};
 const native=path.join(skill,'examples',cases.workflow);
 function workspace(t){const dir=fs.mkdtempSync(path.join(os.tmpdir(),'archify-story-'));t.after(()=>fs.rmSync(dir,{recursive:true,force:true}));return dir;}
+function fileSymlink(t,target,file){
+  try{fs.symlinkSync(target,file,'file');return true;}
+  catch(error){
+    if(!['EPERM','EACCES'].includes(error.code))throw error;
+    t.skip('File symlinks unavailable: '+error.code);return false;
+  }
+}
 function run(args,cwd,entry=cli){return spawnSync(process.execPath,[entry,'story',...args,'--json'],{cwd,encoding:'utf8',env:{...process.env,NODE_PATH:'',ARCHIFY_UPDATE_CHECK_DISABLED:'1'},maxBuffer:8*1024*1024});}
 function brief(facts){const edge=facts.edges[0];return {version:2,title:'Explain the native handoff',intro:'Establish the complete diagram.',outro:'Return to its original context.',scenes:[{title:'Read this relationship',points:[{anchor:edge?.to||facts.nodes[0].id,...(edge?{via:edge.id}:{}),title:'Explain the selected point',text:'Describe the responsibility shown by this source relationship.'}]}]};}
 function embedded(html){return Buffer.from(JSON.parse(/id="archify-story-payload" type="application\/json">([\s\S]*?)<\/script>/.exec(html)[1]).html,'base64').toString('utf8');}
@@ -85,7 +92,7 @@ test('non-object briefs have actionable diagnostics and preserve existing output
 
 test('a failed brief publication rolls back its owned source map so the draft can be retried',t=>{
   const dir=workspace(t),file=path.join(dir,'brief.json'),map=path.join(dir,'brief.source.json'),destination=path.join(dir,'missing','brief.json');
-  fs.symlinkSync(destination,file,'file');
+  if(!fileSymlink(t,destination,file))return;
   const failed=run(['draft',native,file],dir);assert.equal(failed.status,1);assert.equal(fs.existsSync(map),false,'a failed pair must not leave its companion behind');
   assert.ok(fs.lstatSync(file).isSymbolicLink(),'the caller-owned alias stays intact');
   fs.mkdirSync(path.dirname(destination));const retried=run(['draft',native,file],dir);assert.equal(retried.status,0,retried.stdout+retried.stderr);assert.ok(fs.existsSync(map));
@@ -102,7 +109,7 @@ test('companion rollback preserves a replacement or an in-place edit by another 
 
 test('draft failure retains its publication error when releasing the rollback handle fails',t=>{
   const dir=workspace(t),file=path.join(dir,'brief.json'),map=path.join(dir,'brief.source.json');
-  fs.symlinkSync(path.join(dir,'missing','brief.json'),file,'file');
+  if(!fileSymlink(t,path.join(dir,'missing','brief.json'),file))return;
   const rename=fs.renameSync.bind(fs),close=fs.closeSync.bind(fs);let rollingBack=false,failed=false;
   t.mock.method(fs,'renameSync',(from,to)=>{const result=rename(from,to);if(path.basename(from)==='brief.source.json')rollingBack=true;return result;});
   t.mock.method(fs,'closeSync',descriptor=>{close(descriptor);if(rollingBack&&!failed){failed=true;throw Object.assign(Error('Injected close failure'),{code:'EIO'});}});
