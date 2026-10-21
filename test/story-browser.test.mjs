@@ -185,18 +185,31 @@ test('a public story attaches once, follows native appearance and retains source
   for(let i=1;i<audio.starts.length;i++)assert.ok(Math.abs(audio.starts[i]-audio.starts[i-1]-4)<.00001,'adjacent audio blocks share the same clock boundary');
   assert.equal(audio.afterPause,2,'only the explicit late-seek play allocates after pause');
   const lateVideo=await evaluate(`(async()=>{
-    let peak=0;const blob=await Archify.story.exportVideo({start:1800,seconds:.1,onProgress:()=>{
+    const player=document.querySelector('.story-panel iframe').contentWindow;
+    const expected=player.StorySound.renderer(player.Story.duration,player.Story.audioCues,1800)(.1);
+    let peak=0,comparedSamples=0,maxSampleError=0;const blob=await Archify.story.exportVideo({start:1800,seconds:.1,onProgress:()=>{
       const win=document.querySelector('.story-render-frame').contentWindow;
       if(win.audioAllocationProbe)return;win.audioAllocationProbe=true;
       const ArrayType=win.Float32Array;win.Float32Array=new Proxy(ArrayType,{construct(target,args){
         if(typeof args[0]==='number'){peak=Math.max(peak,args[0]);if(args[0]>48000*30)throw Error('Export synthesized an unused prefix');}
         return Reflect.construct(target,args);
       }});
+      const encode=win.AudioEncoder.prototype.encode;
+      win.AudioEncoder.prototype.encode=function(frame){
+        const offset=Math.round(frame.timestamp*frame.sampleRate/1e6);
+        for(let channel=0;channel<frame.numberOfChannels;channel++){
+          const samples=new win.Float32Array(frame.numberOfFrames);frame.copyTo(samples,{planeIndex:channel,format:'f32-planar'});
+          for(let index=0;index<samples.length;index++)maxSampleError=Math.max(maxSampleError,Math.abs(samples[index]-expected.channels[channel][offset+index]));
+          comparedSamples+=samples.length;
+        }
+        return encode.call(this,frame);
+      };
     }});
     const base64=await new Promise(resolve=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result.split(',')[1]);reader.readAsDataURL(blob);});
-    return {peak,bytes:blob.size,base64};
+    return {peak,bytes:blob.size,base64,comparedSamples,maxSampleError};
   })()`,true);
   assert.ok(lateVideo.bytes>0);assert.ok(lateVideo.peak<=48000*30,'late exports keep the fixed music bed and requested audio window bounded');
+  assert.equal(lateVideo.comparedSamples,4800*2);assert.ok(lateVideo.maxSampleError<=1e-6,'partial export preserves the preview soundtrack instead of fading at the clip boundary: '+lateVideo.maxSampleError);
   if(process.env.ARCHIFY_FFMPEG){
     const file=path.join(dir,'late-story.webm');fs.writeFileSync(file,Buffer.from(lateVideo.base64,'base64'));
     const decoded=spawnSync(process.env.ARCHIFY_FFMPEG,['-v','error','-i',file,'-map','0:a:0','-f','f32le','-ac','2','-ar','48000','-'],{timeout:15000});

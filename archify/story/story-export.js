@@ -63,7 +63,7 @@ globalThis.StoryExport=(()=>{
         onProgress({fraction:(index+1)/frames*.94,frame:index+1,frames});await yieldTask();
       }
       await ve.flush();abort(signal);if(failure)throw failure;
-      const sound=StorySound.renderer(start+samples/48000,Story.audioCues,start)(samples/48000);
+      const sound=StorySound.renderer(Story.duration,Story.audioCues,start)(samples/48000);
       for(let at=0;at<samples;at+=960){
         abort(signal);if(failure)throw failure;const count=Math.min(960,samples-at),data=new Float32Array(count*2);
         for(let channel=0;channel<2;channel++)data.set(sound.channels[channel].subarray(at,at+count),channel*count);
