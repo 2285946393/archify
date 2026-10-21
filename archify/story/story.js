@@ -53,14 +53,15 @@
       let next=shape.nextElementSibling;
       while(next?.hasAttribute('data-ambient-flow-overlay')){next.dataset.storyEdge=edge.dataset.edgeId;flows.push(next);next=next.nextElementSibling;}
     }
-    const depart=Math.min(...flows.map(flow=>parseFloat(flow.style.getPropertyValue('--flow-delay'))||0));
+    const depart=flows.length?Math.min(...flows.map(flow=>parseFloat(flow.style.getPropertyValue('--flow-delay'))||0)):0;
     const ripple=flows.find(flow=>flow.classList.contains('ambient-flow-ripple'));
     const arrival=parseFloat(ripple?.style.getPropertyValue('--flow-delay'));
     const underlays=paths.flatMap(shape=>shape.parentElement.matches('[data-graph-role="automatic-crossover"]')?[...shape.parentElement.querySelectorAll('[data-graph-role="automatic-crossover-underlay"]')]:[]);
     const labelGroups=[...edge.querySelectorAll('[data-detail="context"]')];
     edgePaths.set(edge.dataset.edgeId,{id:edge.dataset.edgeId,flows,nativeOpening:flows.length>0,underlays,box:measure(path),depart:Number.isFinite(depart)?depart:0,travel:Number.isFinite(arrival)?arrival-depart:Math.min(1.5,Math.max(.42,length/280)),authored:paths,labels:labelGroups.length?labelGroups:[...edge.querySelectorAll('text')]});
   }
-  const wireSpan=Math.max(0,...[...edgePaths.values()].map(record=>Math.max(record.depart,...record.flows.filter(flow=>!flow.classList.contains('ambient-flow-ripple')).map(flow=>parseFloat(flow.style.getPropertyValue('--flow-delay'))||0))+record.travel+.9));
+  // Guides without a native transfer are not opening events, so they cannot stretch or invalidate that clock.
+  const wireSpan=Math.max(0,...[...edgePaths.values()].filter(record=>record.nativeOpening).map(record=>Math.max(record.depart,...record.flows.filter(flow=>!flow.classList.contains('ambient-flow-ripple')).map(flow=>parseFloat(flow.style.getPropertyValue('--flow-delay'))||0))+record.travel+.9));
   // Native ambient playback may omit branches that a local explanation selects.
   const requested=new Set(plan.shots.flatMap(base=>{const shot={...base,...base.explain};return (shot.edges||[]).filter(id=>shot.edgeModes?.[id]!=='relation');}));
   const template=[...edgePaths.values()].find(record=>record.flows.length);
