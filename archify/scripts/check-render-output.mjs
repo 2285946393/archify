@@ -125,7 +125,7 @@ function addCheck(name, ok, details = []) {
 // every attribute value, immediately before the '>'.
 function isSelfClosingTag(token) {
   let quote = null;
-  let value = 'none'; // 'none' | 'pending' (just after '=') | 'unquoted'
+  let value = 'none'; // 'none' | 'aname' (in attribute name) | 'pending' (just after '=') | 'unquoted'
   let slash = false; // the previous char was a '/' outside any attribute value
   for (let k = 1; k < token.length; k += 1) {
     const ch = token[k];
@@ -134,6 +134,10 @@ function isSelfClosingTag(token) {
       slash = false;
     } else if (ch === '>') {
       return slash;
+    } else if (value === 'aname') {
+      if (ch === '=') value = 'pending';
+      else if (/[ \t\n\f\r/]/.test(ch)) value = 'none';
+      slash = false;
     } else if (value === 'pending') {
       if (ch === '"' || ch === "'") quote = ch;
       else if (!/[ \t\n\f\r]/.test(ch)) value = 'unquoted';
@@ -142,7 +146,8 @@ function isSelfClosingTag(token) {
       if (/[ \t\n\f\r]/.test(ch)) value = 'none';
       slash = false;
     } else {
-      if (ch === '=') value = 'pending';
+      if (ch === '=') value = 'aname';
+      else if (!/[ \t\n\f\r/]/.test(ch)) value = 'aname';
       slash = ch === '/';
     }
   }
@@ -157,20 +162,25 @@ function isSelfClosingTag(token) {
 // (data-quality-profile included) is lost.
 function svgRootTag(block) {
   let quote = null;
-  let value = 'none'; // 'none' | 'pending' (just after '=') | 'unquoted'
+  let value = 'none'; // 'none' | 'aname' (in attribute name) | 'pending' (just after '=') | 'unquoted'
   for (let k = 0; k < block.length; k += 1) {
     const ch = block[k];
     if (quote !== null) {
       if (ch === quote) { quote = null; value = 'none'; }
     } else if (ch === '>') {
       return block.slice(0, k + 1);
+    } else if (value === 'aname') {
+      if (ch === '=') value = 'pending';
+      else if (/[ \t\n\f\r/]/.test(ch)) value = 'none';
     } else if (value === 'pending') {
       if (ch === '"' || ch === "'") quote = ch;
       else if (!/[ \t\n\f\r]/.test(ch)) value = 'unquoted';
     } else if (value === 'unquoted') {
       if (/[ \t\n\f\r]/.test(ch)) value = 'none';
     } else if (ch === '=') {
-      value = 'pending';
+      value = 'aname';
+    } else if (!/[ \t\n\f\r/]/.test(ch)) {
+      value = 'aname';
     }
   }
   return '';
@@ -260,9 +270,11 @@ function extractSvgBlocks(source) {
     // Consume the tag through its '>', honoring quoted attribute values.
     // Per HTML, a quote opens a quoted value only right after '='; inside a
     // name or an unquoted value it is literal text and the tag still ends
-    // at its '>'.
+    // at its '>'. An '=' in before-attribute-name position starts an
+    // attribute whose name is '=' (it does not open a value), so '=' moves
+    // to the attribute-name state instead of value-pending.
     let quote = null;
-    let value = 'none'; // 'none' | 'pending' (just after '=') | 'unquoted'
+    let value = 'none'; // 'none' | 'aname' (in attribute name) | 'pending' (just after '=') | 'unquoted'
     let k = j;
     while (k < source.length) {
       const ch = source[k];
@@ -270,13 +282,18 @@ function extractSvgBlocks(source) {
         if (ch === quote) { quote = null; value = 'none'; }
       } else if (ch === '>') {
         break;
+      } else if (value === 'aname') {
+        if (ch === '=') value = 'pending';
+        else if (/[ \t\n\f\r/]/.test(ch)) value = 'none';
       } else if (value === 'pending') {
         if (ch === '"' || ch === "'") quote = ch;
         else if (!/[ \t\n\f\r]/.test(ch)) value = 'unquoted';
       } else if (value === 'unquoted') {
         if (/[ \t\n\f\r]/.test(ch)) value = 'none';
       } else if (ch === '=') {
-        value = 'pending';
+        value = 'aname';
+      } else if (!/[ \t\n\f\r/]/.test(ch)) {
+        value = 'aname';
       }
       k += 1;
     }

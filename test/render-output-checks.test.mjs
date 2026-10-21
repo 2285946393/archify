@@ -1356,3 +1356,37 @@ for (const [name, markup] of [
     assert.equal(issue.projectedFontPx, 5.425);
   });
 }
+
+test('render output check: single_svg ends a doctype at a quoted greater-than', () => {
+  // Per the HTML tokenizer (13.2.5.59), a '>' inside a quoted DOCTYPE public
+  // identifier is an abrupt-doctype-public-identifier parse error: the
+  // doctype ends there instead of continuing to the closing quote. parse5
+  // reads the input below as one svg root (the <svg> exposed by the abrupt
+  // end) with two nested svgs, and the block scan must agree instead of
+  // treating the quoted '>' as ending the declaration early in a different
+  // way. The scanner already ends the declaration at the first '>', which
+  // matches the spec; this test locks that behavior in.
+  const { result } = checkRawHtml('doctype-quoted-identifier-svg', `<!doctype html><html><body>
+<!doctype html PUBLIC "x><svg>"><svg></svg><svg></svg></svg>
+</body></html>`);
+  const single = result.checks.find(item => item.name === 'single_svg');
+  assert.equal(single.ok, true);
+  assert.deepEqual(single.details, ['found 1 <svg> block(s)']);
+});
+
+test('render output check: single_svg treats a leading equals sign as an attribute name', () => {
+  // Per the HTML tokenizer (13.2.5.32), '=' while waiting for an attribute
+  // name starts an attribute whose name is '=' rather than opening a value.
+  // The quote after it is literal text inside the name (13.2.5.33), so the
+  // tag ends at the '>' and the first tag is <svg =">. The </svg> after it
+  // closes that root, and the <svg></svg> following is a second sibling
+  // root. parse5 reads two svg elements here, and the block scan must not
+  // treat the '=' as opening a quoted value that would swallow the </svg>
+  // into the opener and merge both roots into one block.
+  const { result } = checkRawHtml('equals-attribute-name-svg', `<!doctype html><html><body>
+<svg ="></svg>"><svg></svg></svg>
+</body></html>`);
+  const single = result.checks.find(item => item.name === 'single_svg');
+  assert.equal(single.ok, false);
+  assert.deepEqual(single.details, ['found 2 <svg> block(s)']);
+});
