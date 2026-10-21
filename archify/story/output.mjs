@@ -6,11 +6,18 @@ import {captureAtomicOutput,captureRegularFileBinding,publishRegularFileBinding,
 export function writeStoryOutput(file,content,guard=()=>{},{createOnly=false,committed}={}){
   let descriptor,identity,binding,record,error;
   const failure=result=>{
-    const message=record?'Story output was published but cleanup failed':'Story output could not be published';
-    throw Object.assign(new Error(message+': '+(result.reason?.code||result.status)),{archifyDiagnostics:[{
-      code:'story/output-publication',severity:'error',message:message+'.',subject:{output:file},
-      evidence:{publication:record?'committed':'not-committed',reason:result.reason||result.status},
-      supportedFixes:['Check the output location and retry with a distinct writable path.'],
+    const message=(record?'Story output was published but cleanup failed':'Story output could not be published')
+      +': '+(result.cleanupState?.code||result.reason?.code||result.status)
+      +(result.recoveryDirectory?'; recovery directory: '+result.recoveryDirectory:'')
+      +(result.recoveryFile?'; recovery file: '+result.recoveryFile:'');
+    throw Object.assign(new Error(message),{archifyDiagnostics:[{
+      code:'story/output-publication',severity:'error',message,subject:{output:file},
+      evidence:{publication:record?'committed':'not-committed',reason:result.reason||result.status,
+        ...(result.cleanupState?{cleanupState:result.cleanupState}:{}),
+        ...(result.recoveryDirectory?{recoveryDirectory:result.recoveryDirectory}:{}),
+        ...(result.recoveryFile?{recoveryFile:result.recoveryFile}:{}),
+      },
+      supportedFixes:[record?'Inspect the published output and any reported recovery paths before retrying.':'Check the output location and retry with a distinct writable path.'],
     }]});
   };
   guard();fs.mkdirSync(path.dirname(file),{recursive:true});
@@ -35,6 +42,7 @@ export function writeStoryOutput(file,content,guard=()=>{},{createOnly=false,com
     if(!['committed','committed-with-warning'].includes(published.status))failure(published);
     // A release error does not undo publication. Keep ownership available for rollback.
     record={file:output.commitPath,identity,bytes,sha256};committed?.push(record);
+    if(published.status==='committed-with-warning')failure(published);
   }catch(cause){
     error=cause;
   }finally{

@@ -25,7 +25,7 @@ export function compileBrief(brief, facts) {
   if(brief.scopeStyle&&brief.scopeStyle!=='field')throw Error('Unknown scope presentation.');
   if(brief.opening&&!openingModes.includes(brief.opening))throw Error('Opening must be auto, fit, scan-x or scan-y.');
   const intro = required(brief.intro, 'Intro'), outro = required(brief.outro, 'Outro');
-  const shots = [{duration: 6, preset: 'establish', label: 'Overview', phase: -1, headline: title, caption: intro, nodes: [], edges: [], annotations: []}];
+  const shots = [{duration: 6, preset: 'establish', label: '', phase: -1, headline: title, caption: intro, nodes: [], edges: [], annotations: []}];
   for (const [index, scene] of brief.scenes.entries()) {
     const headline = required(scene.title, 'Scene title');
     if (!Array.isArray(scene.points) || !scene.points.length) throw Error('Every scene needs points.');
@@ -68,7 +68,7 @@ export function compileBrief(brief, facts) {
     shots.push({duration: cursor + .4, preset: scene.preset || 'follow', label: scene.label || headline, phase: index,
         headline, caption: captions[0].text, nodes: selectedNodes, edges: selectedEdges, annotations, captions, views, edgeTimes, edgeDurations, edgeModes});
   }
-  shots.push({duration: 5, preset: 'resolve', label: 'Recap', phase: brief.scenes.length - 1, headline: brief.closingTitle || title,
+  shots.push({duration: 5, preset: 'resolve', label: '', phase: brief.scenes.length - 1, headline: brief.closingTitle || title,
     caption: outro, nodes: [], edges: [], annotations: []});
   return {version: 1, defaultMode: 'explain', title, eyebrow: brief.eyebrow || 'ARCHIFY',
     timing:{camera:1.2}, ...(brief.opening?{opening:brief.opening}:{}), ...(brief.scopeStyle?{scopeStyle:brief.scopeStyle}:{}), ...(brief.accent ? {accent: brief.accent} : {}), ...(brief.motion ? {motion: brief.motion} : {}), phases: brief.scenes.map(scene => ({label: scene.label || scene.title})), shots};

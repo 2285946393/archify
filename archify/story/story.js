@@ -372,7 +372,8 @@
     for(const n of nodes){n.classList.toggle('story-muted',!full&&!chosen.has(n.dataset.nodeId));n.classList.toggle('story-focus',chosen.has(n.dataset.nodeId));n.classList.toggle('story-anchor',shot.annotations?.some(a=>a.anchor===n.dataset.nodeId));}
     for(const e of edgeElements)e.classList.toggle('story-muted',!full&&!lines.has(e.dataset.edgeId));
     headline.textContent=shot.headline;oldHeadline.textContent=index?shots[index-1].headline:'';subtitle.textContent=shot.caption;
-    $('.chapter').textContent=`${String(index+1).padStart(2,'0')} / ${String(shots.length).padStart(2,'0')} — ${shot.label}`;
+    const position=`${String(index+1).padStart(2,'0')} / ${String(shots.length).padStart(2,'0')}`;
+    $('.chapter').textContent=shot.label?`${position} — ${shot.label}`:position;
     phaseEls.forEach((n,j)=>{n.classList.toggle('active',j===shot.phase);n.classList.toggle('done',j<shot.phase);});buildAnnotations(shot);
   }
   function seek(value,syncSound=true){

@@ -33,6 +33,8 @@ test('attachment preserves localized native state labels and localizes the Story
     let state=await evaluate(read);assert.equal(state.label,expected.still,locale+' retains its native Still label before Story opens');assert.equal(state.aria,switchPrefix+expected.still);
     await evaluate('Archify.story.setView("live")');state=await evaluate(read);assert.equal(state.label,expected.live);assert.equal(state.aria,switchPrefix+expected.live);
     await evaluate('Archify.story.setView("story")');state=await evaluate(read);assert.equal(state.label,storyLabel);assert.equal(state.aria,switchPrefix+storyLabel);assert.ok(state.title.includes(expected.live));
+    const chapters=await evaluate(`(()=>{const win=document.querySelector('.story-panel iframe').contentWindow;win.Story.seek(0);const opening=win.document.querySelector('.chapter').textContent;win.Story.seek(win.Story.duration-.1);return [opening,win.document.querySelector('.chapter').textContent];})()`);
+    assert.match(chapters[0],/^01 \/ \d+$/,locale+' has a language-neutral opening');assert.match(chapters[1],/^\d+ \/ \d+$/,locale+' has a language-neutral closing');
     await evaluate('Archify.story.setView("still")');assert.equal((await evaluate(read)).label,expected.still);
   }
 });
@@ -43,7 +45,7 @@ test('a public story attaches once, follows native appearance and retains source
   const source=path.join(dir,'source.html'),plan=path.join(dir,'brief.json'),output=path.join(dir,'enhanced.html'),cli=path.join(skill,'bin/archify.mjs');
   execFileSync(process.execPath,[cli,'render','workflow',path.join(skill,'examples/agent-tool-call.workflow.json'),source]);
   // Existing native files may carry unconditional reduced-motion rules.
-  fs.writeFileSync(source,fs.readFileSync(source,'utf8').replace('</head>','<style>@media (prefers-reduced-motion: reduce){.ambient-edge-flow{display:none!important;animation:none!important;}svg[data-animation="trace"] [data-animate]{animation:none!important;}}</style></head>'));
+  fs.writeFileSync(source,fs.readFileSync(source,'utf8').replace('</head>','<style>@media (prefers-reduced-motion: reduce){.ambient-edge-flow{--test-motion-policy:legacy;display:none!important;animation:none!important;}svg[data-animation="trace"] [data-animate]{animation:none!important;}}</style></head>'));
   const receipt=JSON.parse(execFileSync(process.execPath,[cli,'story','draft',source,plan,'--json'],{encoding:'utf8'})),facts=JSON.parse(fs.readFileSync(receipt.sourceMap,'utf8')),branches=facts.edges.filter(edge=>edge.from==='approval');
   fs.writeFileSync(plan,JSON.stringify({version:2,title:'Explain one source handoff',intro:'Establish its context.',outro:'Return to the complete graph.',scenes:[{title:'Read the selected relationship',points:[{anchor:'approval',via:branches.map(edge=>edge.id),title:'Follow this handoff',text:'The explanation uses the native relationship and its original endpoints.',figureCaption:'The original endpoints retain their direction.'}]}]}));
   execFileSync(process.execPath,[cli,'story','attach',source,plan,output,'--json']);
@@ -55,6 +57,13 @@ test('a public story attaches once, follows native appearance and retains source
   async function evaluate(expression,awaitPromise=false){const result=await send('Runtime.evaluate',{expression,awaitPromise,returnByValue:true,userGesture:true});assert.equal(result.exceptionDetails,undefined,result.exceptionDetails?.exception?.description);return result.result?.value;}
   await send('Network.enable');await send('Network.setBlockedURLs',{urls:['http://*','https://*','ws://*','wss://*']});
   await send('Emulation.setDeviceMetricsOverride',{width:981,height:815,deviceScaleFactor:1,mobile:false});
+  const motionState=`win=>{const doc=win.document,rule=[...doc.styleSheets].flatMap(sheet=>[...sheet.cssRules]).find(rule=>rule.cssRules?.[0]?.style?.getPropertyValue('--test-motion-policy')==='legacy');return {render:doc.documentElement.hasAttribute('data-motion-render'),reduced:win.Archify.motionGovernor.reducedMotion(),mode:win.Archify.motionGovernor.mode(),media:rule?.media.mediaText,transfers:[...doc.querySelectorAll('.ambient-edge-flow')].flatMap(flow=>flow.getAnimations()).length};}`;
+  const reducedPolicy={render:false,reduced:true,mode:'still',media:'(prefers-reduced-motion: reduce)',transfers:0};
+  await send('Emulation.setEmulatedMedia',{features:[{name:'prefers-reduced-motion',value:'reduce'}]});
+  const sourceLoaded=browser.cdp.waitFor('Page.loadEventFired',session);await send('Page.navigate',{url:pathToFileURL(source).href});await sourceLoaded;
+  await evaluate('Archify.motionGovernor.setMode("live",{persist:false});new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))',true);
+  assert.deepEqual(await evaluate(`(${motionState})(window)`),reducedPolicy,'the unenhanced interactive Viewer retains reduced-motion CSS and suppresses native transfers');
+  await send('Emulation.setEmulatedMedia',{features:[{name:'prefers-reduced-motion',value:'no-preference'}]});
   const loaded=browser.cdp.waitFor('Page.loadEventFired',session);await send('Page.navigate',{url:pathToFileURL(output).href});await loaded;
   await evaluate('document.fonts.ready',true);
   const snapshot='[...document.querySelectorAll(".diagram-container > svg [data-node-id],.diagram-container > svg [data-edge-from]")].map(node=>[node.dataset.nodeId,node.dataset.edgeId,node.dataset.edgeFrom,node.dataset.edgeTo])';
@@ -67,6 +76,8 @@ test('a public story attaches once, follows native appearance and retains source
   await evaluate('(async()=>{for(let i=0;i<300&&!document.querySelector(".story-panel iframe")?.contentWindow?.storyReady;i++)await new Promise(resolve=>setTimeout(resolve,20));if(!document.querySelector(".story-panel iframe")?.contentWindow?.storyReady)throw Error("Story did not initialize");Archify.story.setSound(false);Archify.story.seek(8);})()',true);
   assert.equal(await evaluate('document.querySelector(".story-notes")===window.nativeNotes'),true);
   assert.equal(await evaluate('[...document.querySelectorAll(".story-panel-controls button,.story-panel-controls input")].some(control=>control.disabled)'),false);
+  const chapters=await evaluate(`(()=>{const win=document.querySelector('.story-panel iframe').contentWindow,read=()=>win.document.querySelector('.chapter').textContent;win.Story.seek(0);const opening=read();win.Story.seek(win.Story.duration-.1);const closing=read();win.Story.seek(8);return {opening,closing,scene:read()};})()`);
+  assert.equal(chapters.opening,'01 / 03');assert.equal(chapters.closing,'03 / 03');assert.equal(chapters.scene,'02 / 03 — Read the selected relationship','authored scene labels remain visible');
   assert.equal(await evaluate('document.querySelector(".story-panel iframe").contentDocument.querySelector(".figure-caption").textContent'),'The original endpoints retain their direction.');
   assert.equal(await evaluate('document.querySelector(".story-panel iframe").contentDocument.documentElement.lang'),'en');
   assert.equal(await evaluate('document.querySelector(".story-panel iframe").contentWindow.Story.plan.eyebrow'),'ARCHIFY');
@@ -115,17 +126,24 @@ test('a public story attaches once, follows native appearance and retains source
   await send('Emulation.setEmulatedMedia',{features:[{name:'prefers-reduced-motion',value:'reduce'}]});
   await evaluate('new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))',true);
   const reduced=await evaluate(cameraSamples);assert.deepEqual(reduced.first,reduced.next,'reduced-motion playback cuts directly to the target');assert.equal(reduced.wash,'0');assert.equal(reduced.duration,normal.duration);
+  await evaluate('Archify.story.setView("live")',true);
+  assert.deepEqual(await evaluate(`(${motionState})(window)`),reducedPolicy,'the enhanced native Viewer also respects reduced motion when Live is requested');
+  await evaluate('Archify.story.setView("story")',true);
+  assert.deepEqual(await evaluate(`(${motionState})(document.querySelector('.story-panel iframe').contentWindow)`),reducedPolicy,'interactive Story playback keeps its original reduced-motion policy');
   const rendered=await evaluate(`(async()=>{
     let result;await Archify.story.exportVideo({seconds:.1,onProgress:()=>{
       if(result)return;const win=document.querySelector('.story-render-frame').contentWindow,start=win.Story.shots[1].start;
       Object.defineProperty(win.document,'hidden',{configurable:true,get:()=>true});win.document.dispatchEvent(new win.Event('visibilitychange'));
       result={first:win.Story.seek(start+.1).camera,next:win.Story.seek(start+.8).camera,wash:win.document.querySelector('.transition-light').style.opacity,
-        mode:win.Archify.motionGovernor.mode(),transfers:[...win.document.querySelectorAll('.ambient-edge-flow')].flatMap(flow=>flow.getAnimations()).length};
+        ...(${motionState})(win)};
     }});return result;
   })()`,true);
   assert.notDeepEqual(rendered.first,rendered.next,'export keeps authored camera motion despite the viewer preference');assert.ok(Number(rendered.wash)>0);
   assert.ok(rendered.transfers>0,'export retains native connection animations under reduced motion and hidden-document suspension');assert.equal(rendered.mode,'live');
-  assert.equal(await evaluate('Archify.motionGovernor.mode()'),'still','the export does not change the native viewer motion policy');
+  assert.equal(rendered.render,true);assert.equal(rendered.reduced,false);assert.equal(rendered.media,'not all','the export override belongs to its isolated stylesheet');
+  assert.equal(await evaluate('document.querySelectorAll(".story-render-frame").length'),0,'the export context is removed after completion');
+  assert.deepEqual(await evaluate(`(${motionState})(window)`),reducedPolicy,'export leaves the parent Viewer and its stylesheet unchanged');
+  assert.deepEqual(await evaluate(`(${motionState})(document.querySelector('.story-panel iframe').contentWindow)`),reducedPolicy,'export leaves interactive Story playback and its stylesheet unchanged');
   await send('Emulation.setEmulatedMedia',{features:[{name:'prefers-reduced-motion',value:'no-preference'}]});
   await evaluate('localStorage.setItem("archify-motion","live");Archify.story.setView("still")',true);
   assert.equal(await evaluate('localStorage.getItem("archify-motion")'),'live','programmatic changes do not overwrite a saved reader preference');

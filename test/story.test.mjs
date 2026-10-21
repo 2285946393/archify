@@ -166,6 +166,28 @@ test('draft rollback includes either file committed before a handle release fail
   });
 });
 
+test('committed publication warnings retain the new output and report cleanup and recovery state',async t=>{
+  for(const fault of ['release','backup'])await t.test(fault,t=>{
+    const dir=workspace(t),file=path.join(dir,'output.html'),committed=[];fs.writeFileSync(file,'previous');
+    const open=fs.openSync.bind(fs),close=fs.closeSync.bind(fs),rename=fs.renameSync.bind(fs);let previous,injected=false;
+    t.mock.method(fs,'openSync',(name,...args)=>{const descriptor=open(name,...args);if(path.basename(String(name))==='output.html')previous=descriptor;return descriptor;});
+    t.mock.method(fs,'closeSync',descriptor=>{close(descriptor);if(fault==='release'&&descriptor===previous&&!injected&&fs.readFileSync(file,'utf8')==='next'){injected=true;throw Object.assign(Error('Previous handle release failed'),{code:'EIO'});}});
+    t.mock.method(fs,'renameSync',(from,to)=>{if(fault==='backup'&&path.basename(String(from))==='previous'&&!injected&&fs.readFileSync(file,'utf8')==='next'){injected=true;throw Object.assign(Error('Previous backup cleanup failed'),{code:'EIO'});}return rename(from,to);});
+    let failure;try{writeStoryOutput(file,'next',()=>{},{committed});}catch(error){failure=error;}
+    assert.equal(injected,true);assert.ok(failure,'a committed cleanup warning must reach the caller');
+    assert.match(failure.message,/was published but cleanup failed/);
+    const diagnostic=failure.archifyDiagnostics[0];assert.equal(diagnostic.code,'story/output-publication');
+    assert.equal(diagnostic.evidence.publication,'committed');assert.equal(diagnostic.evidence.cleanupState.systemCode,'EIO');
+    assert.equal(committed.length,1,'ownership is retained before reporting a post-commit failure');assert.equal(fs.readFileSync(file,'utf8'),'next');
+    if(fault==='backup'){
+      assert.ok(fs.existsSync(diagnostic.evidence.recoveryDirectory));assert.equal(fs.readFileSync(diagnostic.evidence.recoveryFile,'utf8'),'previous');
+      assert.ok(fs.existsSync(path.join(diagnostic.evidence.recoveryDirectory,'publication-recovery-v1.json')));
+      assert.ok(failure.message.includes(diagnostic.evidence.recoveryDirectory),'the plain CLI error includes the retained recovery directory');
+      assert.ok(failure.message.includes(diagnostic.evidence.recoveryFile),'the plain CLI error includes the retained previous output');
+    }
+  });
+});
+
 test('streamed soundtrack blocks preserve samples and cues across a block boundary',()=>{
   const context=vm.createContext({});vm.runInContext(fs.readFileSync(path.join(skill,'story/story-audio.js'),'utf8'),context);
   const sound=context.StorySound,cues=[{kind:'move',at:3.7,duration:1},{kind:'local',at:3.8,duration:1.1},{kind:'enter',at:4,duration:.5}],duration=4.75;
