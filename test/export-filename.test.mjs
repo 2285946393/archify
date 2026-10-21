@@ -29,6 +29,17 @@ test('export filenames keep non-Latin diagram titles (issue #1024)', () => {
   assert.equal(diagramFilename('Pagos · Diagrama'), 'pagos-diagrama');
 });
 
+test('export filenames drop detached Unicode marks', () => {
+  // ❤️ is U+2764 + U+FE0F: the heart itself is replaced, and its variation
+  // selector is a mark with no retained base. Nothing of it may survive,
+  // or the export downloads as an invisible filename instead of diagram.png.
+  assert.equal(diagramFilename('❤️'), 'diagram');
+  assert.equal(diagramFilename('My ❤️ Diagram'), 'my');
+  assert.equal(diagramFilename('My ❤️ Board'), 'my-board');
+  // A mark attached to a letter base is kept: e + combining acute U+0301.
+  assert.equal(diagramFilename('Cafe\u0301'), 'cafe\u0301');
+});
+
 test('export filenames keep existing Latin behavior', () => {
   assert.equal(diagramFilename('Checkout Platform Diagram'), 'checkout-platform');
   assert.equal(diagramFilename('  My Title!!  '), 'my-title');
