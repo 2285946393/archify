@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {execFileSync,spawnSync} from 'node:child_process';
-import {fileURLToPath} from 'node:url';
+import {fileURLToPath,pathToFileURL} from 'node:url';
 import vm from 'node:vm';
 import {scanStory,buildStory,draftStory} from '../archify/story/tool.mjs';
 import {compileBrief,draftBrief} from '../archify/story/story-plan.mjs';
@@ -102,6 +102,20 @@ test('story accent accepts literal hex colors and rejects CSS declarations witho
     fs.writeFileSync(file,JSON.stringify({...plan,accent}));const result=run(['attach',native,file,output],dir);
     assert.equal(result.status,0,result.stdout);assert.ok(embedded(fs.readFileSync(output,'utf8')).includes('style="--accent:'+accent+'"'));
   }
+});
+
+test('the brief link remains a file URL for reserved characters and scheme-like filenames',t=>{
+  const dir=workspace(t),output=path.join(dir,'story.html'),plan=brief(scanStory(native));
+  const names=['notes #100% 中文.json'];
+  if(process.platform!=='win32')names.push('javascript:parent.document.documentElement.dataset.pwned=({json:1}).json');
+  for(const name of names){
+    const file=path.join(dir,name);fs.writeFileSync(file,JSON.stringify(plan));buildStory(native,file,output);
+    const page=embedded(fs.readFileSync(output,'utf8')),href=/<a href="([^"]+)">Story brief/.exec(page)[1],url=new URL(href,pathToFileURL(output));
+    assert.equal(url.protocol,'file:');assert.equal(url.hash,'');assert.equal(url.search,'');assert.equal(fileURLToPath(url),file);
+  }
+  const parent=path.join(dir,'brief.json'),nested=path.join(dir,'output','story.html');fs.writeFileSync(parent,JSON.stringify(plan));buildStory(native,parent,nested);
+  const href=/<a href="([^"]+)">Story brief/.exec(embedded(fs.readFileSync(nested,'utf8')))[1];
+  assert.equal(fileURLToPath(new URL(href,pathToFileURL(nested))),parent,'a parent-directory brief stays reachable');
 });
 
 test('a failed brief publication rolls back its owned source map so the draft can be retried',t=>{

@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import {execFileSync} from 'node:child_process';
-import {fileURLToPath} from 'node:url';
+import {fileURLToPath,pathToFileURL} from 'node:url';
 import {createHash} from 'node:crypto';
 import {compileBrief,draftBrief,nativeMotions,openingModes} from './story-plan.mjs';
 import {resolveOutputPath} from '../renderers/shared/output-path.mjs';
@@ -138,7 +138,8 @@ export function buildStory(file,planFile,out,{standalone=false,repoRoot}={}){
   const styles=source.tree.filter(node=>node.tagName==='style').map(node=>(node.childNodes||[]).map(child=>child.value||'').join('')).join('\n');
   const nativeMotion=fs.readFileSync(path.join(here,'native-motion.js'),'utf8');
   const data=JSON.stringify({plan,source:{file:path.basename(file),sha256:createHash('sha256').update(source.html).digest('hex')},facts}).replace(/</g,'\\u003c');
-  const scriptRef=path.relative(path.dirname(out),planFile).split(path.sep).join('/');
+  const briefPath=path.relative(path.dirname(out),planFile);
+  const scriptRef=path.isAbsolute(briefPath)?pathToFileURL(planFile).href:'./'+briefPath.split(path.sep).map(encodeURIComponent).join('/');
   const brandRef='data:image/svg+xml;base64,'+fs.readFileSync(path.join(here,'brand.svg')).toString('base64');
   if(plan.motion){
     if(!nativeMotions.includes(plan.motion))throw Error('Unknown native motion choreography.');

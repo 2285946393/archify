@@ -37,7 +37,7 @@ globalThis.StoryExport=(()=>{
   }
   async function video({start=0,seconds=Story.duration-start,signal,onProgress=()=>{}}={}){
     if(!Number.isFinite(start)||!Number.isFinite(seconds)||start<0||seconds<=0||start+seconds>Story.duration+.001)throw Error('Invalid export range.');
-    const pcmBytes=Math.ceil((start+seconds)*48000)*2*4,encodedRate=(videoBitrate+audioBitrate)/8;
+    const samples=Math.ceil(seconds*48000),pcmBytes=samples*2*4,encodedRate=(videoBitrate+audioBitrate)/8;
     if(reserveBytes+pcmBytes+seconds*encodedRate>maxBufferedBytes)throw Error('Video export exceeds the supported buffer budget; choose a shorter range.');
     if(typeof VideoEncoder==='undefined'||typeof AudioEncoder==='undefined')throw Error('Video export needs a browser with WebCodecs video and audio encoding.');
     const vc={codec:'vp09.00.41.08',width,height,framerate:fps,bitrate:videoBitrate,latencyMode:'quality'},ac={codec:'opus',sampleRate:48000,numberOfChannels:2,bitrate:audioBitrate};
@@ -63,10 +63,10 @@ globalThis.StoryExport=(()=>{
         onProgress({fraction:(index+1)/frames*.94,frame:index+1,frames});await yieldTask();
       }
       await ve.flush();abort(signal);if(failure)throw failure;
-      const sound=StorySound.render(start+seconds,Story.audioCues),offset=Math.round(start*sound.rate),samples=Math.ceil(seconds*sound.rate);
+      const sound=StorySound.renderer(start+samples/48000,Story.audioCues,start)(samples/48000);
       for(let at=0;at<samples;at+=960){
         abort(signal);if(failure)throw failure;const count=Math.min(960,samples-at),data=new Float32Array(count*2);
-        for(let channel=0;channel<2;channel++)data.set(sound.channels[channel].subarray(offset+at,offset+at+count),channel*count);
+        for(let channel=0;channel<2;channel++)data.set(sound.channels[channel].subarray(at,at+count),channel*count);
         const frame=new AudioData({format:'f32-planar',sampleRate:sound.rate,numberOfFrames:count,numberOfChannels:2,timestamp:Math.round(at*1e6/sound.rate),data});
         try{ae.encode(frame);}finally{frame.close();}
         while(ae.encodeQueueSize>16){abort(signal);if(failure)throw failure;await yieldTask();}

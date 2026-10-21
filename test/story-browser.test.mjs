@@ -160,5 +160,23 @@ test('a public story attaches once, follows native appearance and retains source
   assert.ok(audio.allocations.every(seconds=>seconds<=4));assert.ok(audio.starts.length>=3,'playback replenishes its scheduled buffers');
   for(let i=1;i<audio.starts.length;i++)assert.ok(Math.abs(audio.starts[i]-audio.starts[i-1]-4)<.00001,'adjacent audio blocks share the same clock boundary');
   assert.equal(audio.afterPause,2,'only the explicit late-seek play allocates after pause');
+  const lateVideo=await evaluate(`(async()=>{
+    let peak=0;const blob=await Archify.story.exportVideo({start:1800,seconds:.1,onProgress:()=>{
+      const win=document.querySelector('.story-render-frame').contentWindow;
+      if(win.audioAllocationProbe)return;win.audioAllocationProbe=true;
+      const ArrayType=win.Float32Array;win.Float32Array=new Proxy(ArrayType,{construct(target,args){
+        if(typeof args[0]==='number'){peak=Math.max(peak,args[0]);if(args[0]>48000*30)throw Error('Export synthesized an unused prefix');}
+        return Reflect.construct(target,args);
+      }});
+    }});
+    const base64=await new Promise(resolve=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result.split(',')[1]);reader.readAsDataURL(blob);});
+    return {peak,bytes:blob.size,base64};
+  })()`,true);
+  assert.ok(lateVideo.bytes>0);assert.ok(lateVideo.peak<=48000*30,'late exports keep the fixed music bed and requested audio window bounded');
+  if(process.env.ARCHIFY_FFMPEG){
+    const file=path.join(dir,'late-story.webm');fs.writeFileSync(file,Buffer.from(lateVideo.base64,'base64'));
+    const decoded=spawnSync(process.env.ARCHIFY_FFMPEG,['-v','error','-i',file,'-map','0:a:0','-f','f32le','-ac','2','-ar','48000','-'],{timeout:15000});
+    assert.equal(decoded.status,0,decoded.stderr?.toString());assert.equal(decoded.stderr.toString(),'');assert.ok(Math.abs(decoded.stdout.length/(48000*2*4)-.1)<.03);assert.ok(decoded.stdout.some(byte=>byte!==0));
+  }
   assert.deepEqual(errors,[]);
 });
