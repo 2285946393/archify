@@ -5039,17 +5039,17 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       50% { opacity: 0.48; transform: scale(0.78); }
     }
     @media (prefers-reduced-motion: reduce) {
-      .ambient-edge-flow { display: none !important; animation: none !important; }
+      :where(html:not([data-motion-render])) .ambient-edge-flow { display: none !important; animation: none !important; }
       html[data-preset="signal-flow"] .diagram-container::before {
         animation: none !important;
       }
       .pulse-dot { animation: none !important; }
       .motion-control-dot { animation: none !important; }
-      svg[data-animation="trace"] [data-animate] {
+      :where(html:not([data-motion-render])) svg[data-animation="trace"] [data-animate] {
         animation: none !important;
         stroke-dashoffset: 0;
       }
-      svg[data-animation="trace"] [data-graph-role="automatic-crossover"]:has(> [data-animate="edge"]) > [data-graph-role="automatic-crossover-underlay"] {
+      :where(html:not([data-motion-render])) svg[data-animation="trace"] [data-graph-role="automatic-crossover"]:has(> [data-animate="edge"]) > [data-graph-role="automatic-crossover-underlay"] {
         animation: none !important;
         stroke-dashoffset: 0;
       }
@@ -8225,7 +8225,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         } catch (_) {}
       }
       function reducedMotion() {
-        return !!(motionQuery && motionQuery.matches);
+        return !html.hasAttribute('data-motion-render') && !!(motionQuery && motionQuery.matches);
       }
       function hasSuspension() {
         return Object.keys(suspensions).length > 0;
@@ -8336,7 +8336,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         };
       }
       function syncVisibility() {
-        if (document.hidden) {
+        if (document.hidden && !html.hasAttribute('data-motion-render')) {
           suspensions.visibility = true;
           html.setAttribute('data-document-hidden', 'true');
         } else {
@@ -8364,6 +8364,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           release: function () { return false; },
           suspend: function () { return function () { return false; }; },
           isPaused: function () { return true; },
+          reducedMotion: reducedMotion,
           owner: function () { return ''; }
         };
       }
@@ -8411,9 +8412,11 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         release: release,
         suspend: suspend,
         isPaused: effectivePaused,
+        reducedMotion: reducedMotion,
         owner: function () { return owner; }
       };
     })();
+
 
     /* Verified repository evidence is emitted only after the renderer checks
        the authored GitHub revision, source blobs, and optional line ranges

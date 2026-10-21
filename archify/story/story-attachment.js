@@ -53,7 +53,9 @@
             if(!win.storyReady)throw Error('The story could not initialize.');win.Story.pause();win.Story.setAppearance(frozenAppearance||appearance());clearTimeout(timer);resolve(win);
           }catch(error){clearTimeout(timer);reject(error);}
         },{once:true});
-        frame.srcdoc=decode().replace(/<body>/,'<body class="export"'+(render?' data-story-render':'')+'>');
+        let html=decode().replace('<body>','<body class="export">');
+        if(render)html=html.replace('<html ','<html data-motion-render ');
+        frame.srcdoc=html;
       });
     }
     async function ensurePlayer(){

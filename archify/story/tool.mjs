@@ -165,16 +165,19 @@ export function draftStory(file,target){
   resolveOutputPath(guard);resolveOutputPath({requestedOutput:sourceMap,requiredExtension:'.json',inputPaths:[file],otherOutputPaths:[target]});
   if(fs.existsSync(target)||fs.existsSync(sourceMap))throw Error('Draft output already exists; choose a new brief path.');
   const brief=JSON.stringify(draftBrief(facts),null,2)+'\n',map=JSON.stringify(facts,null,2)+'\n';
-  const companion=writeStoryOutput(sourceMap,map,()=>resolveOutputPath({requestedOutput:sourceMap,requiredExtension:'.json',inputPaths:[file],otherOutputPaths:[target]}),{createOnly:true});
-  try{writeStoryOutput(target,brief,()=>resolveOutputPath(guard),{createOnly:true});}
+  const committed=[];
+  try{
+    writeStoryOutput(sourceMap,map,()=>resolveOutputPath({requestedOutput:sourceMap,requiredExtension:'.json',inputPaths:[file],otherOutputPaths:[target]}),{createOnly:true,committed});
+    writeStoryOutput(target,brief,()=>resolveOutputPath(guard),{createOnly:true,committed});
+  }
   catch(error){
-    let detail;
-    try{
-      const cleanup=rollbackStoryOutput(companion);
-      if(!['removed','absent','preserved'].includes(cleanup.status)||cleanup.release)detail=cleanup.status+(cleanup.release?'; handle release: '+(cleanup.release.reason?.code||cleanup.release.status):'');
-    }catch(cleanupError){detail=cleanupError.message;}
-    if(detail){
-      const message=' Source map rollback: '+detail+'; choose a new draft path.';
+    const details=[];
+    for(const output of committed.reverse())try{
+      const cleanup=rollbackStoryOutput(output);
+      if(!['removed','absent','preserved'].includes(cleanup.status)||cleanup.release)details.push(path.basename(output.file)+': '+cleanup.status+(cleanup.release?'; handle release: '+(cleanup.release.reason?.code||cleanup.release.status):''));
+    }catch(cleanupError){details.push(path.basename(output.file)+': '+cleanupError.message);}
+    if(details.length){
+      const message=' Draft rollback: '+details.join('; ')+'; choose a new draft path.';
       error.message+=message;
       for(const diagnostic of error.archifyDiagnostics||[])diagnostic.message+=message;
     }

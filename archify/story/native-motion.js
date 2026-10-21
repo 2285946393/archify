@@ -522,7 +522,7 @@
         } catch (_) {}
       }
       function reducedMotion() {
-        return !!(motionQuery && motionQuery.matches);
+        return !html.hasAttribute('data-motion-render') && !!(motionQuery && motionQuery.matches);
       }
       function hasSuspension() {
         return Object.keys(suspensions).length > 0;
@@ -633,7 +633,7 @@
         };
       }
       function syncVisibility() {
-        if (document.hidden) {
+        if (document.hidden && !html.hasAttribute('data-motion-render')) {
           suspensions.visibility = true;
           html.setAttribute('data-document-hidden', 'true');
         } else {
@@ -661,6 +661,7 @@
           release: function () { return false; },
           suspend: function () { return function () { return false; }; },
           isPaused: function () { return true; },
+          reducedMotion: reducedMotion,
           owner: function () { return ''; }
         };
       }
@@ -708,6 +709,7 @@
         release: release,
         suspend: suspend,
         isPaused: effectivePaused,
+        reducedMotion: reducedMotion,
         owner: function () { return owner; }
       };
     })();

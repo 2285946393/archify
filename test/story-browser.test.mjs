@@ -116,10 +116,14 @@ test('a public story attaches once, follows native appearance and retains source
   const rendered=await evaluate(`(async()=>{
     let result;await Archify.story.exportVideo({seconds:.1,onProgress:()=>{
       if(result)return;const win=document.querySelector('.story-render-frame').contentWindow,start=win.Story.shots[1].start;
-      result={render:win.document.body.hasAttribute('data-story-render'),first:win.Story.seek(start+.1).camera,next:win.Story.seek(start+.8).camera,wash:win.document.querySelector('.transition-light').style.opacity};
+      Object.defineProperty(win.document,'hidden',{configurable:true,get:()=>true});win.document.dispatchEvent(new win.Event('visibilitychange'));
+      result={first:win.Story.seek(start+.1).camera,next:win.Story.seek(start+.8).camera,wash:win.document.querySelector('.transition-light').style.opacity,
+        mode:win.Archify.motionGovernor.mode(),transfers:[...win.document.querySelectorAll('.ambient-edge-flow')].flatMap(flow=>flow.getAnimations()).length};
     }});return result;
   })()`,true);
-  assert.equal(rendered.render,true);assert.notDeepEqual(rendered.first,rendered.next,'export keeps authored camera motion despite the viewer preference');assert.ok(Number(rendered.wash)>0);
+  assert.notDeepEqual(rendered.first,rendered.next,'export keeps authored camera motion despite the viewer preference');assert.ok(Number(rendered.wash)>0);
+  assert.ok(rendered.transfers>0,'export retains native connection animations under reduced motion and hidden-document suspension');assert.equal(rendered.mode,'live');
+  assert.equal(await evaluate('Archify.motionGovernor.mode()'),'still','the export does not change the native viewer motion policy');
   await send('Emulation.setEmulatedMedia',{features:[{name:'prefers-reduced-motion',value:'no-preference'}]});
   await evaluate('localStorage.setItem("archify-motion","live");Archify.story.setView("still")',true);
   assert.equal(await evaluate('localStorage.getItem("archify-motion")'),'live','programmatic changes do not overwrite a saved reader preference');

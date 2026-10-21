@@ -1,8 +1,7 @@
 (() => {
   const {plan,facts}=JSON.parse(document.querySelector('#story-data').textContent);
   const mode='explain';
-  const motionPreference=matchMedia('(prefers-reduced-motion: reduce)');
-  const reducedMotion=()=>motionPreference.matches&&!document.body.hasAttribute('data-story-render');
+  const reducedMotion=Archify.motionGovernor.reducedMotion;
   const $=s=>document.querySelector(s),stage=$('.stage'),viewport=$('.viewport'),svg=$('.art svg');
   const headline=$('h1'),oldHeadline=$('.headline-old'),subtitle=$('.subtitle'),rail=$('.phase-rail');
   const playButton=$('[data-play]'),range=$('.timeline'),clock=$('.clock'),soundButton=$('[data-sound]');

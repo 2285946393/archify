@@ -145,6 +145,27 @@ test('draft failure retains its publication error when releasing the rollback ha
   assert.equal(failed,true);assert.equal(fs.existsSync(map),false);
 });
 
+test('a failed candidate close preserves the original error and removes the temporary file',t=>{
+  const dir=workspace(t),file=path.join(dir,'story.html');fs.writeFileSync(file,'previous artifact');
+  const open=fs.openSync.bind(fs),close=fs.closeSync.bind(fs);let candidate,failed=false;
+  t.mock.method(fs,'openSync',(name,...args)=>{const descriptor=open(name,...args);if(args[0]==='wx'&&path.basename(String(name)).startsWith('.archify-story-'))candidate=descriptor;return descriptor;});
+  t.mock.method(fs,'closeSync',descriptor=>{close(descriptor);if(descriptor===candidate&&!failed){failed=true;throw Object.assign(Error('Candidate close failed'),{code:'EIO'});}});
+  assert.throws(()=>writeStoryOutput(file,'new artifact'),error=>error.code==='EIO'&&error.message==='Candidate close failed');
+  assert.equal(failed,true);assert.equal(fs.readFileSync(file,'utf8'),'previous artifact');assert.deepEqual(fs.readdirSync(dir),['story.html']);
+});
+
+test('draft rollback includes either file committed before a handle release fails',async t=>{
+  for(const name of ['brief.source.json','brief.json'])await t.test(name,t=>{
+    const dir=workspace(t),file=path.join(dir,'brief.json'),map=path.join(dir,'brief.source.json'),published=path.join(dir,name);
+    const open=fs.openSync.bind(fs),close=fs.closeSync.bind(fs);let binding,failed=false;
+    t.mock.method(fs,'openSync',(name,...args)=>{const descriptor=open(name,...args);if(args[0]!=='wx'&&path.basename(String(name)).startsWith('.archify-story-'))binding=descriptor;return descriptor;});
+    t.mock.method(fs,'closeSync',descriptor=>{close(descriptor);if(descriptor===binding&&fs.existsSync(published)&&!failed){failed=true;throw Object.assign(Error('Published handle close failed'),{code:'EIO'});}});
+    assert.throws(()=>draftStory(native,file),error=>/was published but cleanup failed/.test(error.message)&&error.archifyDiagnostics[0].evidence.publication==='committed');
+    assert.equal(failed,true);assert.deepEqual(fs.readdirSync(dir),[],'the failed draft leaves neither owned output nor staging files');
+    t.mock.restoreAll();draftStory(native,file);assert.ok(fs.existsSync(file));assert.ok(fs.existsSync(map));
+  });
+});
+
 test('streamed soundtrack blocks preserve samples and cues across a block boundary',()=>{
   const context=vm.createContext({});vm.runInContext(fs.readFileSync(path.join(skill,'story/story-audio.js'),'utf8'),context);
   const sound=context.StorySound,cues=[{kind:'move',at:3.7,duration:1},{kind:'local',at:3.8,duration:1.1},{kind:'enter',at:4,duration:.5}],duration=4.75;
