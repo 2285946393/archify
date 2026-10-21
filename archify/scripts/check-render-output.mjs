@@ -149,6 +149,33 @@ function isSelfClosingTag(token) {
   return false;
 }
 
+// The root opener of a block: everything through the first '>' that sits
+// outside a quoted attribute value, walked with the same value tracking as
+// extractSvgBlocks. A quoted-spans pattern cannot express that rule: a lone
+// quote inside an unquoted value (data-note=x") opens a span there that
+// swallows the rest of the tag, the match fails, and every root attribute
+// (data-quality-profile included) is lost.
+function svgRootTag(block) {
+  let quote = null;
+  let value = 'none'; // 'none' | 'pending' (just after '=') | 'unquoted'
+  for (let k = 0; k < block.length; k += 1) {
+    const ch = block[k];
+    if (quote !== null) {
+      if (ch === quote) { quote = null; value = 'none'; }
+    } else if (ch === '>') {
+      return block.slice(0, k + 1);
+    } else if (value === 'pending') {
+      if (ch === '"' || ch === "'") quote = ch;
+      else if (!/[ \t\n\f\r]/.test(ch)) value = 'unquoted';
+    } else if (value === 'unquoted') {
+      if (/[ \t\n\f\r]/.test(ch)) value = 'none';
+    } else if (ch === '=') {
+      value = 'pending';
+    }
+  }
+  return '';
+}
+
 // Collect each top-level <svg> block. Matching lazily to the first </svg>
 // would cut a root short at a nested <svg> (for example inside foreignObject)
 // and drop the rest of the root from every check below; markup inside HTML
@@ -199,6 +226,14 @@ function extractSvgBlocks(source) {
         const end = source.indexOf('>', lt + 9);
         i = end === -1 ? source.length : end + 1;
       }
+      continue;
+    }
+    if (source.startsWith('<?', lt)) {
+      // A processing instruction is a bogus comment in HTML too: it ends
+      // at the first '>', so an <svg> inside it opens no element and the
+      // markup after that '>' stays real.
+      const end = source.indexOf('>', lt + 2);
+      i = end === -1 ? source.length : end + 1;
       continue;
     }
     if (source.startsWith('<!', lt)) {
@@ -266,7 +301,7 @@ addCheck('single_svg', svgBlocks.length === 1, [`found ${svgBlocks.length} <svg>
 
 if (svgBlocks.length === 1) {
   const svg = svgBlocks[0];
-  const svgRoot = svg.match(/<svg\b(?:[^>"']|"[^"]*"|'[^']*')*>/i)?.[0] || '';
+  const svgRoot = svgRootTag(svg);
   const svgAttrs = parseAttrs(svgRoot);
   const qualityProfile = svgAttrs['data-quality-profile'] || 'standard';
   const workflowV2 = svgAttrs['data-layout-contract'] === 'readable-v2';

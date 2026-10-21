@@ -1207,6 +1207,46 @@ test('render output check: single_svg counts an svg after a bogus declaration ho
   assert.deepEqual(single.details, ['found 2 <svg> block(s)']);
 });
 
+test('render output check: root attributes survive a lone quote in an unquoted value', () => {
+  // A quote inside an unquoted attribute value is literal text per the HTML
+  // tokenizer; only a quote right after '=' opens a quoted value. Reading
+  // the root opener with a quoted-spans pattern loses everything past the
+  // lone quote, so data-quality-profile never reaches the composition
+  // profile and a showcase artifact silently degrades to standard.
+  const { result } = checkRawHtml('lone-quote-root', `<!doctype html><html><body>
+<svg viewBox="0 0 240 154" data-note=x" data-quality-profile="showcase"><rect x="10" y="10" width="10" height="10"/></svg>
+</body></html>`);
+  const single = result.checks.find(item => item.name === 'single_svg');
+  assert.equal(single.ok, true);
+  assert.equal(result.composition.profile, 'showcase');
+});
+
+test('render output check: single_svg treats a processing instruction as a bogus comment', () => {
+  // <?...> is a bogus comment in HTML and ends at the first '>', so the
+  // <svg> inside it opens no element; parse5 reads the input below as two
+  // sibling svg elements, and the block scan must agree.
+  const { result } = checkRawHtml('pi-nested-svg', `<!doctype html><html><body>
+<svg><?x <svg>></svg><svg></svg></svg>
+</body></html>`);
+  const single = result.checks.find(item => item.name === 'single_svg');
+  assert.equal(single.ok, false);
+  assert.deepEqual(single.details, ['found 2 <svg> block(s)']);
+});
+
+test('render output check: single_svg counts an svg after a top-level processing instruction', () => {
+  // The bogus comment ends at the first '>' (the one closing the <svg text
+  // inside it), so the real root after it stays in scope for every check.
+  const { result } = checkRawHtml('pi-toplevel-svg', `<!doctype html><html><body>
+<?x <svg>><svg viewBox="0 0 240 154"><rect x="NaN" y="0" width="10" height="10"/></svg>
+</body></html>`);
+  const single = result.checks.find(item => item.name === 'single_svg');
+  assert.equal(single.ok, true);
+  assert.deepEqual(single.details, ['found 1 <svg> block(s)']);
+  const finite = result.checks.find(item => item.name === 'finite_svg');
+  assert.equal(finite.ok, false);
+  assert.deepEqual(finite.details, ['rect x="NaN"']);
+});
+
 test('render output check: finite_svg ignores prose that mentions NaN or Infinity', () => {
   const { result } = checkHtml('finite-prose', `
     <g data-node-id="solver" data-node-tag="returns a NaN leaf" aria-label="Focus Solver">
