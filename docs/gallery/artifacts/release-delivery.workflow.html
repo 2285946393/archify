@@ -5039,17 +5039,17 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       50% { opacity: 0.48; transform: scale(0.78); }
     }
     @media (prefers-reduced-motion: reduce) {
-      :where(html:not([data-motion-render])) .ambient-edge-flow { display: none !important; animation: none !important; }
+      .ambient-edge-flow { display: none !important; animation: none !important; }
       html[data-preset="signal-flow"] .diagram-container::before {
         animation: none !important;
       }
       .pulse-dot { animation: none !important; }
       .motion-control-dot { animation: none !important; }
-      :where(html:not([data-motion-render])) svg[data-animation="trace"] [data-animate] {
+      svg[data-animation="trace"] [data-animate] {
         animation: none !important;
         stroke-dashoffset: 0;
       }
-      :where(html:not([data-motion-render])) svg[data-animation="trace"] [data-graph-role="automatic-crossover"]:has(> [data-animate="edge"]) > [data-graph-role="automatic-crossover-underlay"] {
+      svg[data-animation="trace"] [data-graph-role="automatic-crossover"]:has(> [data-animate="edge"]) > [data-graph-role="automatic-crossover-underlay"] {
         animation: none !important;
         stroke-dashoffset: 0;
       }
@@ -7604,6 +7604,21 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       var btn = document.getElementById('btn-motion');
       var label = document.getElementById('motion-label');
       var motionQuery = window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : null;
+      var rendering = html.hasAttribute('data-motion-render');
+      if (rendering) {
+        // Render frames seek native animations, including styles from earlier HTML.
+        function prepareRules(rules) {
+          Array.prototype.forEach.call(rules, function (rule) {
+            if (rule.media && rule.media.mediaText === '(prefers-reduced-motion: reduce)') rule.media.mediaText = 'not all';
+            if (rule.cssRules) prepareRules(rule.cssRules);
+          });
+        }
+        Array.prototype.forEach.call(document.styleSheets, function (sheet) {
+          var rules;
+          try { rules = sheet.cssRules; } catch (_) { return; }
+          prepareRules(rules);
+        });
+      }
       var capable = !!(svg && svg.getAttribute('data-animation') === 'trace');
       var readerPaused = false;
       var suspensions = Object.create(null);
@@ -8116,7 +8131,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         } catch (_) {}
       }
       function reducedMotion() {
-        return !html.hasAttribute('data-motion-render') && !!(motionQuery && motionQuery.matches);
+        return !rendering && !!(motionQuery && motionQuery.matches);
       }
       function hasSuspension() {
         return Object.keys(suspensions).length > 0;
@@ -8227,7 +8242,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         };
       }
       function syncVisibility() {
-        if (document.hidden && !html.hasAttribute('data-motion-render')) {
+        if (document.hidden && !rendering) {
           suspensions.visibility = true;
           html.setAttribute('data-document-hidden', 'true');
         } else {

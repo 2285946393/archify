@@ -845,9 +845,9 @@ playback or replay an already completed node entrance.
 `reducedMotion()` reports the effective system-motion policy. An isolated render
 document may set `data-motion-render` on its root before initialization to seek
 native animations independently of the system preference or document visibility.
-The same marker scopes the reduced-motion CSS for native flows and node entrances.
-Interactive documents retain the system preference; render mode does not persist
-a reader choice.
+The governor also disables native reduced-motion media rules in that isolated
+document, including styles inherited from earlier HTML. Interactive documents
+retain the system preference; render mode does not persist a reader choice.
 
 Explicit claims override derived owners. Without a claim, SVG attributes select
 route, lens, relationship, intent, focus, legend,

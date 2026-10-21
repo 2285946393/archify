@@ -42,6 +42,8 @@ test('a public story attaches once, follows native appearance and retains source
   const dir=fs.mkdtempSync(path.join(os.tmpdir(),'archify-story-browser-'));t.after(()=>fs.rmSync(dir,{recursive:true,force:true}));
   const source=path.join(dir,'source.html'),plan=path.join(dir,'brief.json'),output=path.join(dir,'enhanced.html'),cli=path.join(skill,'bin/archify.mjs');
   execFileSync(process.execPath,[cli,'render','workflow',path.join(skill,'examples/agent-tool-call.workflow.json'),source]);
+  // Existing native files may carry unconditional reduced-motion rules.
+  fs.writeFileSync(source,fs.readFileSync(source,'utf8').replace('</head>','<style>@media (prefers-reduced-motion: reduce){.ambient-edge-flow{display:none!important;animation:none!important;}svg[data-animation="trace"] [data-animate]{animation:none!important;}}</style></head>'));
   const receipt=JSON.parse(execFileSync(process.execPath,[cli,'story','draft',source,plan,'--json'],{encoding:'utf8'})),facts=JSON.parse(fs.readFileSync(receipt.sourceMap,'utf8')),branches=facts.edges.filter(edge=>edge.from==='approval');
   fs.writeFileSync(plan,JSON.stringify({version:2,title:'Explain one source handoff',intro:'Establish its context.',outro:'Return to the complete graph.',scenes:[{title:'Read the selected relationship',points:[{anchor:'approval',via:branches.map(edge=>edge.id),title:'Follow this handoff',text:'The explanation uses the native relationship and its original endpoints.',figureCaption:'The original endpoints retain their direction.'}]}]}));
   execFileSync(process.execPath,[cli,'story','attach',source,plan,output,'--json']);
