@@ -137,7 +137,12 @@ function isSelfClosingTag(token) {
     } else if (value === 'aname') {
       if (ch === '=') value = 'pending';
       else if (/[ \t\n\f\r/]/.test(ch)) value = 'none';
-      slash = false;
+      // A '/' here can be the self-closing flag when it terminates the tag
+      // name (<svg/>): only a '/' immediately before '>' sets the flag, so
+      // remember it instead of clearing it. A '/' inside an unquoted value
+      // never reaches this branch (it stays 'unquoted'), and '<svg / >'
+      // clears the flag on the space that follows.
+      slash = ch === '/';
     } else if (value === 'pending') {
       if (ch === '"' || ch === "'") quote = ch;
       else if (!/[ \t\n\f\r]/.test(ch)) value = 'unquoted';
@@ -184,6 +189,39 @@ function svgRootTag(block) {
     }
   }
   return '';
+}
+
+// Consume a tag from `from` (just past its name scan) through its '>',
+// honoring quoted attribute values with the same value tracking the block
+// scan uses: a quote opens a quoted value only right after '=', inside a
+// name or an unquoted value it is literal text. Returns the index of the
+// '>', or -1 when the tag never terminates.
+function endOfTag(source, from) {
+  let quote = null;
+  let value = 'none'; // 'none' | 'aname' (in attribute name) | 'pending' (just after '=') | 'unquoted'
+  let k = from;
+  while (k < source.length) {
+    const ch = source[k];
+    if (quote !== null) {
+      if (ch === quote) { quote = null; value = 'none'; }
+    } else if (ch === '>') {
+      return k;
+    } else if (value === 'aname') {
+      if (ch === '=') value = 'pending';
+      else if (/[ \t\n\f\r/]/.test(ch)) value = 'none';
+    } else if (value === 'pending') {
+      if (ch === '"' || ch === "'") quote = ch;
+      else if (!/[ \t\n\f\r]/.test(ch)) value = 'unquoted';
+    } else if (value === 'unquoted') {
+      if (/[ \t\n\f\r]/.test(ch)) value = 'none';
+    } else if (ch === '=') {
+      value = 'aname';
+    } else if (!/[ \t\n\f\r/]/.test(ch)) {
+      value = 'aname';
+    }
+    k += 1;
+  }
+  return -1;
 }
 
 // Collect each top-level <svg> block. Matching lazily to the first </svg>
@@ -264,7 +302,21 @@ function extractSvgBlocks(source) {
     // Tag names end only at ASCII whitespace, '/' or '>' — JavaScript \s
     // would also accept U+00A0 and friends, which HTML joins into the name.
     if (!/^[A-Za-z]/.test(name) || (after !== undefined && !/[ \t\n\f\r/>]/.test(after))) {
-      i = lt + 1;
+      // A rejected '<' is not always plain text. '</!' is a bogus comment in
+      // HTML that runs to its first '>', and a letter after '<' means the
+      // tag-name state swallowed the rest (e.g. <x"<svg>> is one malformed
+      // tag), so resuming at lt + 1 would expose an inner <svg> that HTML
+      // never tokenizes as an element. Anything else ('<3', '<<') is text,
+      // so resuming one byte later stays correct there.
+      if (source.startsWith('</!', lt)) {
+        const end = source.indexOf('>', lt + 3);
+        i = end === -1 ? source.length : end + 1;
+      } else if (/[A-Za-z]/.test(source[lt + 1] || '')) {
+        const gt = endOfTag(source, j);
+        i = gt === -1 ? source.length : gt + 1;
+      } else {
+        i = lt + 1;
+      }
       continue;
     }
     // Consume the tag through its '>', honoring quoted attribute values.
@@ -273,36 +325,13 @@ function extractSvgBlocks(source) {
     // at its '>'. An '=' in before-attribute-name position starts an
     // attribute whose name is '=' (it does not open a value), so '=' moves
     // to the attribute-name state instead of value-pending.
-    let quote = null;
-    let value = 'none'; // 'none' | 'aname' (in attribute name) | 'pending' (just after '=') | 'unquoted'
-    let k = j;
-    while (k < source.length) {
-      const ch = source[k];
-      if (quote !== null) {
-        if (ch === quote) { quote = null; value = 'none'; }
-      } else if (ch === '>') {
-        break;
-      } else if (value === 'aname') {
-        if (ch === '=') value = 'pending';
-        else if (/[ \t\n\f\r/]/.test(ch)) value = 'none';
-      } else if (value === 'pending') {
-        if (ch === '"' || ch === "'") quote = ch;
-        else if (!/[ \t\n\f\r]/.test(ch)) value = 'unquoted';
-      } else if (value === 'unquoted') {
-        if (/[ \t\n\f\r]/.test(ch)) value = 'none';
-      } else if (ch === '=') {
-        value = 'aname';
-      } else if (!/[ \t\n\f\r/]/.test(ch)) {
-        value = 'aname';
-      }
-      k += 1;
-    }
-    if (k >= source.length) break; // unterminated tag: the rest is its text
-    const token = source.slice(lt, k + 1);
-    i = k + 1;
+    const gt = endOfTag(source, j);
+    if (gt === -1) break; // unterminated tag: the rest is its text
+    const token = source.slice(lt, gt + 1);
+    i = gt + 1;
     if (name.toLowerCase() !== 'svg') continue;
     if (closing) {
-      if (depth > 0 && --depth === 0) blocks.push(source.slice(start, k + 1));
+      if (depth > 0 && --depth === 0) blocks.push(source.slice(start, gt + 1));
     } else if (isSelfClosingTag(token)) {
       if (depth === 0) blocks.push(token);
     } else {

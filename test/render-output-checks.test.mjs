@@ -1390,3 +1390,69 @@ test('render output check: single_svg treats a leading equals sign as an attribu
   assert.equal(single.ok, false);
   assert.deepEqual(single.details, ['found 2 <svg> block(s)']);
 });
+
+test('render output check: single_svg treats a slash-terminated tag name as self-closing', () => {
+  // Per the HTML tokenizer, '/' in tag-name state moves to the self-closing
+  // start tag state, so <svg/> is a self-closed root. The attribute-value
+  // tracker used to clear the slash flag while still in the tag name, which
+  // made a nested <svg/> open a depth level that never closed and the whole
+  // document reported zero blocks.
+  const { result } = checkRawHtml('self-closing-tag-name-svg', `<!doctype html><html><body>
+<svg/>
+</body></html>`);
+  const single = result.checks.find(item => item.name === 'single_svg');
+  assert.equal(single.ok, true);
+  assert.deepEqual(single.details, ['found 1 <svg> block(s)']);
+});
+
+test('render output check: single_svg keeps a nested self-closing svg inside its root', () => {
+  const { result } = checkRawHtml('nested-self-closing-svg', `<!doctype html><html><body>
+<svg viewBox="0 0 240 154"><svg/></svg>
+</body></html>`);
+  const single = result.checks.find(item => item.name === 'single_svg');
+  assert.equal(single.ok, true);
+  assert.deepEqual(single.details, ['found 1 <svg> block(s)']);
+});
+
+test('render output check: finite_svg still sees through a self-closing foreignObject', () => {
+  // <foreignObject/> is self-closing, so it must not stay on the element
+  // stack: it is an HTML integration point, and leaving it open hid the
+  // following rect from the SVG context, letting a NaN coordinate pass.
+  const { result } = checkRawHtml('foreignobject-self-closing-finite', `<!doctype html><html><body>
+<svg viewBox="0 0 240 154"><foreignObject/><rect x="NaN" y="0" width="10" height="10"/></svg>
+</body></html>`);
+  const single = result.checks.find(item => item.name === 'single_svg');
+  assert.equal(single.ok, true);
+  assert.deepEqual(single.details, ['found 1 <svg> block(s)']);
+  const finite = result.checks.find(item => item.name === 'finite_svg');
+  assert.equal(finite.ok, false);
+  assert.deepEqual(finite.details, ['rect x="NaN"']);
+});
+
+test('render output check: single_svg consumes a closing bogus declaration through its >', () => {
+  // Per the HTML tokenizer, '</!' is not a tag at all: the '/' puts the
+  // tokenizer in end-tag-open state and '!' is an invalid first character,
+  // so it becomes a bogus comment that runs to its first '>'. The <svg>
+  // inside it is comment text, not an element; the scanner used to resume
+  // one byte past the '<' and count that inner svg as a real root, merging
+  // what HTML parses as two sibling roots into one block.
+  const { result } = checkRawHtml('closing-bogus-declaration-svg', `<!doctype html><html><body>
+<svg viewBox="0 0 240 154"></! <svg>></svg><svg viewBox="0 0 240 154"></svg></svg>
+</body></html>`);
+  const single = result.checks.find(item => item.name === 'single_svg');
+  assert.equal(single.ok, false);
+  assert.deepEqual(single.details, ['found 2 <svg> block(s)']);
+});
+
+test('render output check: single_svg swallows an inner svg inside a malformed tag name', () => {
+  // In tag-name state a quote is literal text, so <x"<svg>> is a single
+  // malformed start tag whose name swallows the inner <svg>; HTML never sees
+  // that inner svg as an element. The scanner used to reject the '<' and
+  // resume one byte later, exposing the swallowed svg as a real root.
+  const { result } = checkRawHtml('malformed-tag-name-svg', `<!doctype html><html><body>
+<svg viewBox="0 0 240 154"><x"<svg>></svg><svg viewBox="0 0 240 154"></svg></svg>
+</body></html>`);
+  const single = result.checks.find(item => item.name === 'single_svg');
+  assert.equal(single.ok, false);
+  assert.deepEqual(single.details, ['found 2 <svg> block(s)']);
+});
