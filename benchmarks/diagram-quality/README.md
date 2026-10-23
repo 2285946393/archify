@@ -1,171 +1,107 @@
-# 绘图 Benchmark：一张 0–100 分成绩单
+# Benchmark v2：Archify 改动前后对比
 
-本目录是已有 benchmark 的 v2 扩展，沿着原有 repair-rounds 工作补齐最终产物评估、可选人评和统一成绩单；本轮范围见 [提案 #1058](https://github.com/tt-a1i/archify/issues/1058)。
+在已有 repair-rounds benchmark 基础上，增加最终图的内容、布局、速度、成本和可选人评。按 [review 约定](https://github.com/tt-a1i/archify/pull/1059#issuecomment-6361644395)，本次只维护 Archify 前后版本的比较：原始测量、0–100 分项、逐题表格和柱状图。加权总分和跨工具实验留在后续工作，作为 autoresearch 优化的准备。
 
-每个方法最终输出 **内容、布局、速度、成本、人评五个分数，以及加权总分**。所有分数都是 0–100，越高越好。中文成绩单、柱状图、CSV 和 JSON 使用同一份计算结果。
+## 看什么
 
-## 先看效果
+| 分项 | 衡量内容 | 原始数据 |
+| --- | --- | --- |
+| 内容 | 所需节点、关系及标签是否正确出现在最终图中 | 节点／关系 precision、recall、F1 和缺陷列表 |
+| 布局 | 必需对象的遮挡、裁切、字体大小、连线穿越 | 每个对象的几何检查和四个子项 |
+| 速度 | 正确、可编辑、成功交付的整轮生成效率 | 从开始到结束的毫秒数，另列最终提交耗时 |
+| 成本 | 正确交付所消耗的整轮费用 | 累计输入／输出 tokens、USD；包含失败尝试 |
+| 人评（可选） | 可读性、层次、布局、风格、美观 | 每人五项 1–5 整数评分 |
 
-同一 `deepseek-flash`、4题、6种方式，共48次调用；23张交付图完成单人五项评分。
+内容分为 `100 × (0.4 × 节点F1 + 0.6 × 关系F1)`；无关系题只用节点F1。布局分为四个子项的均值，必需对象缺失不会缩小分母。几何分反映可测缺陷，不能替代视觉判断。
 
-| 方法 | 自动分 | 人评 H | 综合分 | 交付 |
-| --- | ---: | ---: | ---: | ---: |
-| Mermaid | 100.0 | 77.5 | 96.6 | 4/4 |
-| Next AI Draw.io MCP | 99.9 | 77.5 | 96.5 | 4/4 |
-| SVG | 90.8 | 67.5 | 87.3 | 4/4 |
-| Excalidraw MCP | 85.0 | 60.0 | 81.2 | 4/4 |
-| HTML | 77.9 | 73.8 | 77.2 | 4/4 |
-| Archify | 74.1 | 72.5 | 73.9 | 3/4 |
+速度和成本分别按固定 good/bad 锚点线性缩放并截断到 0–100：`100 × clamp((bad - 实测值)/(bad - good), 0, 1)`。小／中／大题耗时锚点分别为 10–60、30–180、60–360 秒，成本为 $0.01–0.25、$0.03–0.75、$0.06–1.50。这些是未校准的试点策略，改变策略须升级版本。错误交付不获得效率奖励；明确的交付失败自动分计 0。未知数据为 null，不填 0；没有人评不影响自动分项。
 
-Archify一道退货流程题因路由约束冲突交付失败，按0分计入均值；成功交付三图的人评均分为96.7。综合分为85%自动分＋15%人评，这是单人试点评分。
+人评先按每位评分者的五项均值映射到 `25 × (均值 - 1)`，再平均不同评分者；单人结果标记 provisional，至少两名独立评分者才标记 complete。原始评分仍保留。
 
-[完整实验归档：柱状图、原图、候选源码与真实评分](https://github.com/Momoyeyu/archify/blob/b75013b6e257bf1d3e6194fd3da944340a9ff7e8/docs/benchmarks/2026-10-22-peer-results/README.md)。实验材料保存在独立的历史快照，不随实现合入。
+当前 corpus 只有四道公开、人工编写的架构／流程试点题，gold 尚未独立确认。它用于检查评估链路，不代表全面覆盖。实际性能比较应冻结真实仓库任务、prompt、gold、模型配置、预算和重复次数，只改变 Archify revision。保留首次源码、每次修改、CLI 验收和最终产物，才能解释分数变化。
 
-在仓库根目录安装贡献指南中的测试依赖后，运行：
+## 记录与验收
+
+先检查题集：
 
 ```sh
-node benchmarks/diagram-quality/benchmark.mjs demo --output /tmp/archify-benchmark-demo
+node benchmarks/diagram-quality/benchmark.mjs check
 ```
 
-打开输出目录的 `index.html`。浏览器验收需要本机 Chrome，可加 `--chrome /absolute/path/chrome`。输出目录必须新建或为空。
-
-这个命令包含两个明确分开的部分：
-
-- **计分演示**：虚构 A/B 分项，演示综合分 90.2 / 82.5、表格和柱状图。这不是 Archify 的实测成绩。
-- **真实离线样图**：实际渲染 architecture-02 和 workflow-01，独立检查内容与布局。不调用模型，所以生成时间、实际模型费用、人评及总分保持未测。可以打开匿名评分表体验五项打分。
-
-## 总分怎么算
-
-当前评分版本为 `diagram-quality-score-v1-pilot-20261021`，权重和阈值冻结在 [scoring.mjs](scoring.mjs)。它们是公开的试点政策，不是论文证明的最优权重。
-
-| 分项 | 综合权重 | 含义与计算 |
-| --- | ---: | --- |
-| 内容 C | 45% | `100 × (0.4 × 节点 F1 + 0.6 × 有向关系 F1)`；没有关系的题只用节点分。名称、方向、条件及最终可见事实都参与匹配 |
-| 布局 L | 20% | 遮挡、裁切、字号、路径四项等权平均；按必需节点、标签和边测量，连续扣分，避免细微字号问题清空整题 |
-| 速度 T | 10% | 从 dispatch 到交付最终候选的实际生成耗时，按复杂度固定锚点线性缩放 |
-| 成本 K | 10% | 实际模型调用费用 USD，按复杂度固定锚点线性缩放；同时保留原始 tokens |
-| 人评 H | 15% | 可读性、层级、排版、风格、美观五项各打 1–5 分；`H = 25 × (平均分 − 1)` |
-
-**综合分 = 0.45 C + 0.20 L + 0.10 T + 0.10 K + 0.15 H。**
-
-无人参与的自动优化使用另一条固定轨道：**自动分 = (45 C + 20 L + 10 T + 10 K) / 85**。人工评分不会改变自动分。两种总分分别比较，不混排。
-
-布局的字号分为 `100 × min(1, 有效字号 / 12px)`；遮挡按相交区域的并集占比扣分，裁切按可见比例扣分，路径按侵入无关节点或越界的长度占比扣分。必需对象缺失贡献零，分母由题目冻结；额外空白、删除难画节点或堆叠装饰节点不能稀释惩罚。明确声明且实际包含端点的合法父容器不作为路径障碍。逐对象扣分可在成绩单展开查看。
-
-速度、费用的分数均为 `100 × clamp((bad − 实测值) / (bad − good), 0, 1)`：
-
-| 复杂度 | 速度 good / bad | 费用 good / bad（USD） |
-| --- | --- | --- |
-| small | 10 / 60 秒 | 0.01 / 0.25 |
-| medium | 30 / 180 秒 | 0.03 / 0.75 |
-| large | 60 / 360 秒 | 0.06 / 1.50 |
-
-只有内容完全正确、交付可编辑且预算合规的结果才能获得效率分。内容有错但已测量完整，T/K 为零；缺少实际账目则是未测，不能虚构费用或把验收器的运行时间算作生成时间。详细契约见[评分设计](https://github.com/Momoyeyu/archify/blob/b75013b6e257bf1d3e6194fd3da944340a9ff7e8/docs/superpowers/specs/2026-10-21-benchmark-scorecard-redesign.md)。
-
-## 跑自己的实验
-
-CLI 接收外部 runner 保存的源码、产物和真实账目；它负责渲染/验收/计分，不调度模型，也不产生 provider usage。
-
-实验配置示例（路径相对这个文件解析）：
+生成由外部 agent 执行，本工具不调用模型。为每次运行保存 run.json：
 
 ```json
 {
-  "corpus": "/absolute/path/corpus.json",
-  "entries": [
-    {
-      "taskId": "architecture-02",
-      "source": "outputs/weather.json",
-      "format": "archify",
-      "run": "runs/weather.json"
-    }
-  ],
-  "plannedRuns": [
-    {"taskId":"architecture-02","arm":"Archify","model":"your-model","repeat":1}
-  ]
+  "runId": "base-workflow-01-1",
+  "taskId": "workflow-01", "arm": "base", "model": "your-fixed-model", "repeat": 1,
+  "modelConfiguration": {"temperature": 0},
+  "status": "completed",
+  "startedAt": "2026-10-23T00:00:00Z", "completedAt": "2026-10-23T00:00:20Z",
+  "identity": {"budget": {"maxCandidates": 3, "maxDurationMs": 60000}},
+  "candidates": [{"submittedAt": "2026-10-23T00:00:19Z", "sourceHash": "SOURCE_SHA256", "artifactHash": "HTML_SHA256"}],
+  "usage": {"inputTokens": 100, "outputTokens": 50, "costUsd": 0.01}
 }
 ```
 
-```sh
-node benchmarks/diagram-quality/benchmark.mjs run \
-  --experiment /absolute/path/experiment.json \
-  --output /absolute/path/results
-```
+示例数字只说明格式；替换为真实日志。usage 应覆盖所有调用，未知字段省略；不完整统计标记 `status: "partial"`。失败运行使用 failed、timeout、no_candidate、provider_error 或 invalid_source，保留 sourceHash、时间和拒绝日志。不能把反复检查同一源码算成多次修复。
 
-Archify 可以省略 `artifact`，由本机 CLI 渲染；其他格式必须提供外部渲染后的 `artifact`。重新渲染保留原始源码 hash 和生成完成时间。`run` 也可直接填写记录对象。运行记录至少包含 `runId/taskId/arm/model/repeat/status/startedAt/completedAt`，以及预先约定的 `identity.budget`、真实 `usage`；候选历史使用有序 `candidates:[{submittedAt,artifactHash}]`。只记录最终候选时可由 `completedAt` 补建该候选，不会猜测更早的成功时间。
-
-`usage` 可保存输入/输出 tokens 和实际 `costUsd`；多次调用应提供 `usage.calls`，包括失败重试、子 Agent 与缓存/推理 token 的包含关系。详尽校验规则见 [records.mjs](records.mjs)。不能把词数或估算费用当成真实计费。`timeout/no_candidate/provider_error` 可没有源码和产物，但仍须有有效的运行身份与时间记录。
-
-每次运行输出：
-
-| 文件 | 用途 |
-| --- | --- |
-| `index.html` | 中文总分、柱状图、五项分数、原始单位、逐题扣分及产物 |
-| `scores.png` | 可直接放进对比图的静态柱状图（有 Chrome 时导出） |
-| `scores.csv` | 与页面相同的显示数值，支持表格和绘图 |
-| `scorecard.json` | 未舍入分数、固定权重、缺失原因和逐题数据 |
-| `review.html` | 隐藏方法/模型/费用/自动分的数值评分表 |
-| `receipts.jsonl`、`experiment-plan.json` | hash 绑定的验收证据与计划分母 |
-| `weight-sensitivity.json` | 去掉一个分项及权重 ±20% 时的描述性敏感性 |
-
-交付秒数、tokens、USD 的方法级汇总都是**先平均同题重复、再平均各题的每题均值**，不是总消耗；原始运行账目保留在回执中。`raw.deliveryDurationMs` 是速度分采用的最终候选提交耗时；`raw.durationMs` 是完整运行至结束的耗时，独立保留，避免把末尾的等待或离线验收误算进交付速度。已知失败留在分母，交付无效或内容完全未命中贡献零。计划内缺回执、几何未知或真实费用缺失会使相应总分显示“待完成”，不会悄悄重新分配权重。各方法必须使用相同题目集合；不同重复次数先在题内平均，不能通过多跑容易题提高排名。
-
-有回执后可重新计分，无须重新渲染：
+对已有原生 JSON 和 HTML 进行独立 Chrome 验收：
 
 ```sh
-node benchmarks/diagram-quality/benchmark.mjs score \
-  --results /absolute/path/results/receipts.jsonl \
-  --manifest /absolute/path/results/experiment-plan.json \
-  --output /absolute/path/rescored --track auto
+node benchmarks/diagram-quality/benchmark.mjs verify \
+  --task workflow-01 --source source.json --artifact final.html \
+  --run run.json --chrome /absolute/path/to/chrome --output receipt.json
 ```
 
-自定义语料加 `--corpus`。`--machine true` 输出 JSON；`--score-only true` 只向 stdout 输出一个自动分，供 autodev 读取。后者要求一个完整方法、内容全对且无已知失败；使用 `--baseline /absolute/path/scorecard.json` 时还要保持同一工作负载、身份、已有内容分和已正确事实。不能用缺测或丢事实换取 keep。
+验收记录 corpus／几何 profile／evaluator 摘要，观察实际 DOM，并在临时副本上改标签后重渲染检查可编辑性。此探针使用当前 checkout 的 CLI，不能证明原生成版本的编辑能力。离线夹具须设置 `environment.measurementMode: "offline-render"`，不产生生成耗时或成本成绩。
 
-## 人只需打分，不必写报告
+## 输出前后比较
 
-打开 `review.html`，填写稳定的评审标识，确认独立评审，对五项选择 1–5 分，下载 JSON。文字意见和语义判断均为可选。页面以固定 seed 随机排列样图，预览只显示裁剪后的图，不显示工具页头；图本身的风格仍可能透露工具。
+准备 plan.json；路径相对 plan 文件，两侧 revision 必须为不同的完整 commit SHA：
 
-每个可交付产物至少需要两名不同的独立评审，并使用相同 rubric。合并下载文件中的 `reviews` 数组后导入：
+```json
+{
+  "baseRevision": "BASE_COMMIT_SHA40",
+  "candidateRevision": "CANDIDATE_COMMIT_SHA40",
+  "corpus": "corpus.json",
+  "plannedRuns": [{"taskId": "workflow-01", "model": "your-fixed-model", "repeat": 1}],
+  "runs": [{
+    "arm": "base", "revision": "BASE_COMMIT_SHA40", "receipt": "receipt.json",
+    "source": "source.json", "artifact": "final.html", "prompt": "prompt.md",
+    "session": "session.json", "historyComplete": true,
+    "candidates": [{"source": "source.json", "artifact": "final.html", "submittedAt": "2026-10-23T00:00:19Z"}]
+  }]
+}
+```
+
+增加 candidate 侧的对应 run；缺失一侧会明确显示缺失，不会被排除出计划。可选 preview 指向 PNG。历史完整性需要每次源码与原记录的摘要、时间绑定；session 应包含实际 prompt、响应和工具调用等可分享的实验记录。摘要用于核对文件一致性，不证明记录来自何处或没有遗漏。
 
 ```sh
-node benchmarks/diagram-quality/benchmark.mjs score \
-  --results /absolute/path/results/receipts.jsonl \
-  --manifest /absolute/path/results/experiment-plan.json \
-  --reviews /absolute/path/combined-reviews.json \
-  --track full --output /absolute/path/reviewed-results
+node benchmarks/diagram-quality/benchmark.mjs compare --plan plan.json --output /tmp/archify-comparison
 ```
 
-评分绑定 `taskId/artifactHash/reviewerId/rubricVersion`；更换图片不能沿用旧评分。缺评不是零，单人评分不会被当作完整综合分。已知未交付任务贡献零，无须让人对空图打分。合成评审只能用于测试，不能作为真实人评结论。
+输出 index.html、comparison.csv、comparison.json、review.html 和摘要命名的证据文件。比较会从已保存的 observation 重算规则，不重新生成图或重新观察浏览器；JSON 保留原测量身份及当前计分器身份。保留原始运行版本，不能把离线重算标作新版模型实验。重复先在同一题内平均，再对题等权平均；缺失测量使对应汇总为空。报告列出交付数、失败数、缺失数、分项差值和原始均值。
 
-## 语料、参考与支持边界
+## 可选多人评分
 
-[corpus.json](corpus.json) 有 40 个公开试点任务：architecture/workflow/sequence/dataflow/lifecycle 各 6 题，以及 erd/class/tree/timeline/waterfall 各 2 题。它们均为 `authored-provisional`，独立人工金标准核定和阈值校准尚未完成；公开 `holdout` 已用于开发，不能声称对优化 Agent 隔离。计分可以展示，正式泛化/领先结论仍需真实共同题集实验。
+将整个输出目录打包给评分者，打开 review.html；匿名顺序展示图，每人填写稳定 reviewerId，独立完成五项整数评分并导出 JSON。只导出完整的条目，文字备注可选。不要提前透露方法标签；原 HTML 仍可能暴露实现特征，无法保证完全盲评。
 
-| 格式 | 已有能力 | 当前边界 |
-| --- | --- | --- |
-| Archify | 原生节点/边提取、浏览器观测、独立 reload/edit/render | sequence 顺序及扩展类型事实尚无完整验收，保持 unverified |
-| Mermaid | 简单 flowchart/graph 的明确节点与单条有向边；受限 pilot 支持实际渲染、可见拓扑和独立编辑验收 | subgraph、连续边、复杂语法未支持；通用 CLI 尚未接入 pilot 验收路径 |
-| draw.io | 单页未压缩 mxGraphModel 的节点与有向边 | 压缩/多页/不明确方向及独立编辑验收未支持 |
-| Excalidraw | 支持形状、绑定文字、单向绑定箭头 | 自由线等未支持；无独立编辑验收 |
-| SVG / HTML | 通用验收提供可见几何；受限 pilot 从实际矩形、文字、箭头路线独立提取拓扑并编辑重载 | 只支持静态矩形节点、明示标签和局部三角箭头；自由源码或歧义保持 unverified，通用 CLI 不猜拓扑 |
-
-第三方源码能提取不代表已经具备跨工具完整评测。正式比较应先冻结共同支持题集、模型/推理配置、Agent、工具/文档版本、预算与环境；实际编译、诊断、预览和等待都属于工作流。CLI 会拒绝混合身份、重复矩阵格和不一致配置。
-
-受限实跑入口是 [pilot.mjs](pilot.mjs) 的 `executePilot`，固定 `architecture-01/workflow-01` 与四种格式，调用前保存计划。调用者在内存提供凭据、全新输出目录、Chrome 路径和外部 Mermaid runtime 根目录；runtime 使用精确 `mermaid@12.2.0`，不安装到用户的 Archify。该入口只允许本次选定的 DeepSeek 官方源及模型，计费表冻结于 2026-10-21 非高峰窗口，过期费率需要先重新核实。无须重新调用模型即可用已保存回执重算分数。
-
-文献及方法溯源见[完整 v2 设计](https://github.com/Momoyeyu/archify/blob/b75013b6e257bf1d3e6194fd3da944340a9ff7e8/docs/superpowers/specs/2026-10-21-benchmark-v2-design.md)与[研究核对](https://github.com/Momoyeyu/archify/blob/b75013b6e257bf1d3e6194fd3da944340a9ff7e8/docs/benchmarks/2026-10-21-benchmark-audit.md)。论文启发、已有通行指标和本项目自行选择的公式/权重应分别披露。`ablate` 的删节点、反向边、遮挡、字号干预是评估器敏感性回放；`weight-sensitivity.json` 是评分权重分析，都不能冒充关闭工具组件后重跑模型的因果消融。真实组件消融与人评相关性仍需新实验。
-
-## 兼容与验证
-
-旧 `check/verify/review/ablate` 命令继续可用。`report --manifest PLAN --results JSONL --output FILE` 默认生成中文成绩单；加 `--legacy true` 可查看原 v2 证据报告。v1 suite 和历史分数保持原口径。回执 hash 用于检查一致性，不等于签名认证，应由受信 runner 保存并独立验收。
+将多人导出的 reviews 数组合并为 `{"reviews": [...]}`，再次运行：
 
 ```sh
-# Node 规则与命令检查；真实浏览器用例在下面的独立任务中执行。
-ARCHIFY_CHROME='' node --test test/diagram-quality-*.test.mjs
-ARCHIFY_CHROME='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' \
-  npm run test:browser -- test/diagram-quality-*browser.test.mjs
-npm test
+node benchmarks/diagram-quality/benchmark.mjs compare --plan plan.json \
+  --reviews reviews.json --output /tmp/archify-comparison-reviewed
 ```
 
-E2E 使用手写样图，只检验本地链路；不是模型完成任务的实验。测试自动清理临时产物、编辑副本和 Chrome profile。保留新版 demo 可设 `ARCHIFY_SCORE_EXPORT=/absolute/path/review-demo`；这些静态样本不会变成真实模型实验结果。
+评分绑定 taskId、artifactHash 和 rubricVersion；同一人同一 rubric 的后导入结果替换旧结果。保留原始评分文件供复核。这里没有多人在线服务。
 
-受限 pilot 另有 `test/diagram-quality-{pilot-render,pilot}.test.mjs`。真实 Mermaid 集成测试需要外部 runtime；用 `ARCHIFY_PILOT_RUNTIME_ROOT=/absolute/path/runtime` 指定，默认使用仓库旁交付目录。本次验收实际运行了 Chrome 和 Mermaid；测试不会调用模型。
+## 验证与历史材料
+
+Node 测试保护评分分母、缺失／失败、原始费用、版本与证据绑定、人评导入和文件输出。独立浏览器测试保护真实渲染观察、可见性、可编辑探针、报告和评分表；所有临时文件及浏览器 profile 均清理。
+
+```sh
+node --test test/diagram-quality-{cli,metrics,records,scoring,comparison,score-report}.test.mjs
+ARCHIFY_CHROME=/absolute/path/to/chrome node --test test/diagram-quality-e2e-browser.test.mjs
+```
+
+[先前跨工具实验与交付失败原始材料](https://github.com/Momoyeyu/archify/blob/b75013b6e257bf1d3e6194fd3da944340a9ff7e8/docs/benchmarks/2026-10-22-peer-results/README.md)按原实验版本归档，其旧加权成绩不能当作本版本的前后性能结果。[完整实现存档](https://github.com/Momoyeyu/archify/tree/archive/benchmark-v2-full-20261023)保留拆分前代码。原 repair-rounds benchmark 保持独立。

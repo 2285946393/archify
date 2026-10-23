@@ -53,23 +53,8 @@ test('Archify core collection mapping preserves native semantic facts',()=>{
  const g=parse('archify',{diagram_type:type,[nodes]:graph().nodes,[edges]:graph().edges});assert.equal(g.status,'verified');assert.deepEqual(g.edges.map(({from,to,label})=>({from,to,label})),graph().edges);assert.equal(g.nodes.length,2);
  }
 });
-test('Mermaid explicit flowchart subset parses declarations and directed labeled edges, unsupported syntax fails closed',()=>{
- const g=parse('mermaid','flowchart LR\n a[Alpha] -->|yes| b[Beta]');assert.equal(g.status,'verified');assert.deepEqual(g.nodes.map(n=>n.label),['Alpha','Beta']);assert.equal(g.edges[0].label,'yes');
- for(const source of ['sequenceDiagram\nA->>B: hello','flowchart LR\nA & B --> C','flowchart LR\nsubgraph S\nA-->B\nend','flowchart LR\nA-->B-->C'])assert.equal(parse('mermaid',source).status,'unverified');
-});
-test('drawio XML and Excalidraw bindings extract native graph, not metadata claims',()=>{
- const xml='<mxfile><diagram><mxGraphModel><root><mxCell id="0"/><mxCell id="1" parent="0"/><mxCell id="a" value="A &amp; B" vertex="1"/><mxCell id="b" value="Beta" vertex="1"/><mxCell id="e" edge="1" source="a" target="b" value="yes"/></root></mxGraphModel></diagram></mxfile>';
- const d=parse('drawio',xml);assert.equal(d.status,'verified');assert.equal(d.nodes[0].label,'A & B');assert.equal(d.edges.length,1);
- const scene={elements:[{id:'a',type:'rectangle'},{id:'at',type:'text',text:'Alpha',containerId:'a'},{id:'b',type:'ellipse'},{id:'bt',type:'text',text:'Beta',containerId:'b'},{id:'e',type:'arrow',startBinding:{elementId:'a'},endBinding:{elementId:'b'},endArrowhead:'arrow'}]};
- const g=parse('excalidraw',scene);assert.equal(g.status,'verified');assert.equal(g.nodes[0].label,'Alpha');assert.deepEqual(g.edges[0],{id:'e',from:'a',to:'b',label:''});
- assert.equal(parse('drawio','<mxfile><diagram>compressed</diagram></mxfile>').status,'unverified');
-});
 test('extension collections are extracted but typed unsupported requirements stay explicit',()=>{
  for(const [type,key] of [['erd','entities'],['class','types'],['tree','nodes'],['timeline','events'],['waterfall','spans']]){const g=parse('archify',{diagram_type:type,[key]:[{id:'a',label:'Alpha'}]});assert.equal(g.nodes.length,1);assert.equal(g.status,'unverified');}
-});
-test('free SVG/HTML and malformed inputs cannot establish topology',()=>{
- for(const format of ['svg','html'])assert.equal(parse(format,'<svg><text data-node-id="a">Alpha</text></svg>').status,'unverified');
- assert.equal(parse('archify','{').status,'invalid');assert.equal(parse('drawio','<mxfile>').status,'invalid');
 });
 test('unsupported typed facts cannot silently pass as an unlabeled graph',()=>{
  const e=expected();e.nodes[0].columns=[{name:'id',primaryKey:true}];assert.equal(sem(e,graph(),observation()).status,'unverified');
@@ -79,10 +64,6 @@ test('empty evidence and invalid profile cannot claim geometry success',()=>{
  const o={status:'verified',nodes:[],texts:[],edges:[],bounds:rect(0,0,300,200)};
  assert.equal(geo(o,{}).passed,false);
  assert.equal(geo(observation(),{epsilonPx:NaN}).passed,false);
-});
-test('native parser rejects unmatched custom relationships rather than silently dropping facts',()=>{
- assert.equal(parse('archify',{diagram_type:'workflow',nodes:graph().nodes,edges:[{from:'a',to:'z'}]}).status,'unverified');
- assert.equal(parse('excalidraw',{elements:[{id:'a',type:'rectangle'},{id:'b',type:'rectangle'},{id:'e',type:'arrow',startBinding:{elementId:'a'},endBinding:{elementId:'b'}}]}).status,'unverified');
 });
 test('duplicate node labels preserve explicit matching identities and directed relations',()=>{
  const nodes=[{id:'a',label:'Service'},{id:'b',label:'Service'}];
@@ -108,4 +89,10 @@ test('duplicate labels without a unique identity mapping remain unverified rathe
  assert.ok(result.violations.some(v=>v.code==='ambiguous_node_mapping'));
  assert.ok(!result.violations.some(v=>v.code==='missing_edge'));
  assert.equal(result.edges.f1,null);
+});
+
+test('native malformed and dangling sources cannot establish semantics',()=>{
+ assert.equal(parse('archify','{').status,'invalid');
+ assert.equal(parse('archify',{diagram_type:'workflow',nodes:[{id:'a',label:'Alpha'}],edges:[{from:'a',to:'missing'}]}).status,'unverified');
+ assert.throws(()=>parse('mermaid','flowchart LR'),/Archify/);
 });

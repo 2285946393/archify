@@ -1,8 +1,7 @@
-// Pilot policy: changing these weights, anchors or geometric rules requires a new version.
+// Changing these anchors or geometric rules requires a new metric version.
 function freeze(value) { if(value && typeof value==='object') { Object.values(value).forEach(freeze); Object.freeze(value); } return value; }
 export const SCORE_PROFILE = freeze({
- version:'diagram-quality-score-v1-pilot-20261021',
- weights:{content:.45,layout:.20,speed:.10,cost:.10,human:.15},
+ version:'archify-comparison-metrics-v1',
  minFontPx:12,
  thresholds:{
   small:{timeMs:{good:10000,bad:60000},costUsd:{good:.01,bad:.25}},
@@ -10,9 +9,6 @@ export const SCORE_PROFILE = freeze({
   large:{timeMs:{good:60000,bad:360000},costUsd:{good:.06,bad:1.5}},
  },
 });
-const COMPONENTS=['content','layout','speed','cost','human'];
-const AUTO=COMPONENTS.slice(0,4);
-const RAW_FIELDS=['durationMs','deliveryDurationMs','totalTokens','costUsd'];
 const RATINGS=['readability','hierarchy','layout','style','aesthetics'];
 const HUMAN_RUBRIC='diagram-quality-human-v1';
 const clone=value=>structuredClone(value);
@@ -33,15 +29,12 @@ function numberOrNull(value,name,{max=Infinity,integer=false}={}) {
 const mean=values=>values.length?values.some(v=>v===null)?null:values.reduce((sum,v)=>sum+v/values.length,0):null;
 function profileOf(profile) {
  finiteData(profile,'profile');nonempty(profile?.version,'score version');
- for(const key of COMPONENTS)numberOrNull(profile.weights?.[key],`profile weight ${key}`);
- requireValue(COMPONENTS.every(k=>typeof profile.weights?.[k]==='number') && Math.abs(COMPONENTS.reduce((n,k)=>n+profile.weights[k],0)-1)<1e-10,'profile weights must sum to one');
  requireValue(typeof profile.minFontPx==='number' && profile.minFontPx>0,'profile minFontPx must be positive');
- requireValue(AUTO.reduce((sum,key)=>sum+profile.weights[key],0)>0,'automatic profile weights must have positive sum');
  for(const complexity of ['small','medium','large']) for(const dimension of ['timeMs','costUsd']) {
   const anchor=profile.thresholds?.[complexity]?.[dimension];
   requireValue(anchor && typeof anchor.good==='number' && anchor.good>=0 && typeof anchor.bad==='number' && anchor.bad>anchor.good,'profile threshold anchors require 0 <= good < bad');
  }
- if(profile.version===SCORE_PROFILE.version)requireValue(stable({weights:profile.weights,minFontPx:profile.minFontPx,thresholds:profile.thresholds})===stable({weights:SCORE_PROFILE.weights,minFontPx:SCORE_PROFILE.minFontPx,thresholds:SCORE_PROFILE.thresholds}),'changed score policy requires a new version');
+ if(profile.version===SCORE_PROFILE.version)requireValue(stable({minFontPx:profile.minFontPx,thresholds:profile.thresholds})===stable({minFontPx:SCORE_PROFILE.minFontPx,thresholds:SCORE_PROFILE.thresholds}),'changed score policy requires a new version');
  return profile;
 }
 function identityOf(value) {
@@ -58,11 +51,6 @@ function cell(value) {
  for(const key of ['taskId','arm','model'])nonempty(value?.[key],key);
  requireValue(Number.isInteger(value.repeat) && value.repeat>=1,'repeat must be a positive integer');
  return stable([value.taskId,value.arm,value.model,value.repeat]);
-}
-function totals(scores,profile,humanComplete=true) {
- const weighted=keys=>keys.some(k=>scores[k]===null)?null:keys.reduce((n,k)=>n+scores[k]*profile.weights[k],0);
- const auto=weighted(AUTO), automatic=auto===null?null:auto/AUTO.reduce((n,k)=>n+profile.weights[k],0);
- return {automatic,comprehensive:automatic===null || !humanComplete || scores.human===null?null:weighted(COMPONENTS)};
 }
 
 const validRect=r=>r && ['x','y','width','height'].every(k=>Number.isFinite(r[k])) && r.width>=0 && r.height>=0;
@@ -203,7 +191,7 @@ function humanScore(receipt) {
   if(review.independent!==true || review.rubricVersion!==HUMAN_RUBRIC)continue;
   byReviewer.set(review.reviewerId,25*(mean(RATINGS.map(k=>review.ratings[k]))-1));
  }
- const count=byReviewer.size;return {score:mean([...byReviewer.values()]),count,required:2,complete:count>=2};
+ const count=byReviewer.size;return {score:mean([...byReviewer.values()]),count,complete:count>=2,provisional:count===1};
 }
 function timestamp(value,name) {
  if(value==null)return null;
@@ -223,11 +211,12 @@ function candidatesOf(receipt,start) {
  requireValue(Array.isArray(receipt.candidates??[]),'candidates must be an array');
  let previous=start;const end=timestamp(receipt.completedAt,'completedAt');
  const candidates=(receipt.candidates??[]).map(c=>{
-  nonempty(c.artifactHash,'candidate artifactHash');const time=timestamp(c.submittedAt,'candidate');requireValue(time!==null,'candidate submission time missing');
+  if(receipt.status==='completed'||c.artifactHash!=null)nonempty(c.artifactHash,'candidate artifactHash');
+  else requireValue(typeof c.sourceHash==='string'&&/^[a-f0-9]{64}$/i.test(c.sourceHash),'rejected candidate needs a source SHA256 hash');const time=timestamp(c.submittedAt,'candidate');requireValue(time!==null,'candidate submission time missing');
   requireValue(previous===null || time>=previous,'candidate time out of order');requireValue(end===null || time<=end,'candidate submitted after completion');previous=time;
   return {...c,time};
  });
- if(candidates.length)requireValue(candidates.at(-1).artifactHash===receipt.artifactHash,'final candidate artifact mismatch');
+ if(receipt.status==='completed'&&candidates.length)requireValue(candidates.at(-1).artifactHash===receipt.artifactHash,'final candidate artifact mismatch');
  return candidates;
 }
 function budgetViolated(receipt,account,candidates) {
@@ -243,7 +232,7 @@ export function scoreRun({task,receipt,profile=SCORE_PROFILE}) {
  if(task.complexity!=null && receipt.complexity!=null)requireValue(task.complexity===receipt.complexity,'task complexity identity mismatch');
  requireValue(Array.isArray(task?.expected?.nodes) && Array.isArray(task?.expected?.edges),'task expected nodes and edges required');
  const account=accounting(receipt),candidates=candidatesOf(receipt,account.start);
- account.raw.deliveryDurationMs=account.offline || account.start===null || !candidates.length ? null : candidates.at(-1).time-account.start;
+ account.raw.deliveryDurationMs=account.offline || account.start===null || !candidates.length || receipt.delivery?.status!=='delivered' || candidates.at(-1).artifactHash!==receipt.artifactHash ? null : candidates.at(-1).time-account.start;
  const budgetFailure=budgetViolated(receipt,account,candidates);
  const semantic=receipt.objective?.semantic;
  const terminal=['timeout','no_candidate','provider_error','failed','invalid_source'].includes(receipt.status);
@@ -258,7 +247,7 @@ export function scoreRun({task,receipt,profile=SCORE_PROFILE}) {
  }
  if(content===0)knownFailure=true;
  const layout=knownFailure?{score:0,details:{occlusion:0,clipping:0,font:0,path:0,objects:[],missing:[]}}:layoutScore(task,receipt.observation,profile);
- let human=knownFailure?{score:0,count:0,required:2,complete:true}:humanScore(receipt);
+ const human=knownFailure?{score:null,count:0,complete:false,provisional:false}:humanScore(receipt);
  const editable=receipt.editability?.status==='verified' && receipt.editability.passed===true;
  const delivered=receipt.status==='completed' && receipt.delivery?.status==='delivered' && typeof receipt.artifactHash==='string' && receipt.artifactHash.length>0;
  const finalCorrect=content===100 && semantic?.status==='verified' && semantic.passed===true && editable && delivered;
@@ -272,91 +261,17 @@ export function scoreRun({task,receipt,profile=SCORE_PROFILE}) {
   const efficiency=(value,bounds)=>100*clamp((bounds.bad-value)/(bounds.bad-bounds.good));
   if(content!==null && semantic?.status==='verified' && editable && delivered && !finalCorrect || budgetFailure){speed=0;cost=0;}
   else if(finalCorrect) {
-   const elapsed=account.raw.deliveryDurationMs;
+   const elapsed=account.raw.durationMs;
    if(anchor && elapsed!==null)speed=efficiency(elapsed,anchor.timeMs);
    if(anchor && account.complete)cost=efficiency(account.raw.costUsd,anchor.costUsd);
   }
   if(speed===null)missing.push('speed');if(cost===null)missing.push('cost');
   // Actual usage is part of a completed experiment even if a wrong diagram earned no efficiency credit.
   if(!account.complete)missing.push('usage');
-  if(!human.complete)missing.push('human');
  }
  const scores={content,layout:layout.score,speed,cost,human:human.score};
- const incomplete=missing.some(m=>m!=='human');
- const computed=totals(scores,profile,human.complete);
- if(incomplete){computed.automatic=null;computed.comprehensive=null;}
+ const incomplete=missing.length>0;
  const status=knownFailure?'failed':incomplete?'incomplete':'complete';
- const reasons=[];
- if(knownFailure)reasons.push('known task failure');if(incomplete)reasons.push('incomplete automatic measurements');
- if(!finalCorrect)reasons.push('mandatory semantic or editable delivery guard failed');if(budgetFailure)reasons.push('task budget exceeded');
- const result={scoreVersion:profile.version,runId:receipt.runId,taskId:receipt.taskId,arm:receipt.arm,model:receipt.model,repeat:receipt.repeat,taskType:task.type??receipt.taskType??null,complexity:task.complexity??receipt.complexity??null,identity,modelConfiguration:clone(receipt.modelConfiguration??null),artifactHash:receipt.artifactHash??null,artifactPath:receipt.artifactPath??null,scores,...computed,status,missing:[...new Set(missing)],knownFailure,layoutDetails:layout.details,raw:account.raw,human:{count:human.count,required:human.required,complete:human.complete},optimization:{eligible:reasons.length===0,score:reasons.length===0?computed.automatic:null,reasons}};
+ const result={scoreVersion:profile.version,runId:receipt.runId,taskId:receipt.taskId,arm:receipt.arm,model:receipt.model,repeat:receipt.repeat,taskType:task.type??receipt.taskType??null,complexity:task.complexity??receipt.complexity??null,identity,modelConfiguration:clone(receipt.modelConfiguration??null),artifactHash:receipt.artifactHash??null,artifactPath:receipt.artifactPath??null,scores,status,missing:[...new Set(missing)],knownFailure,layoutDetails:layout.details,raw:account.raw,human:{count:human.count,complete:human.complete,provisional:human.provisional}};
  finiteData(result,'scorecard');return result;
-}
-
-export function aggregateScorecards(rows,{plannedRuns,profile=SCORE_PROFILE}={}) {
- profileOf(profile);finiteData(rows,'rows');requireValue(Array.isArray(rows),'score rows must be an array');
- requireValue(Array.isArray(plannedRuns) && plannedRuns.length>0,'plannedRuns required');
- const planned=new Map();for(const plan of plannedRuns){const key=cell(plan);requireValue(!planned.has(key),'duplicate planned matrix cell');planned.set(key,plan);}
- const seen=new Map(),runIds=new Set(),configs=new Map();let identity=null;
- for(const row of rows) {
-  requireValue(row.scoreVersion===profile.version,'mixed score version');nonempty(row.runId,'runId');requireValue(!runIds.has(row.runId),'duplicate runId');runIds.add(row.runId);
-  const key=cell(row);requireValue(planned.has(key),'unplanned matrix cell');requireValue(!seen.has(key),'duplicate matrix cell');seen.set(key,row);
-  const id=stable(identityOf(row));requireValue(identity===null || identity===id,'mixed identity');identity=id;
-  const group=stable([row.arm,row.model]),config=stable(row.modelConfiguration??null);requireValue(!configs.has(group) || configs.get(group)===config,'mixed model configuration');configs.set(group,config);
-  const plan=planned.get(key);if(plan.runId!=null)requireValue(plan.runId===row.runId,'planned run identity mismatch');
-  for(const component of COMPONENTS){requireValue(component in (row.scores??{}),`missing score ${component}`);numberOrNull(row.scores[component],`${component} score`,{max:100});}
-  requireValue(['complete','incomplete','failed'].includes(row.status),'invalid score status');
-  if(row.status==='complete')requireValue(AUTO.every(k=>row.scores[k]!==null),'complete row requires measured automatic scores');
-  if(row.status==='failed' || row.knownFailure===true)requireValue(row.status==='failed' && row.knownFailure===true && COMPONENTS.every(k=>row.scores[k]===0),'known failed row requires all zero scores');
-  requireValue(typeof row.human?.complete==='boolean' && Number.isInteger(row.human.count) && row.human.count>=0,'invalid human coverage');
-  requireValue(row.human.complete!==true || row.knownFailure===true || row.human.count>=2,'human completion requires two raters');
-  for(const field of RAW_FIELDS)numberOrNull(row.raw?.[field],`raw ${field}`,{integer:field==='totalTokens'});
- }
- const groups=new Map();
- for(const plan of plannedRuns) {
-  const key=stable([plan.arm,plan.model]);if(!groups.has(key))groups.set(key,{arm:plan.arm,model:plan.model,tasks:new Map()});
-  const tasks=groups.get(key).tasks;if(!tasks.has(plan.taskId))tasks.set(plan.taskId,[]);tasks.get(plan.taskId).push({plan,row:seen.get(cell(plan))??null});
- }
- const taskSets=[...groups.values()].map(group=>stable([...group.tasks.keys()].sort()));
- requireValue(taskSets.every(tasks=>tasks===taskSets[0]),'all methods require the same common planned task set');
- const summarize=entries=>{
-  const present=entries.filter(e=>e.row),complete=present.length===entries.length && present.every(e=>e.row.status!=='incomplete');
-  const scores=Object.fromEntries(COMPONENTS.map(k=>[k,mean(entries.map(e=>e.row?.scores[k]??null))]));
-  const human={count:present.reduce((n,e)=>n+e.row.human.count,0),required:entries.reduce((n,e)=>n+(e.row?.knownFailure?0:2),0),complete:present.length===entries.length && present.every(e=>e.row.human.complete)};
-  const result={scores,...totals(scores,profile,human.complete),status:complete?'complete':'incomplete',recorded:present.length,missing:entries.flatMap(e=>e.row?(e.row.missing??[]).map(reason=>({taskId:e.plan.taskId,repeat:e.plan.repeat,reason})):[{taskId:e.plan.taskId,repeat:e.plan.repeat,reason:'receipt'}]),raw:Object.fromEntries(RAW_FIELDS.map(k=>[k,mean(entries.map(e=>e.row?.raw?.[k]??null))])),human};
-  if(!complete){result.automatic=null;result.comprehensive=null;}
-  return result;
- };
- const methods=[...groups.values()].map(group=>{
-  const tasks=[...group.tasks].map(([taskId,entries])=>({taskId,...summarize(entries),planned:entries.length,rows:entries.map(e=>e.row).filter(Boolean)}));
-  const scores=Object.fromEntries(COMPONENTS.map(k=>[k,mean(tasks.map(t=>t.scores[k]))]));
-  const human={count:tasks.reduce((n,t)=>n+t.human.count,0),required:tasks.reduce((n,t)=>n+t.human.required,0),complete:tasks.every(t=>t.human.complete)};
-  const complete=tasks.every(t=>t.status==='complete'),computed=totals(scores,profile,human.complete);
-  if(!complete){computed.automatic=null;computed.comprehensive=null;}
-  return {arm:group.arm,model:group.model,taskCount:tasks.length,recorded:tasks.reduce((n,t)=>n+t.recorded,0),scores,...computed,status:complete?'complete':'incomplete',missing:tasks.flatMap(t=>t.missing),raw:Object.fromEntries(RAW_FIELDS.map(k=>[k,mean(tasks.map(t=>t.raw[k]))])),human,tasks};
- });
- const normalizedRows=rows.map(row=>({...clone(row),...totals(row.scores,profile,row.human.complete),...(row.status==='incomplete'?{automatic:null,comprehensive:null}:{})}));
- const result={scoreVersion:profile.version,profile:clone(profile),methods,rows:normalizedRows};finiteData(result,'scorecard');return result;
-}
-
-export function weightSensitivity(scorecard,{track='auto'}={}) {
- requireValue(['auto','full'].includes(track),'track must be auto or full');
- const profile=profileOf(scorecard.profile??SCORE_PROFILE);requireValue(scorecard.scoreVersion===profile.version,'score version mismatch');
- const components=track==='auto'?AUTO:COMPONENTS;
- const normalize=weights=>{const sum=Object.values(weights).reduce((n,w)=>n+w,0);return Object.fromEntries(Object.entries(weights).map(([k,w])=>[k,w/sum]));};
- const rank=weights=>{
-  const values=scorecard.methods.map(m=>{
-   const complete=m.status!=='incomplete' && (track==='auto' || m.human?.complete===true);
-   const score=complete && Object.keys(weights).every(k=>typeof m.scores[k]==='number' && Number.isFinite(m.scores[k]))?Object.entries(weights).reduce((n,[k,w])=>n+w*m.scores[k],0):null;
-   return {arm:m.arm,model:m.model,score};
-  }).sort((a,b)=>(b.score??-Infinity)-(a.score??-Infinity));
-  let rank=0,last=null;return values.map((v,i)=>{if(v.score!==null && v.score!==last)rank=i+1;last=v.score;return {...v,rank:v.score===null?null:rank};});
- };
- const weights=normalize(Object.fromEntries(components.map(k=>[k,profile.weights[k]]))),baseline={weights,ranking:rank(weights)};
- const variant=(component,factor)=>{
-  const adjusted=normalize(Object.fromEntries(components.filter(k=>factor!==0 || k!==component).map(k=>[k,profile.weights[k]*(k===component?factor:1)])));
-  const ranking=rank(adjusted).map(r=>({...r,rankChange:r.rank===null?null:baseline.ranking.find(b=>b.arm===r.arm && b.model===r.model).rank-r.rank}));
-  return {component,factor,weights:adjusted,ranking};
- };
- return {scoreVersion:profile.version,track,notice:'Descriptive weight sensitivity only; not an empirical validation or a causal product-component ablation.',baseline,leaveOneOut:components.map(k=>variant(k,0)),perturbations:components.flatMap(k=>[variant(k,.8),variant(k,1.2)])};
 }

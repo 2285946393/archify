@@ -12,10 +12,8 @@ test('public corpus is checked before its provisional cases can be used as evide
   const r = run(['check']);
   assert.equal(r.status, 0, r.stderr || r.stdout);
   const d = JSON.parse(r.stdout);
-  assert.equal(d.coreCases, 30);
-  assert.equal(d.extensionCases, 10);
-  assert.equal(d.optimizationEligible, false);
-  assert.deepEqual(d.splitCounts, { development: 15, calibration: 5, holdout: 10, extension: 10 });
+  assert.equal(d.taskCount, 4);
+  assert.equal(d.calibrated, false);
 });
 
 test('invalid options cannot silently become a valid measurement', () => {

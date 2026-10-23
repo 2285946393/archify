@@ -3,18 +3,9 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { Script } from 'node:vm';
 import { parse } from 'parse5';
-import { renderScoreReport, scoreCSV, renderScoreChart, renderReviewForm } from '../benchmarks/diagram-quality/score-report.mjs';
+import { renderComparisonReport, comparisonCSV, renderReviewForm } from '../benchmarks/diagram-quality/score-report.mjs';
 
 const hash = letter => letter.repeat(64);
-const fixture = () => ({
- scoreVersion:'diagram-quality-score-v1',
- profile:{version:'diagram-quality-score-v1',weights:{content:.45,layout:.20,speed:.10,cost:.10,human:.15}},
- methods:[
-  {arm:'方案 A',model:'同一模型',taskCount:2,recorded:2,status:'complete',missing:[],scores:{content:100,layout:85,speed:70,cost:80,human:88},automatic:77/.85,comprehensive:90.2,raw:{durationMs:31000,deliveryDurationMs:23000,totalTokens:1200,costUsd:.03},human:{count:4,required:4,complete:true},tasks:[]},
-  {arm:'方案 B',model:'同一模型',taskCount:2,recorded:2,status:'complete',missing:[],scores:{content:100,layout:65,speed:80,cost:75,human:60},automatic:73.5/.85,comprehensive:82.5,raw:{durationMs:25000,deliveryDurationMs:18000,totalTokens:950,costUsd:.04},human:{count:4,required:4,complete:true},tasks:[]},
- ],
- rows:[{runId:'run-one',taskId:'task-one',arm:'方案 A',model:'同一模型',repeat:1,status:'complete',scores:{content:100,layout:85,speed:70,cost:80,human:88},automatic:77/.85,comprehensive:90.2,raw:{durationMs:31000,deliveryDurationMs:23000,totalTokens:1200,costUsd:.03},artifactHash:hash('a'),artifactPath:`artifacts/${hash('a')}.html`,layoutDetails:{font:99.2},missing:[]}]
-});
 function nodes(html, tag) {
  const all=[];
  const visit=node=>{if(node.tagName===tag) all.push(node);for(const child of node.childNodes??[]) visit(child);};
@@ -24,99 +15,6 @@ const attr=(node,name)=>node.attrs?.find(item=>item.name===name)?.value;
 const textOf=node=>(node.value??'')+(node.childNodes??[]).map(textOf).join('');
 const bodyText=html=>textOf(nodes(html,'body')[0]);
 const scripts=html=>nodes(html,'script').filter(node=>attr(node,'type')!=='application/json').map(textOf);
-
-test('Chinese report puts the primary 0–100 score bars and five components before raw evidence',()=>{
- const html=renderScoreReport(fixture(),{notice:'算术示意，非实测'}),body=bodyText(html);
- assert.equal(attr(nodes(html,'html')[0],'lang'),'zh-CN');
- for(const label of ['自动分','内容正确','布局可读','速度效率','成本效率','人工观感','总分','90.6','86.5','4.1','算术示意，非实测']) assert.ok(body.includes(label),label);
- assert.ok(html.indexOf('id="score-chart"')<html.indexOf('id="score-table"'));
- assert.ok(html.indexOf('id="score-table"')<html.indexOf('id="raw-units"'));
- assert.ok(html.indexOf('id="raw-units"')<html.indexOf('<pre>'));
- assert.ok(body.includes('23.0'));assert.ok(body.includes('1,200'));assert.ok(body.includes('0.0300'));
- assert.ok(nodes(html,'a').some(node=>attr(node,'href')===`./artifacts/${hash('a')}.html`));
- assert.equal(scripts(html).length,0);
-});
-
-test('full track uses comprehensive values everywhere while retaining existing automatic scores',()=>{
- const card=fixture(),html=renderScoreReport(card,{track:'full'}),chart=renderScoreChart(card,{track:'full'}),csv=scoreCSV(card,{track:'full'});
- assert.ok(bodyText(html).includes('综合分'));assert.ok(bodyText(html).includes('90.2'));assert.ok(bodyText(chart).includes('90.2'));
- assert.ok(bodyText(chart).includes('82.5'));assert.ok(csv.includes(',90.2,'));assert.ok(!csv.includes(',90.6,'));
- assert.ok(nodes(html,'rect').some(node=>attr(node,'data-score')==='90.2'));
- assert.ok(nodes(chart,'rect').some(node=>attr(node,'data-score')==='90.2'));
- assert.throws(()=>renderScoreReport(card,{track:'mixed'}),/track/i);
- assert.throws(()=>scoreCSV(card,{track:'mixed'}),/track/i);
- assert.throws(()=>renderScoreChart(card,{track:'mixed'}),/track/i);
-});
-
-test('component headings display the effective fixed weights for the selected track',()=>{
- const auto=nodes(renderScoreReport(fixture()),'th').map(textOf),full=nodes(renderScoreReport(fixture(),{track:'full'}),'th').map(textOf);
- for(const heading of ['内容正确 C 52.9%','布局可读 L 23.5%','速度效率 T 11.8%','成本效率 K 11.8%','人工观感 H 不计']) assert.ok(auto.includes(heading),heading);
- for(const heading of ['内容正确 C 45%','布局可读 L 20%','速度效率 T 10%','成本效率 K 10%','人工观感 H 15%']) assert.ok(full.includes(heading),heading);
-});
-
-test('aggregate raw units are labelled per-task averages while run evidence preserves the complete single-run usage',()=>{
- const card=fixture();card.rows[0].raw={durationMs:31000,deliveryDurationMs:23000,totalTokens:1601,costUsd:.07};
- const html=renderScoreReport(card),headings=nodes(html,'th').map(textOf),csv=scoreCSV(card);
- for(const heading of ['每题平均交付用时（秒）','每题平均 tokens','每题平均费用（USD）']) {assert.ok(headings.includes(heading),heading);assert.ok(csv.includes(heading),heading);}
- assert.ok(!headings.includes('总 tokens'));assert.ok(!csv.split('\r\n')[0].includes('总 tokens'));
- const rawSummary=textOf(nodes(html,'table')[1]);assert.ok(rawSummary.includes('23.0'));assert.ok(rawSummary.includes('1,200'));assert.ok(rawSummary.includes('0.0300'));
- const evidence=nodes(html,'pre').map(node=>JSON.parse(textOf(node))).find(item=>item.runId==='run-one');assert.deepEqual(evidence.raw,card.rows[0].raw);
-});
-
-test('delivery time never falls back to complete-run duration and explains the dispatch-to-final-candidate boundary',()=>{
- const card=fixture(),html=renderScoreReport(card),rawSummary=textOf(nodes(html,'table')[1]),csv=scoreCSV(card);
- assert.ok(rawSummary.includes('23.0'));assert.ok(!rawSummary.includes('31.0'));assert.ok(csv.includes(',23.0,'));assert.ok(!csv.includes(',31.0,'));
- for(const label of ['最终交付','生成','修复','工具等待','离线评分']) assert.ok(bodyText(html).includes(label),label);
- delete card.methods[0].raw.deliveryDurationMs;
- const missingHtml=renderScoreReport(card),table=nodes(missingHtml,'table')[1],rows=table.childNodes.find(node=>node.tagName==='tbody').childNodes.filter(node=>node.tagName==='tr');
- assert.equal(textOf(rows[0].childNodes.filter(node=>node.tagName==='td')[1]),'未测量');
- const missingCSV=scoreCSV(card);assert.ok(!missingCSV.includes(',31.0,'));assert.ok(missingCSV.split('\r\n')[1].includes(',90.6,,1200,'));
-});
-
-test('partial C/L measurements remain visible and cannot become a fabricated total or zero cost',()=>{
- const card=fixture();card.methods=[{...card.methods[0],status:'incomplete',scores:{content:100,layout:99.2,speed:null,cost:null,human:null},automatic:null,comprehensive:null,raw:{durationMs:null,totalTokens:null,costUsd:null},missing:['generation time unmeasured','actual cost unmeasured']}];
- const html=renderScoreReport(card),chart=renderScoreChart(card),csv=scoreCSV(card),body=bodyText(html);
- assert.ok(body.includes('未测量'));assert.ok(body.includes('99.2'));assert.ok(body.includes('100.0'));assert.ok(body.includes('尚无完整自动分'));
- assert.equal(nodes(chart,'rect').filter(node=>attr(node,'data-score')!==undefined).length,0);
- assert.ok(bodyText(chart).includes('未测量'));
- assert.ok(!csv.includes('null'));assert.ok(!csv.includes('NaN'));assert.ok(!csv.includes('Infinity'));
- assert.ok(!body.includes('$0.0000'));
- card.methods[0].automatic=90.5;
- assert.ok(bodyText(renderScoreReport(card,{track:'full'})).includes('待完成，已有自动分 90.5'));
-});
-
-test('chart is a standalone labelled zero-origin 0–100 native SVG',()=>{
- const html=renderScoreChart(fixture(),{title:'两种方法对比'}),svg=nodes(html,'svg')[0],text=bodyText(html);
- assert.ok(svg);const [x,y,width,height]=attr(svg,'viewBox').split(/\s+/).map(Number);
- assert.equal(x,0);assert.equal(y,0);assert.ok(width>0&&height>0);
- for(const label of ['0','25','50','75','100','两种方法对比','90.6','86.5','自动分']) assert.ok(text.includes(label),label);
- assert.equal(attr(svg,'role'),'img');assert.ok(nodes(html,'title').length>=2);
- assert.ok(!html.includes('https://'));assert.equal(scripts(html).length,0);
-});
-
-test('score chart regions remain keyboard focusable and have accessible labels',()=>{
- for(const html of [renderScoreChart(fixture()),renderScoreReport(fixture())]) {
-  const region=nodes(html,'div').find(node=>(attr(node,'class')??'').split(' ').includes('chart-panel'));
-  assert.equal(attr(region,'role'),'region');assert.equal(attr(region,'tabindex'),'0');assert.ok(attr(region,'aria-label').includes('横向滚动'));
- }
-});
-
-test('untrusted labels and notices stay text, digest links reject traversal or executable URLs',()=>{
- const attack='</script><img src=x onerror=alert(1)>',card=fixture();card.methods[0].arm=attack;card.rows[0].artifactPath=`../${hash('a')}.html`;
- const html=renderScoreReport(card,{title:attack,notice:attack,reviewLink:'javascript:alert(1)',artifactBase:'https://evil.invalid'}),chart=renderScoreChart(card,{title:attack});
- assert.equal(nodes(html,'img').length,0);assert.equal(nodes(chart,'img').length,0);assert.equal(nodes(html,'script').length,0);
- assert.ok(bodyText(html).includes(attack));assert.ok(bodyText(chart).includes(attack));
- assert.ok(nodes(html,'a').every(node=>!/(?:javascript:|\.\.)/i.test(attr(node,'href')??'')));
- assert.ok(!html.includes('onerror="'));
-});
-
-test('CSV preserves numeric columns, quote escaping and formula-safe method/model text',()=>{
- const card=fixture();card.methods=[...['=HYPERLINK("x")','+SUM(1,2)','-cmd','@SUM(1)','\t=cmd','\r=cmd','  =cmd','"quoted",name'].map(arm=>({...card.methods[0],arm,model:'=model'}))];
- const csv=scoreCSV(card);
- assert.ok(csv.startsWith('\uFEFF'));
- for(const marker of ['\'=HYPERLINK','\'+SUM','\'-cmd','\'@SUM','\'\t=cmd','\'\r=cmd',"'  =cmd",'""quoted"",name']) assert.ok(csv.includes(marker),marker);
- assert.ok(csv.includes("'=model"));assert.ok(csv.includes('90.6'));assert.ok(csv.includes('23.0'));assert.ok(csv.includes('0.0300'));
-});
 
 const reviewFixture=()=>({
  receipts:[0,1,2,3].map((value)=>({taskId:value%2?'task-two':'task-one',artifactHash:hash(String(value+1)),artifactPath:`artifacts/${hash(String(value+1))}.html`,delivery:{status:'delivered'},arm:'SECRET_METHOD',model:'SECRET_MODEL',usage:{costUsd:666},objective:{automatic:98.123},sourceHash:'SECRET_SOURCE',runId:'SECRET_RUN'})),
@@ -187,7 +85,60 @@ test('blind review rejects non-PNG and noncanonical image paths rather than fall
  ]) assert.throws(()=>renderReviewForm({...input,receipts:[{...receipt,reviewImage}]}),/reviewImage|image|PNG/i);
 });
 
-test('equal leaders are labelled tied rather than claiming a zero-point lead',()=>{
- const card=fixture();card.methods[1].automatic=card.methods[0].automatic;
- const body=bodyText(renderScoreReport(card));assert.ok(body.includes('并列'));assert.ok(!body.includes('领先 0.0'));
+
+const comparisonFixture=()=>{
+ const row={revision:'before-rev',model:'model-one',status:'complete',receipt:{delivery:{status:'delivered'}},repairCount:1,scores:{content:90,layout:70,speed:50,cost:60,human:null},raw:{durationMs:41000,deliveryDurationMs:32000,totalTokens:1200,costUsd:.03},semanticDefects:['缺少 API → DB 关系'],layoutDetails:{edgeCrossings:2},evidence:{sourcePath:`evidence/${hash('a')}.json`,artifactPath:`artifacts/${hash('b')}.html`,previewPath:`artifacts/${hash('c')}.png`,sessionPath:`evidence/${hash('d')}.jsonl`,historyComplete:true,candidates:[{sourcePath:`evidence/${hash('e')}.json`,artifactPath:`artifacts/${hash('f')}.html`},{artifactPath:`artifacts/${hash('b')}.html`}]}};
+ const after={...row,revision:'after-rev',scores:{...row.scores,layout:85},repairCount:null};
+ return {schemaVersion:1,kind:'archify-before-after',metricsVersion:'metrics-v1',baseRevision:'before-rev',candidateRevision:'after-rev',summary:{base:{planned:2,recorded:1,delivered:1,failed:0,missing:1,...row},candidate:{planned:2,recorded:2,delivered:1,failed:1,missing:0,...after}},pairs:[{taskId:'task-one',model:'model-one',repeat:1,base:row,candidate:after,delta:{content:0,layout:15,speed:0,cost:0,human:null}},{taskId:'task-two',model:'model-one',repeat:1,base:null,candidate:{...after,status:'failed',receipt:{delivery:{status:'failed'}},scores:{content:0,layout:null},raw:{}},delta:{}}]};
+};
+
+test('comparison preserves independent metrics, missing runs, failures, timings, repairs and linked candidate evidence',()=>{
+ const html=renderComparisonReport(comparisonFixture()),text=bodyText(html);
+ assert.equal(attr(nodes(html,'html')[0],'lang'),'zh-CN');
+ for(const label of ['before-rev','after-rev','model-one','task-one','task-two','+15.0','缺少运行记录','failed','未记录','41.0','32.0','1,200','0.0300','缺少 API → DB 关系','edgeCrossings','首次候选','修复候选','最终候选','完整会话']) assert.ok(text.includes(label),label);
+ const links=nodes(html,'a').map(node=>attr(node,'href'));
+ for(const path of [`evidence/${hash('a')}.json`,`evidence/${hash('d')}.jsonl`,`artifacts/${hash('f')}.html`]) assert.ok(links.includes(path),path);
+ assert.ok(nodes(html,'img').length>=2);
+ assert.equal(nodes(html,'svg').length,1);
+ assert.equal(nodes(html,'rect').filter(node=>attr(node,'data-score')!==undefined).length,8);
+ assert.equal(scripts(html).length,0);
+ assert.ok(text.includes('每题平均实际完整会话用时（秒）'));
+ assert.ok(text.includes('每题平均最终交付用时（秒）'));
+ assert.ok(text.includes('先对同题的重复运行取平均'));
+ assert.ok(!text.includes('总分对比'));
+});
+
+test('report escapes untrusted content and only links digest-named local evidence',()=>{
+ const input=comparisonFixture(),attack='</script><img src=x onerror=alert(1)>';
+ input.pairs[0].taskId=attack;input.pairs[0].base.semanticDefects=[attack];
+ input.pairs[0].base.evidence={artifactPath:'javascript:alert(1)',sourcePath:`../${hash('a')}.json`,sessionPath:`https://evil.invalid/${hash('b')}.jsonl`,previewPath:`artifacts/${hash('a')}-method.png`};
+ const html=renderComparisonReport(input);
+ assert.ok(bodyText(html).includes(attack));
+ assert.ok(nodes(html,'a').every(node=>/^(artifacts|evidence)\/[a-f0-9]{64}\.[a-z0-9]+$/.test(attr(node,'href'))));
+ assert.ok(nodes(html,'img').every(node=>/^artifacts\/[a-f0-9]{64}\.png$/.test(attr(node,'src'))));
+ assert.equal(nodes(html,'script').length,0);
+});
+
+test('CSV exports paired raw data, blank missing scores and numeric negative deltas with formula-safe labels',()=>{
+ const input=comparisonFixture();input.pairs[0].taskId='  =cmd';input.pairs[0].model='"quoted",name';input.pairs[0].delta.layout=-15;
+ const csv=comparisonCSV(input),lines=csv.split('\r\n');
+ assert.ok(csv.startsWith('\uFEFF'));assert.ok(csv.includes("'  =cmd"));assert.ok(csv.includes('""quoted"",name'));assert.ok(csv.includes(',-15,'));assert.ok(!csv.includes("'-15"));
+ assert.ok(csv.includes(',41000,32000,1200,0.03,'));assert.ok(csv.includes(',base,before-rev,missing,'));
+ assert.equal(lines.length,6);assert.ok(!csv.includes('NaN'));assert.ok(!csv.includes('null'));
+});
+
+test('local form downloads only complete integer ratings bound to the task and artifact',()=>{
+ const input=reviewFixture();input.receipts=input.receipts.slice(0,1);
+ const html=renderReviewForm(input),script=scripts(html)[0];let submit,valid=false,downloaded=null;
+ const values=new Map([['reviewerId','reviewer-1'],['independent','yes'],...['readability','hierarchy','layout','style','aesthetics'].map(field=>[`rating-0-${field}`,'4'])]);
+ const form={reportValidity:()=>valid,addEventListener:(type,fn)=>{submit=fn;}},status={};
+ const state=textOf(nodes(html,'script').find(node=>attr(node,'type')==='application/json'));
+ const context={document:{getElementById:id=>id==='review-state'?{textContent:state}:id==='review-form'?form:status,createElement:()=>({click(){},remove(){}}),body:{appendChild(){}}},FormData:class {get(key){return values.get(key)??null;} constructor(){}},Blob:class {constructor(parts){downloaded=JSON.parse(parts[0]);}},URL:{createObjectURL:()=> 'blob:local',revokeObjectURL(){}},setTimeout:fn=>fn()};
+ new Script(script).runInNewContext(context);
+ const event={preventDefault(){}};
+ submit(event);assert.equal(downloaded,null,'incomplete draft cannot download');
+ valid=true;values.set('rating-0-layout','2.5');assert.throws(()=>submit(event),/评分/);assert.equal(downloaded,null);
+ values.set('rating-0-layout','4');submit(event);
+ assert.equal(downloaded.reviews.length,1);
+ const review=downloaded.reviews[0];assert.equal(review.status,'completed');assert.equal(review.taskId,input.receipts[0].taskId);assert.equal(review.artifactHash,input.receipts[0].artifactHash);assert.equal(review.reviewerId,'reviewer-1');assert.equal(review.ratings.layout,4);assert.equal(review.independent,true);
 });

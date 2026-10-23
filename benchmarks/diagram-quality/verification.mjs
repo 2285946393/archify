@@ -18,31 +18,22 @@ const hashFile = file => sha256(fs.readFileSync(file));
 function requireValue(ok, message) { if (!ok) throw new Error(message); }
 function save(file, value) { fs.writeFileSync(file, typeof value === 'string' ? value : JSON.stringify(value, null, 2) + '\n', { flag: 'wx' }); }
 export function evaluatorHash() {
-  return sha256(['adapters.mjs', 'metrics.mjs', 'browser.mjs', 'records.mjs', 'registry.mjs', 'verification.mjs', 'benchmark.mjs'].map(f => `${f}\n${fs.readFileSync(path.join(here, f), 'utf8')}`).join('\n'));
+  return sha256(['adapters.mjs', 'metrics.mjs', 'browser.mjs', 'records.mjs', 'registry.mjs', 'scoring.mjs', 'comparison.mjs', 'verification.mjs', 'benchmark.mjs'].map(f => `${f}\n${fs.readFileSync(path.join(here, f), 'utf8')}`).join('\n'));
 }
 export function checkCorpus(corpus) {
-  requireValue(corpus.schemaVersion === 2 && Array.isArray(corpus.tasks), 'Expected a v2 corpus');
-  const ids = new Set(), splitCounts = {}, core = new Map(), families = new Map(), complexities = new Map(), extensions = new Map();
-  for (const t of corpus.tasks) {
-    requireValue(typeof t.id === 'string' && !ids.has(t.id), 'Missing/duplicate task id'); ids.add(t.id);
-    requireValue(['development', 'calibration', 'holdout', 'extension'].includes(t.split), 'Invalid split');
-    requireValue(t.family && t.prompt && ['small', 'medium', 'large'].includes(t.complexity), 'Missing task metadata');
-    requireValue(!families.has(t.family) || families.get(t.family) === t.split, 'Task family leaks across splits'); families.set(t.family, t.split);
-    requireValue(Array.isArray(t.expected?.nodes) && Array.isArray(t.expected?.edges), 'Missing expected facts');
-    const nodeIds = new Set(t.expected.nodes.map(n => n.id));
-    requireValue(nodeIds.size === t.expected.nodes.length && t.expected.nodes.every(n => n.id && n.label), 'Missing/duplicate expected node');
-    requireValue(t.expected.edges.every(e => nodeIds.has(e.from) && nodeIds.has(e.to)), 'Unbound expected relation');
-    splitCounts[t.split] = (splitCounts[t.split] || 0) + 1;
-    if (t.split !== 'extension') {
-      core.set(t.type, (core.get(t.type) || 0) + 1);
-      const key = t.type + ':' + t.complexity; complexities.set(key, (complexities.get(key) || 0) + 1);
-    } else extensions.set(t.type, (extensions.get(t.type) || 0) + 1);
-  }
-  requireValue(['architecture', 'workflow', 'sequence', 'dataflow', 'lifecycle'].every(type => core.get(type) === 6), 'Core must contain six cases of each native type');
-  requireValue([...core.keys()].every(type => ['small', 'medium', 'large'].every(level => complexities.get(type + ':' + level) === 2)), 'Each core type needs two cases per complexity');
-  requireValue(['erd', 'class', 'tree', 'timeline', 'waterfall'].every(type => extensions.get(type) === 2), 'Extension needs two cases of each declared type');
-  requireValue(corpus.tasks.length === 40 && splitCounts.extension === 10, 'Expected 30 core and 10 extension cases');
-  return { schemaVersion: 2, coreCases: 30, extensionCases: 10, splitCounts: Object.fromEntries(['development', 'calibration', 'holdout', 'extension'].map(k => [k, splitCounts[k]])), publicPilot: corpus.publicPilot === true, optimizationEligible: corpus.profile?.calibrated === true && corpus.tasks.every(t => t.goldStatus === 'independently-confirmed'), metrics, humanRubric };
+ requireValue(corpus.schemaVersion===2&&Array.isArray(corpus.tasks)&&corpus.tasks.length>0,'Expected a v2 corpus with tasks');
+ const ids=new Set();
+ for(const task of corpus.tasks){
+  requireValue(typeof task.id==='string'&&task.id&&!ids.has(task.id),'Missing/duplicate task id');ids.add(task.id);
+  requireValue(typeof task.prompt==='string'&&task.prompt.length>0,'Missing task prompt');
+  requireValue(['architecture','workflow','sequence','dataflow','lifecycle'].includes(task.type),'Unsupported native task type');
+  requireValue(['small','medium','large'].includes(task.complexity),'Invalid task complexity');
+  requireValue(Array.isArray(task.expected?.nodes)&&Array.isArray(task.expected?.edges),'Missing expected facts');
+  const nodes=new Set(task.expected.nodes.map(n=>n.id??n.key));
+  requireValue(nodes.size===task.expected.nodes.length&&task.expected.nodes.every(n=>(n.id??n.key)&&n.label),'Missing/duplicate expected node');
+  requireValue(task.expected.edges.every(e=>nodes.has(e.from)&&nodes.has(e.to)),'Unbound expected relation');
+ }
+ return {schemaVersion:2,taskCount:corpus.tasks.length,publicPilot:corpus.publicPilot===true,calibrated:corpus.profile?.calibrated===true,metrics,humanRubric};
 }
 
 // This probe operates on a throw-away copy; source declarations of editability are ignored.
@@ -99,30 +90,4 @@ export async function verifyFiles(options) {
   receipt.observation = observation;
   if (options.output) save(options.output, receipt);
   return receipt;
-}
-
-export function ablate(receipt, task, graph, profile) {
-  requireValue(receipt.observation, 'A saved independent observation is required');
-  const base = { task, run: { ...receipt, candidates: receipt.candidates.map(({ verifiedReceipt, ...c }) => c) }, graph, observation: receipt.observation, profile, editability: receipt.editability };
-  const variants = [];
-  const add = (name, change) => {
-    const input = structuredClone(base); change(input);
-    const r = evaluateRun(input);
-    variants.push({ name, passed: r.objective.passed, verified: r.objective.status, semantic: r.objective.semantic, geometry: r.objective.geometry });
-  };
-  add('baseline', () => {});
-  add('drop-required-node', x => { const id = x.graph.nodes.shift()?.id; x.graph.edges = x.graph.edges.filter(e => e.from !== id && e.to !== id); });
-  add('reverse-first-edge', x => { if (x.graph.edges.length) [x.graph.edges[0].from, x.graph.edges[0].to] = [x.graph.edges[0].to, x.graph.edges[0].from]; });
-  add('hide-first-node', x => { if (x.observation.nodes.length) x.observation.nodes[0].visible = false; });
-  add('truncate-required-label', x => { if (x.graph.nodes.length) x.graph.nodes[0].label = ''; });
-  add('tiny-font', x => { for (const n of x.observation.texts) n.fontSize = 6; });
-  add('overlap-first-two-nodes', x => { if (x.observation.nodes.length > 1) x.observation.nodes[1].rect = { ...x.observation.nodes[0].rect }; });
-  add('equivalent-translation', x => {
-    for (const n of [...x.observation.nodes, ...x.observation.texts]) { n.rect.x += 1; n.rect.y += 1; }
-    for (const e of x.observation.edges) for (const p of e.points) { p.x += 1; p.y += 1; }
-    x.observation.bounds.x += 1; x.observation.bounds.y += 1;
-  });
-  add('palette-only-no-geometric-change', () => {});
-  for (const min of [10, 12, 14]) add('font-threshold-' + min, x => { x.profile.minFontPx = min; });
-  return { schemaVersion: 2, kind: 'evaluator-sensitivity-replay', causalComponentExperiment: false, sourceArtifactHash: receipt.artifactHash, notice: 'In-memory controlled fact/observation interventions; no new rendered artifact or model calls. Palette is an invariant control. Not a component causal ablation or human preference study.', variants };
 }
