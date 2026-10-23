@@ -2540,9 +2540,11 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
        floor in some light themes. Resolve a darker --reader-accent where the
        preset defines one; the diagram's --frontend-stroke itself is untouched,
        as are dark themes and presets that already pass. Zero counts stay faint
-       on purpose, so they are excluded from the darker rule. */
+       on purpose, so they are excluded from the darker rule. Route-target
+       finders keep their --security-stroke status color, so they are excluded
+       too. */
     html[data-theme="light"] .semantic-passport-meta [data-passport="kind"],
-    html[data-theme="light"] .node-finder-result em:not([data-zero]) {
+    html[data-theme="light"] .node-finder:not([data-context="route-target"]) .node-finder-result em:not([data-zero]) {
       color: var(--reader-accent, var(--frontend-stroke));
     }
 
