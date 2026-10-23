@@ -66,3 +66,19 @@ test('repeated checks on identical JSON do not inflate repair counts',async t=>{
  const result=await compareFromFiles({plan:path.join(dir,'plan.json'),output:path.join(dir,'out')});
  assert.equal(result.comparison.pairs[0].base.repairCount,0);
 });
+test('malformed generated JSON remains a recorded failure with inspectable candidate evidence',async t=>{
+ const dir=temp(t),{plan,write}=comparisonFixture(dir);
+ const {sha256}=await import('../benchmarks/diagram-quality/verification.mjs');
+ write('rejected.json','{');
+ const receipt=JSON.parse(fs.readFileSync(path.join(dir,'base.json')));
+ receipt.status='invalid_source';receipt.delivery={status:'invalid_source'};receipt.sourceHash=sha256('{');receipt.artifactHash=null;
+ receipt.candidates=[{sourceHash:receipt.sourceHash,submittedAt:'2026-10-23T00:00:15Z'}];
+ write('base.json',receipt);
+ Object.assign(plan.runs[0],{source:'rejected.json',artifact:undefined,candidates:[{source:'rejected.json',submittedAt:'2026-10-23T00:00:15Z'}]});
+ write('plan.json',plan);
+ const result=await compareFromFiles({plan:path.join(dir,'plan.json'),output:path.join(dir,'out')});
+ const row=result.comparison.pairs[0].base;
+ assert.equal(row.scores.content,0);assert.equal(row.knownFailure,true);
+ assert.ok(fs.existsSync(path.join(dir,'out',row.evidence.candidates[0].sourcePath)));
+ assert.equal(result.comparison.summary.base.failed,1);
+});

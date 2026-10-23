@@ -110,7 +110,9 @@ export async function compareFromFiles({plan:planFile,output,reviews:reviewFile}
     if(candidate.source){
      const copied=copyEvidence(candidate.source,root,out,{expectedHash:expectedSource});
      item.sourcePath=copied.path;item.bound=!!recorded&&!!expectedSource&&copied.hash===expectedSource;
-     item.documentHash=sha256(stable(read(path.resolve(root,candidate.source))));
+     // Invalid generated JSON is still evidence of a failed attempt.
+     const bytes=fs.readFileSync(path.resolve(root,candidate.source),'utf8');
+     try{item.documentHash=sha256(stable(JSON.parse(bytes)));}catch{item.documentHash=sha256(bytes);}
     }
     if(candidate.artifact)item.artifactPath=copyEvidence(candidate.artifact,root,out,{artifact:true,expectedHash:recorded?.artifactHash}).path;
     if(candidate.receipt)item.receiptPath=copyEvidence(candidate.receipt,root,out).path;
