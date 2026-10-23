@@ -134,7 +134,9 @@ export async function compareFromFiles({plan:planFile,output,reviews:reviewFile}
     receipt.reviewImage={hash:preview.hash,path:preview.path};evidence.previewPath=preview.path;
    }else evidence.missing.push('PNG preview unavailable; inspect original artifact');
    // Existing ratings are tied to original artifact bytes; an explicit newer import wins.
-   for(const review of original.human?.reviews??[])receipt=attachHumanReview(receipt,review);
+   const storedReviews=original.human?.reviews??[];
+   if(receipt.delivery.status==='delivered')for(const review of storedReviews)receipt=attachHumanReview(receipt,review);
+   else if(storedReviews.length)evidence.missing.push('stored human reviews not bound: final artifact unavailable');
    for(const [i,review] of reviews.entries())if(review.taskId===receipt.taskId&&review.artifactHash===receipt.artifactHash){receipt=attachHumanReview(receipt,review);usedReviews.add(i);}
    const row=scoreRun({task,receipt});
    Object.assign(row,{revision:entry.revision,evidence,delivery:receipt.delivery,repairCount:evidence.historyComplete?evidence.candidates.slice(1).filter((c,i)=>c.documentHash!==evidence.candidates[i].documentHash).length:null,semanticMeasurements:{nodes:receipt.objective.semantic.nodes??null,edges:receipt.objective.semantic.edges??null},semanticDefects:receipt.objective.semantic.violations,sourceEvidence:original.sourceEvidence??null});

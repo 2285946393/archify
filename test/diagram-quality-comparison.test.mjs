@@ -82,3 +82,14 @@ test('malformed generated JSON remains a recorded failure with inspectable candi
  assert.ok(fs.existsSync(path.join(dir,'out',row.evidence.candidates[0].sourcePath)));
  assert.equal(result.comparison.summary.base.failed,1);
 });
+test('stored ratings with a missing artifact do not abort the comparison or gain human credit',async t=>{
+ const dir=temp(t),{plan,write}=comparisonFixture(dir);
+ const receipt=JSON.parse(fs.readFileSync(path.join(dir,'base.json')));
+ receipt.human={status:'completed',reviews:[{taskId:'one',artifactHash:receipt.artifactHash,status:'completed',reviewerId:'historical-rater',rubricVersion:'diagram-quality-human-v1',independent:true,ratings:{readability:4,hierarchy:4,layout:4,style:4,aesthetics:4}}]};
+ write('base.json',receipt);delete plan.runs[0].artifact;write('plan.json',plan);
+ const {comparison}=await compareFromFiles({plan:path.join(dir,'plan.json'),output:path.join(dir,'out')});
+ const row=comparison.pairs[0].base;
+ assert.equal(row.delivery.status,'unverified');assert.equal(row.scores.human,null);
+ assert.ok(row.evidence.missing.some(reason=>reason.includes('stored human reviews')));
+ assert.ok(fs.existsSync(path.join(dir,'out/index.html')));
+});
