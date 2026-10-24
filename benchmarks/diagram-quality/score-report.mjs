@@ -4,6 +4,8 @@ const COMPONENTS = [
  ['content','内容正确'],['layout','布局可读'],
  ['speed','速度效率'],['cost','成本效率'],['human','人工观感'],
 ];
+const TOTALS=[['automatic','自动总分'],['comprehensive','综合分']];
+const readScore=(row,key)=>TOTALS.some(([name])=>name===key)?row?.[key]:row?.scores?.[key];
 const RATINGS = [
  ['readability','阅读追踪','文字、节点和连线是否容易阅读与追踪？'],
  ['hierarchy','层级分组','主次关系与分组是否清楚？'],
@@ -32,18 +34,18 @@ function comparisonOf(value) {
  if(value?.schemaVersion!==1 || value.kind!=='archify-before-after' || !Array.isArray(value.pairs)) throw new TypeError('Expected schemaVersion 1 archify-before-after comparison');
  return value;
 }
-function metricChart(base,candidate,id) {
- const bars=COMPONENTS.map(([key,label],i)=>{
+function metricChart(base,candidate,id,components=COMPONENTS) {
+ const bars=components.map(([key,label],i)=>{
   const y=35+i*68;
   return `<text x="8" y="${y+12}">${escape(label)}</text>${[[base,'修改前','#68829a'],[candidate,'修改后','#125ed4']].map(([arm,name,color],j)=>{
-   const value=arm?.scores?.[key],yy=y+j*23;
+   const value=readScore(arm,key),yy=y+j*23;
    return `<g><title>${label} ${name}：${number(value)}</title>${score(value)?`<rect x="120" y="${yy}" width="${value*3}" height="17" fill="${color}" data-score="${value}"/>`:''}<text x="435" y="${yy+14}">${name} ${number(value)}</text></g>`;
   }).join('')}`;
  }).join('');
- return `<svg class="metric-chart" viewBox="0 0 570 400" role="img" aria-labelledby="${id}"><title id="${id}">五项分数修改前后对比，统一 0–100 尺度，越高越好</title>${[0,25,50,75,100].map(n=>`<line x1="${120+n*3}" x2="${120+n*3}" y1="22" y2="373" stroke="#d6e0ea"/><text x="${120+n*3}" y="393" text-anchor="middle">${n}</text>`).join('')}${bars}</svg>`;
+ return `<svg class="metric-chart" viewBox="0 0 570 ${components.length*68+60}" role="img" aria-labelledby="${id}"><title id="${id}">分数修改前后对比，统一 0–100 尺度，越高越好</title>${[0,25,50,75,100].map(n=>`<line x1="${120+n*3}" x2="${120+n*3}" y1="22" y2="${components.length*68+33}" stroke="#d6e0ea"/><text x="${120+n*3}" y="${components.length*68+53}" text-anchor="middle">${n}</text>`).join('')}${bars}</svg>`;
 }
-function scoreTable(base,candidate,deltas) {
- return `<div class="table-wrap"><table><thead><tr><th>分项（0–100）</th><th>修改前</th><th>修改后</th><th>变化（后 − 前）</th></tr></thead><tbody>${COMPONENTS.map(([key,label])=>`<tr><th scope="row">${label}</th><td>${number(base?.scores?.[key])}</td><td>${number(candidate?.scores?.[key])}</td><td>${delta(score(base?.scores?.[key])&&score(candidate?.scores?.[key])?(deltas?.[key]??candidate.scores[key]-base.scores[key]):null)}</td></tr>`).join('')}</tbody></table></div>`;
+function scoreTable(base,candidate,deltas,components=COMPONENTS) {
+ return `<div class="table-wrap"><table><thead><tr><th>分项（0–100）</th><th>修改前</th><th>修改后</th><th>变化（后 − 前）</th></tr></thead><tbody>${components.map(([key,label])=>`<tr><th scope="row">${label}</th><td>${number(readScore(base,key))}</td><td>${number(readScore(candidate,key))}</td><td>${delta(score(readScore(base,key))&&score(readScore(candidate,key))?(deltas?.[key]??readScore(candidate,key)-readScore(base,key)):null)}</td></tr>`).join('')}</tbody></table></div>`;
 }
 function rawTable(base,candidate,average=false) {
  const rows=[['实际完整会话用时（秒）',row=>seconds(row?.raw?.durationMs)],['最终交付用时（秒）',row=>seconds(row?.raw?.deliveryDurationMs)],['总 tokens',row=>rawNumber(row?.raw?.totalTokens)],['实际费用（USD）',row=>rawNumber(row?.raw?.costUsd,4)]];
@@ -56,11 +58,11 @@ function evidenceArm(row,name,revision) {
  return `<section class="panel"><h3>${name}</h3><p>修订 ${escape(row.revision??revision)} · 模型 ${escape(row.model??'未记录')}</p><p>交付状态：${escape(row.receipt?.delivery?.status??row.delivery?.status??row.status??'未记录')} · 评分状态：${escape(row.status??'未记录')} · 修复次数：${Number.isInteger(row.repairCount)&&row.repairCount>=0?row.repairCount:'未记录'}</p>${preview&&preview.endsWith('.png')?`<img class="preview" src="${escape(preview)}" alt="${name}产物预览" loading="lazy">`:''}<p class="evidence-links">${[[evidence.sourcePath,'源文件'],[evidence.artifactPath,'最终产物'],[evidence.sessionPath,'完整会话'],[evidence.promptPath,'原始提示词'],[evidence.receiptPath,'原始测量记录']].map(([path,label])=>link(path,label)).filter(Boolean).join(' · ')}</p><p>候选历史：${evidence.historyComplete===true?'完整':evidence.historyComplete===false?'不完整':'未记录'}</p><ol>${candidates.map((item,index)=>`<li>${index===0?'首次候选':'修复候选 '+index}${index===candidates.length-1?' / 最终候选':''} ${escape(item.submittedAt??'')} ${[[item.sourcePath,'源文件'],[item.artifactPath,'产物'],[item.receiptPath,'交付凭据']].map(([path,label])=>link(path,label)).filter(Boolean).join(' · ')}</li>`).join('')}</ol><details open><summary>语义、布局缺陷与缺测依据</summary><pre>${escape(JSON.stringify(defects,null,2))}</pre></details></section>`;
 }
 
-/** Static before/after evidence, without an overall score or ranking. */
+/** Static before/after evidence with raw data, component scores and versioned weighted totals. */
 export function renderComparisonReport(input) {
  const comparison=comparisonOf(input),base=comparison.summary?.base,candidate=comparison.summary?.candidate;
  const coverage=arm=>['planned','recorded','delivered','failed','missing'].map((key,i)=>`${['计划','已记录','已交付','失败','缺失'][i]} ${escape(arm?.[key]??'未记录')}`).join(' · ');
- return page('Archify 修改前后绘图对比',`<main><header><h1>Archify 修改前后绘图对比</h1><p class="metadata">修改前 ${escape(comparison.baseRevision)} → 修改后 ${escape(comparison.candidateRevision)} · 指标版本 ${escape(comparison.metricsVersion)}</p><p class="metadata">${escape(comparison.evidenceOrigin??'记录导入比较；请核对逐题证据来源')}</p><p class="notice">五项指标分别比较，均为 0–100，越高越好。缺测与缺失保留为空；人工评分选填。没有加权总分或排名。</p></header><section class="section"><h2>分项变化与覆盖</h2><p>修改前：${coverage(base)}<br>修改后：${coverage(candidate)}</p>${metricChart(base,candidate,'summary-metrics')}${scoreTable(base,candidate)}<h3>每题平均原始测量</h3>${rawTable(base,candidate,true)}<p class="score-note">汇总先对同题的重复运行取平均，再对任务等权平均；费用和 tokens 为每题平均值。完整会话用时与最终交付用时分别记录；最终交付用时包含生成、修复与工具等待，不以完整会话用时替代。tokens 与 USD 均来自实际记录，缺测不补零。</p></section><section class="section"><h2>逐题对比与证据</h2>${comparison.pairs.map((pair,index)=>`<article class="section"><h3>${escape(pair.taskId)} · ${escape(pair.model)} · 第 ${escape(pair.repeat)} 次</h3>${pair.prompt?`<details><summary>任务提示词</summary><p>${escape(pair.prompt)}</p></details>`:''}${scoreTable(pair.base,pair.candidate,pair.delta)}${rawTable(pair.base,pair.candidate)}<div class="arms">${evidenceArm(pair.base,'修改前',comparison.baseRevision)}${evidenceArm(pair.candidate,'修改后',comparison.candidateRevision)}</div></article>`).join('')||'<p class="empty">暂无任务记录。</p>'}</section><footer>比较应保持任务、模型、预算和指标版本一致。请结合逐题原始证据判断变化。</footer></main>`,'.metric-chart{width:min(100%,700px);height:auto;font:13px system-ui}.arms{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;margin-top:18px}.arms .panel{min-width:0;overflow-wrap:anywhere}.preview{display:block;width:100%;height:330px;object-fit:contain;background:#f2f6fa}.evidence-links{margin:12px 0}@media(max-width:760px){.arms{grid-template-columns:1fr}.preview{height:auto}}');
+ return page('Archify 修改前后绘图对比',`<main><header><h1>Archify 修改前后绘图对比</h1><p class="metadata">修改前 ${escape(comparison.baseRevision)} → 修改后 ${escape(comparison.candidateRevision)} · 指标版本 ${escape(comparison.metricsVersion)}</p><p class="metadata">${escape(comparison.evidenceOrigin??'记录导入比较；请核对逐题证据来源')}</p><p class="notice">总分与分项均为 0–100，越高越好；原始测量值并列保留。人工评分选填，未评分时综合分为空，自动总分正常计算。已知交付失败计 0，未知数据不补零。</p></header><section class="section"><h2>总分对比与覆盖</h2><p>修改前：${coverage(base)}<br>修改后：${coverage(candidate)}</p>${metricChart(base,candidate,'summary-totals',TOTALS)}${scoreTable(base,candidate,undefined,TOTALS)}<p class="score-note">权重：${escape(comparison.scoreWeights?Object.entries(comparison.scoreWeights).map(([key,value])=>`${COMPONENTS.find(([name])=>name===key)?.[1]??key} ${+(value*100).toFixed(6)}%`).join(' · '):'未记录')}。自动总分为四项自动指标加权后除以自动权重之和；综合分包含人评。${base?.humanProvisional||candidate?.humanProvisional?'含单人试点评分。':''}</p><h3>分项分数</h3>${metricChart(base,candidate,'summary-metrics')}${scoreTable(base,candidate)}<h3>每题平均原始测量</h3>${rawTable(base,candidate,true)}<p class="score-note">汇总先对同题的重复运行取平均，再对任务等权平均；费用和 tokens 为每题平均值。完整会话用时与最终交付用时分别记录；最终交付用时包含生成、修复与工具等待，不以完整会话用时替代。tokens 与 USD 均来自实际记录，缺测不补零。</p></section><section class="section"><h2>逐题对比与证据</h2>${comparison.pairs.map((pair,index)=>`<article class="section"><h3>${escape(pair.taskId)} · ${escape(pair.model)} · 第 ${escape(pair.repeat)} 次</h3>${pair.prompt?`<details><summary>任务提示词</summary><p>${escape(pair.prompt)}</p></details>`:''}${scoreTable(pair.base,pair.candidate,pair.delta,TOTALS)}${scoreTable(pair.base,pair.candidate,pair.delta)}${rawTable(pair.base,pair.candidate)}<div class="arms">${evidenceArm(pair.base,'修改前',comparison.baseRevision)}${evidenceArm(pair.candidate,'修改后',comparison.candidateRevision)}</div></article>`).join('')||'<p class="empty">暂无任务记录。</p>'}</section><footer>比较应保持任务、模型、预算和指标版本一致。请结合逐题原始证据判断变化。</footer></main>`,'.metric-chart{width:min(100%,700px);height:auto;font:13px system-ui}.arms{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;margin-top:18px}.arms .panel{min-width:0;overflow-wrap:anywhere}.preview{display:block;width:100%;height:330px;object-fit:contain;background:#f2f6fa}.evidence-links{margin:12px 0}@media(max-width:760px){.arms{grid-template-columns:1fr}.preview{height:auto}}');
 }
 function csvCell(value) {
  if(typeof value==='number' && Number.isFinite(value)) return String(value);
@@ -70,10 +72,10 @@ function csvCell(value) {
 }
 export function comparisonCSV(input) {
  const comparison=comparisonOf(input);
- const header=['taskId','model','repeat','arm','revision','status','deliveryStatus','repairCount',...COMPONENTS.map(([key])=>key),...COMPONENTS.map(([key])=>`delta.${key}`),'durationMs','deliveryDurationMs','totalTokens','costUsd','sourcePath','artifactPath','previewPath','sessionPath'];
+ const header=['taskId','model','repeat','arm','revision','status','deliveryStatus','repairCount',...TOTALS.map(([key])=>key),...COMPONENTS.map(([key])=>key),...[...TOTALS,...COMPONENTS].map(([key])=>`delta.${key}`),'durationMs','deliveryDurationMs','totalTokens','costUsd','sourcePath','artifactPath','previewPath','sessionPath'];
  const rows=comparison.pairs.flatMap(pair=>['base','candidate'].map(arm=>{
   const row=pair[arm];
-  return [pair.taskId,pair.model,pair.repeat,arm,row?.revision??comparison[arm==='base'?'baseRevision':'candidateRevision'],row?.status??'missing',row?.receipt?.delivery?.status??row?.delivery?.status??'',Number.isInteger(row?.repairCount)?row.repairCount:null,...COMPONENTS.map(([key])=>score(row?.scores?.[key])?row.scores[key]:null),...COMPONENTS.map(([key])=>score(pair.base?.scores?.[key])&&score(pair.candidate?.scores?.[key])&&typeof pair.delta?.[key]==='number'&&Number.isFinite(pair.delta[key])?pair.delta[key]:null),...['durationMs','deliveryDurationMs','totalTokens','costUsd'].map(key=>finite(row?.raw?.[key])?row.raw[key]:null),...['sourcePath','artifactPath','previewPath','sessionPath'].map(key=>localPath(row?.evidence?.[key])??'')];
+  return [pair.taskId,pair.model,pair.repeat,arm,row?.revision??comparison[arm==='base'?'baseRevision':'candidateRevision'],row?.status??'missing',row?.receipt?.delivery?.status??row?.delivery?.status??'',Number.isInteger(row?.repairCount)?row.repairCount:null,...[...TOTALS,...COMPONENTS].map(([key])=>score(readScore(row,key))?readScore(row,key):null),...[...TOTALS,...COMPONENTS].map(([key])=>score(readScore(pair.base,key))&&score(readScore(pair.candidate,key))&&typeof pair.delta?.[key]==='number'&&Number.isFinite(pair.delta[key])?pair.delta[key]:null),...['durationMs','deliveryDurationMs','totalTokens','costUsd'].map(key=>finite(row?.raw?.[key])?row.raw[key]:null),...['sourcePath','artifactPath','previewPath','sessionPath'].map(key=>localPath(row?.evidence?.[key])??'')];
  }));
  return '\uFEFF'+[header,...rows].map(row=>row.map(csvCell).join(',')).join('\r\n')+'\r\n';
 }

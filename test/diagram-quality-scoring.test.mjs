@@ -19,7 +19,7 @@ test('fixed anchors yield continuous efficiency and full scores without trusting
  const r=receipt();r.objective.geometry.passed=false;
  const row=score(r);
  assert.deepEqual(row.scores,{content:100,layout:100,speed:40,cost:50,human:100});
- assert.equal(row.automatic,undefined);assert.equal(row.comprehensive,undefined);assert.equal(row.optimization,undefined);
+ close(row.automatic,74/.85);close(row.comprehensive,89);assert.equal(row.optimization,undefined);
  assert.equal(row.status,'complete');assert.equal(row.raw.durationMs,40000);assert.equal(row.raw.deliveryDurationMs,35000);assert.equal(row.scores.speed,40);assert.equal(row.raw.totalTokens,120);assert.equal(row.raw.costUsd,.13);
  assert.equal(row.scoreVersion,scoring.SCORE_PROFILE.version);
 });
@@ -183,7 +183,20 @@ test('unrated optional human evidence is null and keeps automatic measurements c
  const row=score(receipt({human:{reviews:[]}}));
  assert.equal(row.scores.human,null);assert.equal(row.status,'complete');
  assert.deepEqual(row.human,{count:0,complete:false,provisional:false});
- assert.equal(scoring.SCORE_PROFILE.version,'archify-comparison-metrics-v1');
- assert.equal(scoring.SCORE_PROFILE.weights,undefined);
+ assert.equal(scoring.SCORE_PROFILE.version,'archify-comparison-weighted-v1');
+ assert.deepEqual(scoring.SCORE_PROFILE.weights,{content:.45,layout:.2,speed:.1,cost:.1,human:.15});
  assert.equal(scoring.aggregateScorecards,undefined);assert.equal(scoring.weightSensitivity,undefined);
+});
+
+test('weighted totals keep optional human ratings independent from the automatic score',()=>{
+ const r=receipt(),row=score(r);
+ close(row.automatic,74/.85);close(row.comprehensive,89);
+ r.human={reviews:[]};const unrated=score(r);
+ close(unrated.automatic,row.automatic);assert.equal(unrated.comprehensive,null);
+ r.human={reviews:[review('single-reviewer',4)]};const single=score(r);
+ close(single.automatic,row.automatic);close(single.comprehensive,85.25);assert.equal(single.human.provisional,true);
+ const incomplete=score({...r,usage:{status:'unknown'}});assert.equal(incomplete.automatic,null);assert.equal(incomplete.comprehensive,null);
+ const failed=score({...r,status:'timeout',candidates:[],artifactHash:null});
+ assert.equal(failed.automatic,0);assert.equal(failed.comprehensive,0);assert.equal(failed.scores.human,null);
+ assert.deepEqual(unrated.raw,row.raw);
 });

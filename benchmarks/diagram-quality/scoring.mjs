@@ -1,7 +1,8 @@
 // Changing these anchors or geometric rules requires a new metric version.
 function freeze(value) { if(value && typeof value==='object') { Object.values(value).forEach(freeze); Object.freeze(value); } return value; }
 export const SCORE_PROFILE = freeze({
- version:'archify-comparison-metrics-v1',
+ version:'archify-comparison-weighted-v1',
+ weights:{content:.45,layout:.20,speed:.10,cost:.10,human:.15},
  minFontPx:12,
  thresholds:{
   small:{timeMs:{good:10000,bad:60000},costUsd:{good:.01,bad:.25}},
@@ -29,13 +30,26 @@ function numberOrNull(value,name,{max=Infinity,integer=false}={}) {
 const mean=values=>values.length?values.some(v=>v===null)?null:values.reduce((sum,v)=>sum+v/values.length,0):null;
 function profileOf(profile) {
  finiteData(profile,'profile');nonempty(profile?.version,'score version');
+ const keys=['content','layout','speed','cost','human'];
+ requireValue(keys.every(k=>typeof profile.weights?.[k]==='number'&&Number.isFinite(profile.weights[k])&&profile.weights[k]>=0),'weights must be nonnegative finite numbers');
+ requireValue(Math.abs(keys.reduce((sum,k)=>sum+profile.weights[k],0)-1)<1e-10,'weights must sum to one');
+ requireValue(keys.slice(0,4).reduce((sum,k)=>sum+profile.weights[k],0)>0,'automatic weight must be positive');
  requireValue(typeof profile.minFontPx==='number' && profile.minFontPx>0,'profile minFontPx must be positive');
  for(const complexity of ['small','medium','large']) for(const dimension of ['timeMs','costUsd']) {
   const anchor=profile.thresholds?.[complexity]?.[dimension];
   requireValue(anchor && typeof anchor.good==='number' && anchor.good>=0 && typeof anchor.bad==='number' && anchor.bad>anchor.good,'profile threshold anchors require 0 <= good < bad');
  }
- if(profile.version===SCORE_PROFILE.version)requireValue(stable({minFontPx:profile.minFontPx,thresholds:profile.thresholds})===stable({minFontPx:SCORE_PROFILE.minFontPx,thresholds:SCORE_PROFILE.thresholds}),'changed score policy requires a new version');
+ if(profile.version===SCORE_PROFILE.version)requireValue(stable({weights:profile.weights,minFontPx:profile.minFontPx,thresholds:profile.thresholds})===stable({weights:SCORE_PROFILE.weights,minFontPx:SCORE_PROFILE.minFontPx,thresholds:SCORE_PROFILE.thresholds}),'changed score policy requires a new version');
  return profile;
+}
+// Totals supplement the raw measurements and component scores; unknowns never become zero.
+export function weightedTotals(scores,{profile=SCORE_PROFILE,knownFailure=false,incomplete=false}={}) {
+ profileOf(profile);
+ const auto=['content','layout','speed','cost'];
+ if(incomplete||auto.some(k=>!Number.isFinite(scores[k])))return {automatic:null,comprehensive:null};
+ const autoWeight=auto.reduce((sum,k)=>sum+profile.weights[k],0);
+ const weightedAuto=auto.reduce((sum,k)=>sum+scores[k]*profile.weights[k],0);
+ return {automatic:100*clamp(weightedAuto/autoWeight/100),comprehensive:knownFailure?0:Number.isFinite(scores.human)?100*clamp((weightedAuto+profile.weights.human*scores.human)/100):null};
 }
 function identityOf(value) {
  const identity=value?.identity;requireValue(identity && typeof identity==='object','receipt identity required');
@@ -272,6 +286,6 @@ export function scoreRun({task,receipt,profile=SCORE_PROFILE}) {
  const scores={content,layout:layout.score,speed,cost,human:human.score};
  const incomplete=missing.length>0;
  const status=knownFailure?'failed':incomplete?'incomplete':'complete';
- const result={scoreVersion:profile.version,runId:receipt.runId,taskId:receipt.taskId,arm:receipt.arm,model:receipt.model,repeat:receipt.repeat,taskType:task.type??receipt.taskType??null,complexity:task.complexity??receipt.complexity??null,identity,modelConfiguration:clone(receipt.modelConfiguration??null),artifactHash:receipt.artifactHash??null,artifactPath:receipt.artifactPath??null,scores,status,missing:[...new Set(missing)],knownFailure,layoutDetails:layout.details,raw:account.raw,human:{count:human.count,complete:human.complete,provisional:human.provisional}};
+ const result={scoreVersion:profile.version,runId:receipt.runId,taskId:receipt.taskId,arm:receipt.arm,model:receipt.model,repeat:receipt.repeat,taskType:task.type??receipt.taskType??null,complexity:task.complexity??receipt.complexity??null,identity,modelConfiguration:clone(receipt.modelConfiguration??null),artifactHash:receipt.artifactHash??null,artifactPath:receipt.artifactPath??null,scores,...weightedTotals(scores,{profile,knownFailure,incomplete}),status,missing:[...new Set(missing)],knownFailure,layoutDetails:layout.details,raw:account.raw,human:{count:human.count,complete:human.complete,provisional:human.provisional}};
  finiteData(result,'scorecard');return result;
 }

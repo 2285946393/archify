@@ -1,12 +1,13 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import {scoreRun,SCORE_PROFILE} from './scoring.mjs';
+import {scoreRun,SCORE_PROFILE,weightedTotals} from './scoring.mjs';
 import {evaluateRun,attachHumanReview} from './records.mjs';
 import {parseSource} from './adapters.mjs';
 import {sha256,evaluatorHash,checkCorpus} from './verification.mjs';
 import {renderComparisonReport,comparisonCSV,renderReviewForm} from './score-report.mjs';
 
 const fields=['content','layout','speed','cost','human'];
+const totals=['automatic','comprehensive'];
 const rawFields=['durationMs','deliveryDurationMs','totalTokens','costUsd'];
 const requireValue=(ok,message)=>{if(!ok)throw new TypeError(message);};
 const stable=v=>Array.isArray(v)?'['+v.map(stable).join(',')+']':v&&typeof v==='object'?'{'+Object.keys(v).sort().map(k=>JSON.stringify(k)+':'+stable(v[k])).join(',')+'}':JSON.stringify(v);
@@ -23,6 +24,7 @@ export function buildComparison({baseRevision,candidateRevision,plannedRuns,rows
   requireValue(!plan.has(key(item)),'Duplicate planned cell');plan.set(key(item),item);
  }
  requireValue(new Set(plannedRuns.map(p=>p.model)).size===1,'Use one fixed model per comparison');
+ rows=rows.map(row=>({...row}));
  const seen=new Map(),runIds=new Set();let identity=null,configuration=null;
  for(const row of rows){
   requireValue(['base','candidate'].includes(row.arm),'Run arm must be base or candidate');
@@ -34,12 +36,14 @@ export function buildComparison({baseRevision,candidateRevision,plannedRuns,rows
   requireValue(identity===null||identity===id,'Mixed evaluator/corpus/profile/budget identity');identity=id;
   requireValue(configuration===null||configuration===config,'Mixed model configuration');configuration=config;
   for(const field of fields)requireValue(row.scores[field]===null||Number.isFinite(row.scores[field])&&row.scores[field]>=0&&row.scores[field]<=100,'Invalid per-metric score');
+  Object.assign(row,weightedTotals(row.scores,{knownFailure:row.knownFailure,incomplete:row.status==='incomplete'}));
   for(const field of rawFields)requireValue(row.raw[field]===null||Number.isFinite(row.raw[field])&&row.raw[field]>=0,'Invalid raw measurement');
  }
  const pairs=plannedRuns.map(item=>{
   const base=seen.get('base:'+key(item))??null,candidate=seen.get('candidate:'+key(item))??null;
   if(base?.promptHash&&candidate?.promptHash)requireValue(base.promptHash===candidate.promptHash,'Paired prompt digest differs');
   const delta=Object.fromEntries(fields.map(f=>[f,Number.isFinite(base?.scores[f])&&Number.isFinite(candidate?.scores[f])?candidate.scores[f]-base.scores[f]:null]));
+  for(const field of totals)delta[field]=Number.isFinite(base?.[field])&&Number.isFinite(candidate?.[field])?candidate[field]-base[field]:null;
   return {...item,prompt:tasks.find(t=>t.id===item.taskId)?.prompt??null,base,candidate,delta};
  });
  const summarize=arm=>{
@@ -47,9 +51,10 @@ export function buildComparison({baseRevision,candidateRevision,plannedRuns,rows
   // Repeats are averaged within a task before giving each task equal weight.
   const taskIds=[...new Set(plannedRuns.map(p=>p.taskId))];
   const averages=section=>Object.fromEntries((section==='scores'?fields:rawFields).map(f=>[f,mean(taskIds.map(id=>mean(pairs.filter(p=>p.taskId===id).map(p=>p[arm]?.[section]?.[f]??null))))]));
-  return {planned:values.length,recorded:recorded.length,delivered:recorded.filter(r=>r.delivery?.status==='delivered').length,failed:recorded.filter(r=>r.knownFailure||r.status==='failed').length,missing:values.length-recorded.length,scores:averages('scores'),raw:averages('raw')};
+  const weighted=Object.fromEntries(totals.map(f=>[f,mean(taskIds.map(id=>mean(pairs.filter(p=>p.taskId===id).map(p=>p[arm]?.[f]??null))))]));
+  return {...weighted,humanProvisional:recorded.some(r=>r.human?.provisional===true),planned:values.length,recorded:recorded.length,delivered:recorded.filter(r=>r.delivery?.status==='delivered').length,failed:recorded.filter(r=>r.knownFailure||r.status==='failed').length,missing:values.length-recorded.length,scores:averages('scores'),raw:averages('raw')};
  };
- return {schemaVersion:1,kind:'archify-before-after',metricsVersion:SCORE_PROFILE.version,evaluatorHash:evaluatorHash(),baseRevision,candidateRevision,pairs,summary:{base:summarize('base'),candidate:summarize('candidate')}};
+ return {schemaVersion:1,kind:'archify-before-after',metricsVersion:SCORE_PROFILE.version,scoreWeights:SCORE_PROFILE.weights,evaluatorHash:evaluatorHash(),baseRevision,candidateRevision,pairs,summary:{base:summarize('base'),candidate:summarize('candidate')}};
 }
 
 const read=file=>JSON.parse(fs.readFileSync(file,'utf8'));

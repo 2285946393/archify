@@ -10,7 +10,7 @@ test('missing arms remain visible, suppress aggregate scores and never create a 
  const c=build([row('base'),row('candidate'),row('candidate','two')]);
  assert.equal(c.pairs.length,2);assert.equal(c.pairs[1].base,null);assert.equal(c.pairs[1].delta.content,null);
  assert.equal(c.summary.base.missing,1);assert.equal(c.summary.base.scores.content,null);
- assert.equal('automatic' in c.summary.base,false);assert.equal('comprehensive' in c.summary.base,false);
+ assert.equal(c.summary.base.automatic,null);assert.equal(c.summary.base.comprehensive,null);
 });
 test('paired improvements retain raw timing and failures in their original task denominator',()=>{
  const failed=row('candidate','two',{status:'failed',knownFailure:true,scores:{content:0,layout:0,speed:0,cost:0,human:null},delivery:{status:'timeout'}});
@@ -42,9 +42,15 @@ test('real file pipeline bundles evidence, drops absent previews and imports exa
  write('reviews.json',{reviews:[review]});
  const result=await compareFromFiles({plan:path.join(dir,'plan.json'),output:path.join(dir,'out'),reviews:path.join(dir,'reviews.json')});
  const row=result.comparison.pairs[0].base;assert.equal(row.scores.human,75);assert.equal(row.repairCount,0);assert.equal(row.evidence.historyComplete,true);
+ const exported=JSON.parse(fs.readFileSync(path.join(dir,'out/comparison.json')));
+ assert.equal(exported.pairs[0].base.automatic,row.automatic);assert.equal(exported.pairs[0].base.comprehensive,row.comprehensive);
+ assert.ok(Math.abs(row.comprehensive-(45+20+8+(.25-.02)/(.25-.01)*10+11.25))<1e-8);
+ const csv=fs.readFileSync(path.join(dir,'out/comparison.csv'),'utf8').replace(/^\uFEFF/,'').trim().split('\r\n').map(line=>line.split(','));
+ for(const name of ['automatic','comprehensive'])assert.equal(Number(csv[1][csv[0].indexOf(name)]),row[name]);
+ assert.ok(fs.readFileSync(path.join(dir,'out/index.html'),'utf8').includes(row.comprehensive.toFixed(1)));
  assert.equal(row.evidence.previewPath,undefined);assert.ok(row.evidence.missing.some(v=>v.includes('PNG')));
  for(const f of [row.evidence.sourcePath,row.evidence.artifactPath,row.evidence.sessionPath,row.evidence.candidates[0].sourcePath])assert.ok(fs.existsSync(path.join(dir,'out',f)));
- const html=fs.readFileSync(path.join(dir,'out/index.html'),'utf8');assert.ok(html.includes('fixture-only-model'));assert.ok(!html.includes('综合分'));
+ const html=fs.readFileSync(path.join(dir,'out/index.html'),'utf8');assert.ok(html.includes('fixture-only-model'));assert.ok(html.includes('综合分'));
  await assert.rejects(compareFromFiles({plan:path.join(dir,'plan.json'),output:path.join(dir,'out')}),/empty/);
  assert.equal(plan.runs.length,2);
 });
@@ -92,4 +98,14 @@ test('stored ratings with a missing artifact do not abort the comparison or gain
  assert.equal(row.delivery.status,'unverified');assert.equal(row.scores.human,null);
  assert.ok(row.evidence.missing.some(reason=>reason.includes('stored human reviews')));
  assert.ok(fs.existsSync(path.join(dir,'out/index.html')));
+});
+
+test('weighted comparison totals keep missing cells and failed attempts in the task denominator',()=>{
+ const failed=row('candidate','two',{status:'failed',knownFailure:true,scores:{content:0,layout:0,speed:0,cost:0,human:null}});
+ const c=build([row('base'),row('base','two'),row('candidate'),failed]);
+ assert.ok(Math.abs(c.summary.base.automatic-78/.85)<1e-8);
+ assert.ok(Math.abs(c.summary.candidate.automatic-39/.85)<1e-8);
+ assert.equal(c.summary.base.comprehensive,null);
+ assert.equal(c.pairs[1].candidate.comprehensive,0);
+ assert.equal(build([row('base')]).summary.candidate.automatic,null);
 });

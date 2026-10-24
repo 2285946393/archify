@@ -99,13 +99,13 @@ test('comparison preserves independent metrics, missing runs, failures, timings,
  const links=nodes(html,'a').map(node=>attr(node,'href'));
  for(const path of [`evidence/${hash('a')}.json`,`evidence/${hash('d')}.jsonl`,`artifacts/${hash('f')}.html`]) assert.ok(links.includes(path),path);
  assert.ok(nodes(html,'img').length>=2);
- assert.equal(nodes(html,'svg').length,1);
+ assert.equal(nodes(html,'svg').length,2);
  assert.equal(nodes(html,'rect').filter(node=>attr(node,'data-score')!==undefined).length,8);
  assert.equal(scripts(html).length,0);
  assert.ok(text.includes('每题平均实际完整会话用时（秒）'));
  assert.ok(text.includes('每题平均最终交付用时（秒）'));
  assert.ok(text.includes('先对同题的重复运行取平均'));
- assert.ok(!text.includes('总分对比'));
+ assert.ok(text.includes('总分对比'));
 });
 
 test('report escapes untrusted content and only links digest-named local evidence',()=>{
