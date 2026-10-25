@@ -164,3 +164,20 @@ test('literal heading separators survive public validate, deliver and finalize (
     }
   }
 });
+
+test('workflow shorthand carries page locale into rendered lane labels (#1082)',t=>{
+  const dir=temporary(t);
+  for(const [locale,label] of [['en','Branch 1'],['es','Branch 1'],['zh-CN','分支 1'],['zh-TW','分支 1'],['zh-Hant','分支 1'],[undefined,'分支 1']]) {
+    const input=path.join(dir,`${locale||'default'}.md`),output=path.join(dir,`${locale||'default'}.html`);
+    const source=`# Release flow\n\nA build either ships or rolls back.\n\n${locale?`@meta locale=${locale}\n\n`:''}## How does a release branch? {#question}\n\n@workflow id=flow\n| a | Build | backend |\n| b | Ship | backend |\n| c | Roll back | backend |\n| a > b | green |\n| a > c | red |\n`;
+    fs.writeFileSync(input,source);
+    const result=run(['deliver','explainer',input,output,'--quality','standard','--json']);
+    assert.equal(result.status,0,result.stdout+result.stderr);
+    const frozen=bundle(output),html=fs.readFileSync(output,'utf8');
+    assert.equal(frozen.sourceText,source);
+    assert.equal(frozen.document.panels[0].blocks[0].spec.lanes[1].label,label);
+    assert.ok(html.includes(`data-node-context="${label}"`),locale||'default');
+    assert.ok(html.includes(`<title>Roll back · ${label}</title>`),locale||'default');
+    assert.match(html,new RegExp(`aria-label="[^"]*Roll back[^"]*${label}"`,'u'),locale||'default');
+  }
+});

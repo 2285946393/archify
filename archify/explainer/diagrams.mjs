@@ -136,7 +136,7 @@ function rankedPlacements(nodes, edges, maxColumns = Infinity) {
 }
 
 /** Compile a small author shorthand into an existing native Archify model. */
-export function compileExplainerDiagram(diagramType, rows, { title, id, line = 1, quality = 'showcase' } = {}) {
+export function compileExplainerDiagram(diagramType, rows, { title, id, line = 1, quality = 'showcase', locale = 'zh-CN' } = {}) {
   const context = { line, pointer: '/', id, diagramType, rowMap: {}, subject: { diagram: id, diagramType } };
   if (!TYPES.has(diagramType)) fail(context, 'diagram-type', 'Unknown native diagram type.', 'sequence');
   if (!Array.isArray(rows) || !rows.length) fail(context, 'diagram-rows', 'A shorthand diagram needs at least one row.', 'Client | API | 请求记录');
@@ -306,7 +306,7 @@ export function compileExplainerDiagram(diagramType, rows, { title, id, line = 1
         }
         const rows = wrapped || placed;
         if (rows.some(node => node.col > 5)) fail(context, 'diagram-shorthand-limit', 'Native workflow columns are limited to 0–5.', 'Declare phase lanes with "lane <id> | label" rows and assign nodes to them.');
-        model.lanes = Array.from({ length: Math.max(1, ...rows.map(node => node.row + 1)) }, (_, row) => ({ id: `lane-${row}`, label: wrapped ? `${spec.meta.title} · ${row + 1}` : row ? `分支 ${row}` : spec.meta.title }));
+        model.lanes = Array.from({ length: Math.max(1, ...rows.map(node => node.row + 1)) }, (_, row) => ({ id: `lane-${row}`, label: wrapped ? `${spec.meta.title} · ${row + 1}` : row ? `${locale.startsWith('zh') ? '分支' : 'Branch'} ${row}` : spec.meta.title }));
         model.nodes = rows.map(({ row, ...node }) => ({ ...node, lane: `lane-${row}` }));
         model.edges = edges;
       }

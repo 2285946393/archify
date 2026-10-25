@@ -281,3 +281,22 @@ test('heading line terminators remain literal text without crashing the parser (
   assert.ok(malformed.diagnostics.length);
   assert.ok(malformed.diagnostics.every(entry=>entry.code.startsWith('explainer/parse-')));
 });
+
+test('workflow shorthand uses final page locale without moving its source locations (#1082)',()=>{
+ const workflow='@workflow\n| a | Build | backend |\n| b | Ship | backend |\n| c | Roll back | backend |\n| a > b | green |\n| a > c | red |\n';
+ const header='# Release flow\n\nA build ships or rolls back.\n\n';
+ const panel='## What happens? {#question}\n\n';
+ const early=parse(header+'@meta locale=en\n\n'+panel+workflow);
+ const source=header+panel+workflow+'\n@meta locale=en quality_profile=standard\n';
+ const late=parse(source);
+ assert.equal(late.document.meta.locale,'en');
+ assert.equal(late.document.panels[0].blocks[0].spec.lanes[1].label,'Branch 1');
+ assert.equal(late.document.panels[0].blocks[0].spec.meta.quality_profile,'showcase','late metadata does not change the original shorthand quality');
+ const original=parse(header+panel+workflow);
+ assert.equal(late.document.panels[0].blocks[0].id,original.document.panels[0].blocks[0].id,'locale cannot change an automatic source anchor');
+ assert.deepEqual(late.document.panels[0].blocks[0],early.document.panels[0].blocks[0]);
+ const location=late.sourceMap['/panels/0/blocks/0/spec/lanes/1/label'];
+ assert.equal(location.start,source.indexOf('@workflow'));
+ assert.ok(source.slice(location.start,location.end).startsWith(workflow.trimEnd()));
+ assert.equal(late.sourceMap['/meta/locale'].start,source.indexOf('@meta'));
+});
