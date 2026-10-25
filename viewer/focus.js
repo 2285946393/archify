@@ -1681,6 +1681,175 @@
       moveBtn.addEventListener('keydown', moveLensWithKeyboard);
       clearBtn.addEventListener('click', function () { clear({ restoreFocus: true }); });
       copyBtn.addEventListener('click', copyFocusLink);
+      if (explainBtn) explainBtn.addEventListener('click', function (event) { event.stopPropagation(); toggleExplanation(); });
+      if (explanationBack) {
+        explanationBack.addEventListener('click', function (event) { event.stopPropagation(); closeExplanation(); });
+      }
       if (parentBackBtn) parentBackBtn.addEventListener('click', navigateToParent);
       rewriteDrilldownAnchors();
       syncParentBackControls();
+      upstreamBtn.addEventListener('click', function () { applyReachability('upstream'); });
+      downstreamBtn.addEventListener('click', function () { applyReachability('downstream'); });
+      relationsBtn.addEventListener('click', function () {
+        var expanded = chip.getAttribute('data-relations-expanded') === 'true';
+        if (expanded) chip.removeAttribute('data-relations-expanded');
+        else chip.setAttribute('data-relations-expanded', 'true');
+        relationsBtn.setAttribute('aria-expanded', expanded ? 'false' : 'true');
+        relationsBtn.setAttribute('aria-label', viewerText(expanded
+          ? 'viewer.passport.relations.show'
+          : 'viewer.passport.relations.hide'));
+        placeRelationshipLens();
+      });
+      relationshipList.addEventListener('click', function (event) {
+        var button = event.target.closest('[data-relationship-target]');
+        if (!button) return;
+        var id = button.getAttribute('data-relationship-target');
+        set(id, { toggle: false });
+        if (Archify.view && typeof Archify.view.reveal === 'function') {
+          Archify.view.reveal([id], { includeNeighbors: true, reason: 'relationship' });
+        }
+        var node = svg.querySelector('[data-node-id="' + id + '"]');
+        if (node) {
+          try { node.focus({ preventScroll: true }); } catch (_) { try { node.focus(); } catch (_) {} }
+        }
+      });
+      relationshipList.addEventListener('pointerover', function (event) {
+        if (event.pointerType === 'touch') return;
+        if (finePointerQuery && !finePointerQuery.matches) return;
+        var button = event.target.closest('[data-relationship-key]');
+        if (!button || !relationshipList.contains(button)) return;
+        if (event.relatedTarget && button.contains(event.relatedTarget)) return;
+        hoveredRelationship = button;
+        syncRelationshipPreview();
+      });
+      relationshipList.addEventListener('pointerout', function (event) {
+        var button = event.target.closest('[data-relationship-key]');
+        if (!button || (event.relatedTarget && button.contains(event.relatedTarget))) return;
+        if (hoveredRelationship === button) hoveredRelationship = null;
+        syncRelationshipPreview();
+      });
+      relationshipList.addEventListener('focusin', function (event) {
+        var button = event.target.closest('[data-relationship-key]');
+        if (!button) return;
+        focusedRelationship = button;
+        syncRelationshipPreview();
+      });
+      relationshipList.addEventListener('focusout', function (event) {
+        var button = event.target.closest('[data-relationship-key]');
+        if (!button || (event.relatedTarget && button.contains(event.relatedTarget))) return;
+        if (focusedRelationship === button) focusedRelationship = null;
+        syncRelationshipPreview();
+      });
+      relationshipList.addEventListener('keydown', function (event) {
+        if (event.ctrlKey || event.altKey || event.metaKey || event.shiftKey) return;
+        if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp' && event.key !== 'Home' && event.key !== 'End') return;
+        var buttons = Array.prototype.slice.call(relationshipList.querySelectorAll('[data-relationship-target]'));
+        if (!buttons.length) return;
+        var index = buttons.indexOf(document.activeElement);
+        if (event.key === 'Home') index = 0;
+        else if (event.key === 'End') index = buttons.length - 1;
+        else if (event.key === 'ArrowDown') index = Math.min(buttons.length - 1, Math.max(0, index + 1));
+        else index = Math.max(0, index < 0 ? 0 : index - 1);
+        event.preventDefault();
+        buttons[index].focus();
+      });
+      document.addEventListener('pointerdown', function () {
+        lensDragClickPointer = null;
+      }, true);
+      document.addEventListener('click', function (event) {
+        // Losing capture (for example when a resize hides the handle) can
+        // retarget this drag's final click to the page. It is not dismissal.
+        // A new pointerdown releases the guard; keyboard clicks remain live.
+        if (lensDragClickPointer != null && event.detail > 0 &&
+            (event.pointerId == null || event.pointerId === lensDragClickPointer)) {
+          lensDragClickPointer = null;
+          event.preventDefault();
+          event.stopPropagation();
+          return;
+        }
+        var target = event.target;
+        if (chip.hidden || !target || typeof target.closest !== 'function' || chip.contains(target)) return;
+        if (container.getAttribute('data-just-panned') === 'true') return;
+        // Export consumes the active semantic snapshot; its controls are not
+        // an outside selection. Genuine outside activation still clears it.
+        if (target.closest('[data-node-id], [data-relationship-hit-key], .overview-map, #btn-export, #export-menu')) return;
+        clear();
+      }, true);
+      window.addEventListener('scroll', requestLensPlacement, { passive: true });
+      window.addEventListener('resize', requestLensPlacement);
+      container.addEventListener('scroll', requestLensPlacement, { passive: true });
+      // Reader and Chrome may finish resizing the stage after window resize.
+      // The absolute Passport does not resize its container when reclamped.
+      if (typeof ResizeObserver === 'function') {
+        new ResizeObserver(function () {
+          if (!chip.hidden) requestLensPlacement();
+        }).observe(container);
+      }
+      document.addEventListener('visibilitychange', function () {
+        if (document.hidden) removeRelationshipPulse();
+      });
+      function syncRelationshipMotionPreference(event) {
+        if (event.matches) removeRelationshipPulse();
+      }
+      if (reducedMotionQuery) {
+        if (typeof reducedMotionQuery.addEventListener === 'function') {
+          reducedMotionQuery.addEventListener('change', syncRelationshipMotionPreference);
+        } else if (typeof reducedMotionQuery.addListener === 'function') {
+          reducedMotionQuery.addListener(syncRelationshipMotionPreference);
+        }
+      }
+
+      installRelationshipHitTargets();
+
+      function syncFocusFromHash() {
+        try {
+          var params = new URLSearchParams(location.hash.replace(/^#/, ''));
+          var relation = params.get('relation');
+          var initial = params.get('focus');
+          var reach = params.get('reach');
+          if (relation) {
+            if (html.getAttribute('data-embed') === 'true' ||
+                !inspectRelationshipById(relation, { updateUrl: false, toggle: false })) clear({ updateUrl: false });
+          }
+          else if (initial) {
+            if (set(initial, { updateUrl: false, toggle: false }) &&
+                (reach === 'upstream' || reach === 'downstream')) {
+              applyReachability(reach, { updateUrl: false, toggle: false, reveal: false });
+            }
+          }
+          else clear({ updateUrl: false });
+        } catch (_) {}
+      }
+
+      window.addEventListener('hashchange', syncFocusFromHash);
+      syncFocusFromHash();
+
+      return {
+        set: set,
+        setMany: setMany,
+        clear: clear,
+        copyLink: copyFocusLink,
+        explain: toggleExplanation,
+        explaining: function () { return chip.getAttribute('data-explaining') === 'true'; },
+        reach: applyReachability,
+        clearReach: clearReachability,
+        reachabilitySnapshot: reachabilitySnapshot,
+        inspectRelationship: inspectRelationship,
+        inspectRelationshipById: inspectRelationshipById,
+        reposition: placeRelationshipLens,
+        relationship: function () {
+          var record = pinnedRelationshipRecord();
+          return record ? { id: record.id || null, key: record.key, from: record.from, to: record.to, label: record.label } : null;
+        },
+        reachability: function () {
+          return activeReachability ? {
+            direction: activeReachability.direction,
+            originId: activeReachability.originId,
+            nodeIds: activeReachability.nodeIds.slice(),
+            edgeKeys: activeReachability.edgeKeys.slice(),
+            maxDepth: activeReachability.maxDepth
+          } : null;
+        },
+        active: function () { return activeIds.length === 0 ? null : (activeIds.length === 1 ? activeIds[0] : activeIds.slice()); }
+      };
+    })();
