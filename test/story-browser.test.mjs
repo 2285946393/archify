@@ -221,3 +221,40 @@ test('a public story attaches once, follows native appearance and retains source
   }
   assert.deepEqual(errors,[]);
 });
+
+test('flowless guides stay out of the story opening clock',{
+  skip:chrome?false:'Set ARCHIFY_CHROME for the real-browser story check.',
+},async t=>{
+  const dir=fs.mkdtempSync(path.join(os.tmpdir(),'archify-story-opening-'));t.after(()=>fs.rmSync(dir,{recursive:true,force:true}));
+  const cli=path.join(skill,'bin/archify.mjs');
+  const waterfall=fs.readFileSync(path.join(skill,'examples/waterfall-checkout-request-rendered.html'),'utf8');
+  const svgEnd=waterfall.indexOf('</svg>',waterfall.indexOf('data-waterfall-ui'));
+  // A late card plus one long unanimated guide crosses the 6s opening only when that guide is counted.
+  const extended=waterfall.slice(0,svgEnd)+'<g id="node-late" data-node-id="late" data-node-label="Late span"><rect x="20" y="250" width="40" height="14" data-animate="node" style="--step:20"/></g><path data-edge-from="request" data-edge-to="late" data-edge-key="9" d="M 20 260 H 620" fill="none" stroke="#888"/>'+waterfall.slice(svgEnd);
+  const browser=new ChromeVisualBrowser(chrome);t.after(()=>browser.close());const session=await browser.sessionPromise,errors=[];
+  browser.cdp.subscribe(event=>{if(event.method==='Runtime.exceptionThrown')errors.push(event.params.exceptionDetails.exception?.description||event.params.exceptionDetails.text);});
+  const send=(method,params={})=>browser.cdp.send(method,params,session,30000);
+  const evaluate=async expression=>{const result=await send('Runtime.evaluate',{expression,awaitPromise:true,returnByValue:true,userGesture:true});assert.equal(result.exceptionDetails,undefined,result.exceptionDetails?.exception?.description);return result.result?.value;};
+  await send('Network.enable');await send('Network.setBlockedURLs',{urls:['http://*','https://*','ws://*','wss://*']});
+  await send('Emulation.setDeviceMetricsOverride',{width:1280,height:800,deviceScaleFactor:1,mobile:false});
+  await send('Emulation.setEmulatedMedia',{features:[{name:'prefers-reduced-motion',value:'reduce'}]});
+  async function attach(name,html){
+    const source=path.join(dir,name+'.html'),plan=path.join(dir,name+'.json'),output=path.join(dir,name+'-story.html');
+    fs.writeFileSync(source,html);execFileSync(process.execPath,[cli,'story','draft',source,plan,'--json']);
+    const brief=JSON.parse(fs.readFileSync(plan,'utf8'));brief.intro='Open the diagram.';brief.outro='Return to the whole diagram.';brief.opening='fit';
+    for(const scene of brief.scenes)for(const point of scene.points)point.text='Explain this source point.';
+    fs.writeFileSync(plan,JSON.stringify(brief));execFileSync(process.execPath,[cli,'story','attach',source,plan,output,'--json']);
+    const loaded=browser.cdp.waitFor('Page.loadEventFired',session);await send('Page.navigate',{url:pathToFileURL(output).href});await loaded;
+    return evaluate(`(async()=>{await Archify.story.setView('story');const win=document.querySelector('.story-panel iframe').contentWindow;if(!win.storyReady)throw Error('Story did not initialize');const opening=win.Story.shots[0].motion.opening;return {rate:opening.rate,span:opening.span,wireStart:opening.wireStart};})()`);
+  }
+  const bundled=await attach('waterfall',waterfall);
+  assert.equal(bundled.rate,1,'the bundled waterfall opening stays on the node clock');
+  assert.equal(bundled.span,bundled.wireStart,'waterfall guides without a transfer do not extend the opening');
+  const stretched=await attach('stretched',extended);
+  assert.equal(stretched.rate,1,'a long flowless guide does not speed up the opening');
+  assert.equal(stretched.span,stretched.wireStart);
+  const traced=await attach('workflow',fs.readFileSync(path.join(skill,'examples/workflow-agent-tool-call-rendered.html'),'utf8'));
+  assert.ok(Number.isFinite(traced.rate)&&traced.rate>=1,'native transfers keep a finite opening rate');
+  assert.ok(traced.span>traced.wireStart,'native transfers still extend the opening clock');
+  assert.deepEqual(errors,[]);
+});
