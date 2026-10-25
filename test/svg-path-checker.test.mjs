@@ -143,6 +143,20 @@ test('正常二次曲线继续受检，不能为拒绝其他曲线而禁止已�
   assertPass(await check(t, arrow('m20 20l60 0q20 0 20 20v80')));
 });
 
+test('readable-v2 的纯 Q 路线不消耗交叉关系对预算', async t => {
+  const body = [
+    arrow('M20 20Q40 40 60 20', { id: 'one', from: 'a', to: 'b' }),
+    arrow('M20 60Q40 80 60 60', { id: 'two', from: 'c', to: 'd' }),
+    arrow('M20 100Q40 120 60 100', { id: 'three', from: 'e', to: 'f' }),
+  ].join('');
+  const result = await check(t, body, {
+    rootAttrs: 'data-layout-contract="readable-v2"',
+    env: { ARCHIFY_CHECK_MAX_CROSSING_PAIR_CHECKS: '1' },
+  });
+  assertPass(result);
+  assert.equal(result.receipt.composition.metrics.properCrossings, 0);
+});
+
 test('readable-v2 的圆角前后直线不生成虚假跨越，采样点不成为微线段', async t => {
   const rounded = arrow('M20 20L80 20Q100 20 100 40L100 120');
   const other = arrow('M50 70H96', { id: 'other', from: 'c', to: 'd', extra: 'data-edge-key="1"' });

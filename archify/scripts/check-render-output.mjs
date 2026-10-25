@@ -768,12 +768,12 @@ function collectRelationshipCrossings(
   pairLimit = DEFAULT_MAX_CROSSING_PAIR_CHECKS,
   segmentPairLimit = DEFAULT_MAX_CROSSING_SEGMENT_PAIR_CHECKS,
 ) {
-  const relationships = arrows.filter((arrow) => arrow.from && arrow.to && arrow.segments.length).map(arrow => ({
+  const relationships = arrows.filter((arrow) => arrow.from && arrow.to).map(arrow => ({
     ...arrow,
     // Readable-v2 routePoints come from the visible path, never its metadata.
     // A straight-through via is not a visual endpoint; preserve real bends.
     segments: includeSharedEndpoints ? arrow.routeSubpaths.flatMap(forwardCollinearAnalysisSegments) : arrow.segments,
-  }));
+  })).filter((arrow) => arrow.segments.length);
   const crossings = [];
   let attemptedPairs = 0;
   let attemptedSegmentPairs = 0;
