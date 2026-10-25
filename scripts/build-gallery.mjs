@@ -76,7 +76,9 @@ for (const item of CASES) {
     animation: source.meta.animation || 'static',
     engineeringProfile: source.meta.engineering_profile || null,
     nodeCount: Array.isArray(source[nodeKey]) ? source[nodeKey].length : 0,
-    edgeCount: Array.isArray(source[edgeKey]) ? source[edgeKey].length : 0,
+    edgeCount: ['tree', 'waterfall'].includes(item.type)
+      ? source[nodeKey].filter(node => node.parent).length
+      : Array.isArray(source[edgeKey]) ? source[edgeKey].length : 0,
     artifactBytes: artifactBuffer.byteLength,
     sourceBytes: sourceBuffer.byteLength,
     artifactSha256: digest(artifactBuffer),

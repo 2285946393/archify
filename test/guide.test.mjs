@@ -110,3 +110,15 @@ test('guide: public data includes both languages and weighted signals', () => {
     assert.ok(recipe.signals.every(([signal, weight]) => typeof signal === 'string' && weight > 0));
   }
 });
+
+test('guide: promoted signals do not match unrelated class, interface or span substrings', () => {
+  for (const [query, unwanted] of [
+    ['Show the image classification workflow', 'payment-modules'],
+    ['Design a user interface', 'payment-modules'],
+    ['Translate the onboarding process to Spanish', 'checkout-timings'],
+  ]) {
+    assert.notEqual(recommendScenario(query).recommendation.id, unwanted, query);
+  }
+  assert.equal(recommendScenario('Draw a class diagram').recommendation.id, 'payment-modules');
+  assert.equal(recommendScenario('Show waterfall latency breakdown').recommendation.id, 'checkout-timings');
+});

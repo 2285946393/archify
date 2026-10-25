@@ -65,6 +65,12 @@ test('generated proof gallery matches its sources, receipts, and checked-in arti
     const source = path.join(generatedRoot, entry.input.replace(/^gallery\//, 'gallery/'));
     assert.ok(fs.existsSync(artifact), `${entry.id}: artifact missing`);
     assert.ok(fs.existsSync(source), `${entry.id}: source missing`);
+    if (['tree', 'waterfall'].includes(entry.type)) {
+      const html = fs.readFileSync(artifact, 'utf8');
+      const renderedRelationships = (html.match(/data-edge-from=/g) || []).length;
+      assert.ok(renderedRelationships > 0, `${entry.id}: hierarchy fixture must contain relationships`);
+      assert.equal(entry.edgeCount, renderedRelationships, `${entry.id}: graph receipt must count rendered parent relationships`);
+    }
     assert.equal(sha256(artifact), entry.artifactSha256, `${entry.id}: artifact digest drift`);
     assert.equal(sha256(source), entry.sourceSha256, `${entry.id}: source digest drift`);
     assert.equal(entry.checks.length, 9);

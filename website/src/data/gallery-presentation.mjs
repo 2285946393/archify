@@ -168,8 +168,8 @@ export const CASES = [
     accent: '#4d7c0f',
     titleEn: 'Payment Platform Hierarchy',
     titleZh: '支付平台层级',
-    descriptionEn: 'A single-parent capability tree: orders, payments, and operations branches with the services each one contains.',
-    descriptionZh: '单亲能力树：订单、支付与运维分支，以及每个分支包含的服务。',
+    descriptionEn: 'A single-parent capability tree: orders, payments, and operations branches with the capabilities each one contains.',
+    descriptionZh: '单亲能力树：订单、支付与运维分支，以及每个分支包含的能力。',
   },
   {
     id: 'payment-incident',
@@ -180,8 +180,8 @@ export const CASES = [
     accent: '#0369a1',
     titleEn: 'Payment Incident Timeline',
     titleZh: '支付事故时间线',
-    descriptionEn: 'An illustrative incident review on one timestamped axis: deploy, alert, rollback, and recovery across release, on-call, and business lanes.',
-    descriptionZh: '示意性事故复盘，一条带时间戳的主轴：部署、告警、回滚与恢复，分布在发布、值班与业务泳道。',
+    descriptionEn: 'An illustrative incident review on one timestamped axis: deploy, alert, rollback, and recovery across release, monitoring, and response lanes.',
+    descriptionZh: '示意性事故复盘，一条带时间戳的主轴：部署、告警、回滚与恢复，分布在发布、监控与响应泳道。',
   },
   {
     id: 'checkout-request',
@@ -192,8 +192,8 @@ export const CASES = [
     accent: '#9333ea',
     titleEn: 'Checkout Request Execution',
     titleZh: '结账请求执行',
-    descriptionEn: 'Illustrative timings for one checkout request: a nested parent span, sequential critical path, and concurrent inventory and discount lookups.',
-    descriptionZh: '一次结账请求的示意耗时：嵌套父时间段、顺序关键路径，以及并发的库存与折扣查询。',
+    descriptionEn: 'Illustrative timings for one checkout request: a nested parent span, sequential spans, and concurrent inventory and discount lookups.',
+    descriptionZh: '一次结账请求的示意耗时：嵌套父时间段、顺序时间段，以及并发的库存与折扣查询。',
   },
 ];
 
