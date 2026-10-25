@@ -7,35 +7,35 @@
   "fps": 10,
   "frameCount": 54,
   "durationSeconds": 5.4,
-  "bytes": 1542193,
-  "sha256": "e0fe704e5d230c0478bc5a48b7668815b5790eed496da87ce7a5f8e5b2416c28",
+  "bytes": 835717,
+  "sha256": "6f7c51632e503eecdccb7a39b506f8ffe126735b3078c6cfcfece01358976c32",
   "scenes": [
     {
       "id": "signal-flow",
       "artifact": "docs/gallery/artifacts/agent-tool-call.workflow.html",
-      "artifactSha256": "29556f219e8f23e1b8bfb884a7d9ad9fbbfc3eb5a22de2de64e5083044eea352",
-      "view": "happy-path",
-      "eyebrow": "WORKFLOW \u00b7 SIGNAL FLOW",
+      "artifactSha256": "793eaac6c8eedd31717cce9ed9e7d65de81436dacf2598b64c0a9a8704cf08d8",
+      "hash": "#focus=planner&reach=downstream",
+      "eyebrow": "WORKFLOW · SIGNAL FLOW",
       "title": "Agent Tool Call",
-      "receipt": "12 nodes \u00b7 11 edges \u00b7 9/9 checks"
+      "receipt": "12 nodes · 11 edges · 9/9 checks"
     },
     {
       "id": "blueprint",
       "artifact": "docs/gallery/artifacts/production-deployment.architecture.html",
-      "artifactSha256": "14108f96c808f810447251774eaca34efd53a9db5970685a7a61d3f84a67228d",
-      "view": "request-boundary",
-      "eyebrow": "ARCHITECTURE \u00b7 BLUEPRINT",
+      "artifactSha256": "6df41088dae2465a676055826b312150b9fb52cc6dabcb2adcec1487c34ad97e",
+      "hash": "#lens=backend~database",
+      "eyebrow": "ARCHITECTURE · BLUEPRINT",
       "title": "Production Deployment",
-      "receipt": "12 nodes \u00b7 12 edges \u00b7 9/9 checks"
+      "receipt": "12 nodes · 12 edges · 9/9 checks"
     },
     {
       "id": "classic",
       "artifact": "docs/gallery/artifacts/cache-miss.sequence.html",
-      "artifactSha256": "71a47d01d73e5ee883a84ab944c3fc297de00fc4f4e6122ffaddbcb74dba63ae",
-      "view": "cache-fallback",
-      "eyebrow": "SEQUENCE \u00b7 CLASSIC",
+      "artifactSha256": "a2c13e397b9e1ea7294a3871937b5fd672df44572d9e7c3d862c80578b10856c",
+      "hash": "#route=web~db",
+      "eyebrow": "SEQUENCE · CLASSIC",
       "title": "Cache Miss Request",
-      "receipt": "7 participants \u00b7 12 messages \u00b7 9/9 checks"
+      "receipt": "7 participants · 12 messages · 9/9 checks"
     }
   ]
 }

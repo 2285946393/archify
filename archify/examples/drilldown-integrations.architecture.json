@@ -48,7 +48,7 @@
   ],
   "connections": [
     { "from": "slack", "to": "gateway", "label": "events", "variant": "default" },
-    { "from": "gateway", "to": "hooks", "label": "dispatch", "variant": "emphasis" },
+    { "from": "gateway", "to": "hooks", "label": "dispatch", "labelAt": [696, 164], "variant": "emphasis" },
     { "from": "gateway", "to": "billing", "label": "settle", "variant": "dashed" }
   ],
   "cards": [

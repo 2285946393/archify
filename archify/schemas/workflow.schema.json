@@ -26,7 +26,8 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "title"
+        "title",
+        "output"
       ],
       "properties": {
         "title": {
@@ -36,11 +37,14 @@
         "locale": {
           "$ref": "common.schema.json#/$defs/locale"
         },
+        "translations": {
+          "$ref": "common.schema.json#/$defs/translations"
+        },
         "subtitle": {
           "type": "string"
         },
         "output": {
-          "type": "string"
+          "$ref": "common.schema.json#/$defs/portableOutputPath"
         },
         "animation": {
           "enum": [
@@ -62,8 +66,9 @@
             "showcase"
           ]
         },
-        "parentHref": {
-          "$ref": "common.schema.json#/$defs/parentHref"
+        "parentHref": { "$ref": "common.schema.json#/$defs/parentHref" },
+        "repository": {
+          "$ref": "common.schema.json#/$defs/repository"
         },
         "views": {
           "$ref": "common.schema.json#/$defs/guidedViews"
@@ -293,14 +298,14 @@
           "tag": {
             "type": "string"
           },
+          "icon": { "$ref": "common.schema.json#/$defs/nodeIcon" },
           "brand": {
             "$ref": "common.schema.json#/$defs/brandMark"
           },
-          "drilldowns": {
-            "$ref": "common.schema.json#/$defs/drilldowns"
-          },
-          "href": {
-            "$ref": "common.schema.json#/$defs/nodeHrefSugar"
+          "drilldowns": { "$ref": "common.schema.json#/$defs/drilldowns" },
+          "href": { "$ref": "common.schema.json#/$defs/nodeHrefSugar" },
+          "sources": {
+            "$ref": "common.schema.json#/$defs/sourceReferences"
           },
           "width": {
             "type": "number",
