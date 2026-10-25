@@ -237,6 +237,13 @@
         var autoTheme = requestedTheme === 'auto';
         var svg = document.querySelector('.diagram-container svg');
         var clone = svg.cloneNode(true);
+        var softwareNotices = document.getElementById('archify-software-notices');
+        if (softwareNotices) {
+          var softwareMetadata = document.createElementNS('http://www.w3.org/2000/svg', 'metadata');
+          softwareMetadata.setAttribute('id', 'archify-software-notices');
+          softwareMetadata.textContent = JSON.parse(softwareNotices.textContent);
+          clone.insertBefore(softwareMetadata, clone.firstChild);
+        }
 
         var canonicalStateClean = cleanExportClone(clone);
 
@@ -1158,6 +1165,7 @@
       });
       // APG menu-button pattern: ArrowDown/ArrowUp on the trigger opens the menu.
       btn.addEventListener('keydown', function (e) {
+        if (e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return;
         if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
           e.preventDefault();
           if (!isOpen()) open(e.key === 'ArrowUp');
@@ -1173,6 +1181,7 @@
       menu.addEventListener('keydown', function (e) {
         if (e.key === 'Escape') { e.preventDefault(); close(true); return; }
         if (e.key === 'Tab')    { close(false); return; }
+        if (e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return;
 
         var available = items().filter(function (i) { return !i.hidden && !i.disabled; });
         var current = available.indexOf(document.activeElement);

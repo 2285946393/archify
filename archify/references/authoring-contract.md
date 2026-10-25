@@ -1,6 +1,6 @@
 # Authoring contract
 
-Read this reference only after the Fast authoring path calls for more detail. The schemas and examples remain authoritative.
+Read this reference only after Native diagram authoring calls for more detail. The schemas and examples remain authoritative.
 
 ## Composition repair
 
@@ -80,7 +80,7 @@ chooses one primary locale for the Viewer; follow an explicit primary-language
 request, then prompt order or conversation dominance.
 
 Bundled Viewer catalogs are enrolled in `locales/manifest.json`: currently
-`en`, `zh-CN`, `zh-TW`, `es`, and `ko`. For these, `meta.locale` alone selects the full
+`en`, `zh-CN`, `zh-TW`, `es`, `ko`, and `ar`. For these, `meta.locale` alone selects the full
 catalog. Tags match case-insensitively (`zh-cn` selects `zh-CN`), but region
 and script variants are distinct: `zh-Hant`, `es-MX`, or `ko-KR` select no
 bundled catalog.
@@ -288,11 +288,11 @@ Grid placement is preferred when the schema supports it. Free positions are appr
 ### Workflow
 
 Lanes express responsibility or phase. Columns `0..5` express logical
-progression. Each `(lane, col)` hosts at most one node — two nodes in the same
-cell fail with `workflow/node-overlap`. Start new workflows on `readable-v2`;
-retain `fixed-v1` only for legacy geometry compatibility. Keep the happy path
-monotonic, preserve semantic edge labels, and route retries and exception
-returns outside the main lane corridor.
+progression. Start new workflows on `readable-v2`; retain `fixed-v1` only for
+legacy geometry compatibility. In readable-v2, nodes may share a `(lane, col)`
+when distinct `yOffset` values leave room for their full rectangles, labels and
+connecting routes. Keep the happy path monotonic, preserve semantic edge labels,
+and route retries and exception returns outside the main lane corridor.
 
 #### Workflow viewport repair
 
@@ -303,9 +303,11 @@ is not a removable-space budget. Frame IDs identify rendered lane indices.
 
 Run `validate workflow <source.json> --layout-json` and match those frames to
 source lanes and nodes. Check whether many steps share the last logical column
-and use large `yOffset` values. Readable-v2 currently reserves symmetric space
-around offsets and shares the base content height between lanes, so increasing
-one offset can enlarge otherwise sparse lanes.
+and use large `yOffset` values. Readable-v2 reserves symmetric space around
+offsets. With a same-column vertical stack, an implicit canvas and no absolute
+route or label pins, it measures each lane independently. Other cases retain
+shared-height geometry for compatibility; see the canonical
+[lane measurement contract](../renderers/workflow/README.md#readable-v2).
 
 Where the source's ownership and explicit geometry permit, redistribute steps
 across logical columns and meaningful lanes, keeping the main path monotonic.
@@ -323,9 +325,9 @@ First-draft shape: every message needs an `id`, `from`, `to`, `label`, and integ
 
 ### Dataflow
 
-Stages express transformation or custody. Rows separate parallel streams. Label only data contracts, classifications, or cross-boundary movement that is not obvious.
+Stages express transformation or custody. Rows separate parallel streams. Give every flow a concise data-contract or movement label; choose its visual convention using the required [Dataflow authoring defaults](authoring-defaults.md#presentation-and-modes).
 
-First-draft shape: declare `stages[]` (each a `{label}`), then place every node with integer `stage` and `row` — not `pos`/`size`. Flows are `flows[]` with `from`, `to`, and optional `label`.
+First-draft shape: declare `stages[]` (each a `{label}`), then place every node with integer `stage` and `row` — not `pos`/`size`. Flows are `flows[]` with required `from`, `to`, and non-empty `label`.
 
 Omit `meta.viewBox` to fit canvas width to all stages and nodes in either quality
 profile, including explicit node widths. Width uses content + 24px right padding

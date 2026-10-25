@@ -296,14 +296,27 @@ function domainBandCaption(box) {
   return { x: box.x + 10, y: box.y + 13 };
 }
 
+// Each domain owns one hue that its band and its tables share, so a table's
+// domain reads from its header before the band caption is found. Untagged
+// tables keep the schema's database hue.
+const DOMAIN_HUES = ['database', 'frontend', 'backend', 'cloud', 'messagebus', 'security'];
+const domainHue = new Map();
+for (const entity of entities.values()) {
+  if (entity.tag && !domainHue.has(entity.tag)) domainHue.set(entity.tag, DOMAIN_HUES[domainHue.size % DOMAIN_HUES.length]);
+}
+const hueClassOf = (tag) => `er-hue-${(tag && domainHue.get(tag)) || 'database'}`;
+
 function renderDomainBands() {
   if (!domainGroups.length) return '';
   return domainGroups.map(({ tag, members }) => {
     const box = domainBandBox(members);
     const caption = domainBandCaption(box);
-    return `        <g data-domain-band="${esc(tag)}">
-          <rect x="${box.x}" y="${box.y}" width="${box.width}" height="${box.height}" rx="8" class="c-lane" stroke-width="1"/>
-          <text data-domain-label="" x="${caption.x}" y="${caption.y}" class="t-muted" font-size="9" font-weight="700">${esc(tag)}</text>
+    const pillWidth = Math.ceil(textUnits(tag) * (9 * nodeTextFit.widthFactor + 0.8) + 14);
+    return `        <g data-domain-band="${esc(tag)}" class="${hueClassOf(tag)}">
+          <rect x="${box.x}" y="${box.y}" width="${box.width}" height="${box.height}" rx="12" class="c-lane er-band" stroke-width="1"/>
+          <rect x="${caption.x - 2}" y="${box.y - 7}" width="${pillWidth}" height="15" rx="7.5" class="c-mask"/>
+          <rect x="${caption.x - 2}" y="${box.y - 7}" width="${pillWidth}" height="15" rx="7.5" class="er-band-pill"/>
+          <text data-domain-label="" x="${caption.x + 5}" y="${box.y + 3.6}" class="t-muted er-band-label" font-size="9" font-weight="700">${esc(tag)}</text>
         </g>`;
   }).join('\n');
 }
@@ -627,6 +640,11 @@ const TRUNK_SNAP = LANE_STEP;
 const TRUNK_BRIDGE = ERD_PORT_SPACING + 8;
 const TRUNK_CAP = 10;
 const TRUNK_LEG = 12;
+const DEFAULT_RELATIONSHIP_STROKE_WIDTH = 1.5;
+
+function relationshipStrokeWidth(relationship) {
+  return Number.isFinite(relationship.width) ? relationship.width : DEFAULT_RELATIONSHIP_STROKE_WIDTH;
+}
 
 const isHorizontalSide = (side) => (side === 'left' || side === 'right');
 
@@ -852,13 +870,17 @@ function bundledTrunkPaths() {
     const key = `${axis}:${coordinate}:${styleKey}`;
     const list = clusters.get(key) || [];
     for (const run of runs) {
-      list.push({ low: run.low, high: run.high, styleKey });
+      list.push({ low: run.low, high: run.high, styleKey, relationship });
     }
     clusters.set(key, list);
   }
   const paths = [];
+  const bridged = [];
+  const routed = relationships.filter(renderableRelationship)
+    .map((relationship) => ({ relationship, points: pathFor(relationship).points, width: relationshipStrokeWidth(relationship) }));
   for (const [key, runs] of clusters) {
     const [axis, coordinate] = key.split(':').slice(0, 2).map(Number);
+    const members = new Set(runs.map((run) => run.relationship));
     runs.sort((left, right) => left.low - right.low);
     const merged = [];
     for (const run of runs) {
@@ -877,7 +899,20 @@ function bundledTrunkPaths() {
         const probe = axis === 0
           ? { start: [coordinate, last.high], end: [coordinate, segment.low] }
           : { start: [last.high, coordinate], end: [segment.low, coordinate] };
-        if (![...entities.values()].some((entity) => segmentIntersectsRect(probe, entity))) {
+        // 桥接不在任何逻辑关系中，必须检查它实际增加的墨迹。同簇成员可以共享总线；
+        // 无关路线和已补出的其他桥接一旦交叉、相接或重叠，就保留两段独立主干。
+        const box = {
+          x: probe.start[0], y: probe.start[1],
+          width: probe.end[0] - probe.start[0], height: probe.end[1] - probe.start[1],
+        };
+        // 两条线的半宽之和才是描边的接触边界，显式加粗关系也使用实际绘制宽度。
+        const conflicts = routed.some(({ relationship, points, width }) => !members.has(relationship)
+          && points.slice(1).some((end, index) => segmentIntersectsRect(
+            { start: points[index], end }, box, (DEFAULT_RELATIONSHIP_STROKE_WIDTH + width) / 2,
+          )))
+          || bridged.some((other) => segmentIntersectsRect(other, box, DEFAULT_RELATIONSHIP_STROKE_WIDTH));
+        if (!conflicts && ![...entities.values()].some((entity) => segmentIntersectsRect(probe, entity))) {
+          bridged.push(probe);
           last.high = segment.high;
           continue;
         }
@@ -889,7 +924,7 @@ function bundledTrunkPaths() {
       const points = axis === 0
         ? [[coordinate, segment.low], [coordinate, segment.high]]
         : [[segment.low, coordinate], [segment.high, coordinate]];
-      paths.push(`        <path data-er-trunk="" data-composition-points="${routePointsValue(points)}" d="${roundedPath(points, 8)}" class="${cls}" stroke-width="1.5"/>`);
+      paths.push(`        <path data-er-trunk="" data-composition-points="${routePointsValue(points)}" d="${roundedPath(points, 8)}" class="${cls}" stroke-width="${DEFAULT_RELATIONSHIP_STROKE_WIDTH}"/>`);
     }
   }
   return paths.join('\n');
@@ -1359,12 +1394,17 @@ function renderEntityColumnRows(entity) {
     const type = attribute.type
       ? `<text data-detail="context" x="${entity.x + entity.width - layout.padX}" y="${baseline}" class="er-type" font-size="${layout.typeFont}" text-anchor="end">${esc(attribute.type)}</text>`
       : '';
+    const zebra = index % 2
+      ? `<rect x="${entity.x + 4}" y="${rowTop + 1}" width="${entity.width - 8}" height="${metrics.rowH - 2}" rx="4" class="er-zebra"/>`
+      : '';
+    const primary = keyRoles(attribute).includes('pk');
     return `          <g data-detail="context" data-er-row="${index}">
             <line x1="${entity.x}" y1="${rowTop}" x2="${entity.x + entity.width}" y2="${rowTop}" class="c-grid er-row-rule" stroke-width="0.5"/>
+            ${zebra}
             ${keyGlyph}
-            <text data-detail="context" x="${nameX}" y="${baseline}" class="t-primary" font-size="${nameFontSize}">${esc(attribute.name)}</text>
+            <text data-detail="context" x="${nameX}" y="${baseline}" class="t-primary${primary ? ' er-name-pk' : ''}" font-size="${nameFontSize}">${esc(attribute.name)}</text>
             ${type}
-          </g>`;
+          </g>`.replace(/[ \t]+$/gm, '');
   }).join('\n');
 }
 
@@ -1378,14 +1418,16 @@ function renderEntity(entity) {
     context: i18nText(er.meta.locale, 'node.context.erd'),
   };
   const rows = renderEntityColumnRows(entity);
-  return `        <g ${focusNodeAttrs(entity.id, entity.label, passport, er.meta.locale)}>
+  const r = 8;
+  return `        <g ${focusNodeAttrs(entity.id, entity.label, passport, er.meta.locale)} class="${hueClassOf(entity.tag)}">
           ${focusNodeTitle(entity.label, passport)}
-          <rect x="${entity.x}" y="${entity.y}" width="${entity.width}" height="${entity.height}" rx="5" class="c-mask"/>
-          <rect x="${entity.x}" y="${entity.y}" width="${entity.width}" height="${entity.height}" rx="5" class="c-database er-table"${animateAttr(er.meta, 'node', entitySteps.get(entity.id))} stroke-width="1.5"/>
-          <path class="er-table-header" d="M ${entity.x + 5} ${entity.y} H ${entity.x + entity.width - 5} Q ${entity.x + entity.width} ${entity.y} ${entity.x + entity.width} ${entity.y + 5} V ${header} H ${entity.x} V ${entity.y + 5} Q ${entity.x} ${entity.y} ${entity.x + 5} ${entity.y} Z"/>
+          <rect x="${entity.x}" y="${entity.y}" width="${entity.width}" height="${entity.height}" rx="${r}" class="c-mask"/>
+          <rect x="${entity.x}" y="${entity.y}" width="${entity.width}" height="${entity.height}" rx="${r}" class="c-database er-table"${animateAttr(er.meta, 'node', entitySteps.get(entity.id))} stroke-width="1.2"/>
+          <path class="er-table-header" d="M ${entity.x + r} ${entity.y} H ${entity.x + entity.width - r} A ${r} ${r} 0 0 1 ${entity.x + entity.width} ${entity.y + r} V ${header} H ${entity.x} V ${entity.y + r} A ${r} ${r} 0 0 1 ${entity.x + r} ${entity.y} Z"/>
+          <path class="er-table-cap" d="M ${entity.x + 12} ${entity.y + 1.4} H ${entity.x + entity.width - 12}" stroke-width="2.6" stroke-linecap="round" fill="none"/>
           ${renderSemanticSigil('database', { x: entity.x + 8, y: entity.y + 7, size: 14 })}
-          <text data-node-label="" x="${labelX}" y="${entity.y + labelY}" class="t-primary" font-size="${labelFont}" font-weight="700" text-anchor="middle">${esc(entity.label)}</text>
-          <line x1="${entity.x}" y1="${header}" x2="${entity.x + entity.width}" y2="${header}" class="c-grid" stroke-width="1"/>
+          <text data-node-label="" x="${labelX}" y="${entity.y + labelY}" class="t-primary er-title" font-size="${labelFont}" font-weight="700" text-anchor="middle">${esc(entity.label)}</text>
+          <line x1="${entity.x}" y1="${header}" x2="${entity.x + entity.width}" y2="${header}" class="c-grid er-header-rule" stroke-width="1"/>
 ${rows}
         </g>`;
 }
@@ -1394,7 +1436,7 @@ function renderRelationshipPath(relationship, index) {
   const [cls] = arrowClassMap[markerStyleOf(relationship)] || arrowClassMap.default;
   const routed = pathFor(relationship);
   const d = bundledRelationshipD(routed, relationshipTrunkRuns(relationship));
-  const strokeWidth = Number.isFinite(relationship.width) ? relationship.width : 1.5;
+  const strokeWidth = relationshipStrokeWidth(relationship);
   return `        <path ${focusEdgeAttrs(relationship.from, relationship.to, relationship.label, index, relationship.id)} data-er-ends="${relationshipEnds(relationship).join(' ')}" data-composition-points="${routePointsValue(routed.points)}" d="${d}" class="${cls}"${animateAttr(er.meta, 'edge', index)} stroke-width="${strokeWidth}" marker-start="url(#${cardinalityMarkerId(relationship, 'from')})" marker-end="url(#${cardinalityMarkerId(relationship, 'to')})"/>`;
 }
 
@@ -1472,10 +1514,19 @@ function renderSvg() {
 ${svgAccessibleText(er.meta, 'erd')}
 ${renderDefinitions(renderCardinalityDefs())}
         <style>
-          svg[data-erd-ui="cards"] .er-table { fill: var(--mask); stroke: var(--lane-stroke); }
-          svg[data-erd-ui="cards"] .er-table-header { fill: var(--database-fill); stroke: none; }
-          svg[data-erd-ui="cards"] .er-row-rule { stroke: var(--lane-stroke); stroke-opacity: .55; }
-          svg[data-erd-ui="cards"] .er-type { fill: var(--text-muted); }
+${DOMAIN_HUES.map((hue) => `          svg[data-erd-ui="cards"] .er-hue-${hue} { --er-hue: var(--${hue}-stroke); --er-wash: var(--${hue}-fill); }`).join('\n')}
+          svg[data-erd-ui="cards"] .er-band { fill: color-mix(in srgb, var(--er-hue) 4%, transparent); stroke: color-mix(in srgb, var(--er-hue) 20%, transparent); stroke-dasharray: none; }
+          svg[data-erd-ui="cards"] .er-band-pill { fill: var(--er-wash); stroke: color-mix(in srgb, var(--er-hue) 30%, transparent); stroke-width: .8; }
+          svg[data-erd-ui="cards"] .er-band-label { fill: var(--er-hue); letter-spacing: .08em; text-transform: uppercase; }
+          svg[data-erd-ui="cards"] .er-table { fill: var(--mask); stroke: color-mix(in srgb, var(--er-hue) 34%, var(--lane-stroke)); }
+          svg[data-erd-ui="cards"] .er-table-header { fill: var(--er-wash); stroke: none; }
+          svg[data-erd-ui="cards"] .er-table-cap { stroke: var(--er-hue); pointer-events: none; }
+          svg[data-erd-ui="cards"] .er-header-rule { stroke: color-mix(in srgb, var(--er-hue) 30%, var(--lane-stroke)); }
+          svg[data-erd-ui="cards"] [class*="er-hue-"] .semantic-sigil { color: var(--er-hue); }
+          svg[data-erd-ui="cards"] .er-row-rule { stroke-opacity: 0; }
+          svg[data-erd-ui="cards"] .er-zebra { fill: color-mix(in srgb, var(--er-hue) 6%, transparent); }
+          svg[data-erd-ui="cards"] .er-name-pk { font-weight: 700; }
+          svg[data-erd-ui="cards"] .er-type { fill: var(--text-muted); opacity: .86; }
           svg[data-erd-ui="cards"] .er-key-badge { fill: var(--database-fill); stroke: none; }
           svg[data-erd-ui="cards"] .er-key-badge[data-er-badge="fk"] { fill: var(--messagebus-fill); }
           svg[data-erd-ui="cards"] .er-key-badge[data-er-badge="uk"] { fill: none; stroke: var(--lane-stroke); }

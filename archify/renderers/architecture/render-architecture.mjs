@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { esc, renderDefinitions, renderSemanticSigil, textUnits } from '../shared/utils.mjs';
+import { NODE_CARD_ATTR, nodeCardStyle } from '../shared/node-card-style.mjs';
 import { animateAttr, focusEdgeAttrs, focusNodeAttrs, focusNodeTitle, loadDiagramWithBrandMarks, writeDiagram, svgAccessibleText, svgRootAttrs } from '../shared/cli.mjs';
 import { componentBox, boundaryBox, connectionPath } from '../shared/layout-report.mjs';
 import { rendererFailure, throwDiagnosticProblems } from '../shared/diagnostics.mjs';
@@ -10,8 +11,8 @@ import { brandLabelFitWidth, brandMetadataFor, brandTopRailProblem, renderBrandM
 import { minimumReadableSourceTextPx } from '../shared/desktop-readability.mjs';
 import { translateMessage as i18nText } from '../shared/i18n.mjs';
 import { gridLayout, resolveComponentPos, validateGridPlacement } from './grid.mjs';
-import { createRouter } from './routing.mjs';
-import { placeAutomaticLabels, reservedLabelRect } from '../shared/automatic-labels.mjs';
+import { createArchitectureRouter, connectionLabelBoxAt } from './routing.mjs';
+import { placeAutomaticLabels } from '../shared/automatic-labels.mjs';
 import { cleanRouteDetourProblems } from '../shared/route-quality.mjs';
 import {
   asArray,
@@ -123,6 +124,10 @@ function boundaryRect(boundary) {
   const topPad = Math.max(
     pad,
     layout.boundaryLabelBaseline + layout.boundaryLabelClearance,
+    // Routes must avoid the title rail that the final frame will contain.
+    enforcesBoundaryTitleComposition
+      ? layout.boundaryLabelMaskHeight + layout.boundaryLabelClearance + layout.boundaryLabelFrameInset
+      : 0,
   );
   return {
     ...boundary,
@@ -159,11 +164,6 @@ const resolvedLabelPoints = new Map();
 function connectionLabelBox(conn) {
   if (!conn.label) return null;
   return connectionLabelBoxAt(conn, resolvedLabelPoints.get(conn) || labelPoint(conn, pathFor(conn).points));
-}
-
-function connectionLabelBoxAt(conn, [lx, ly]) {
-  const width = Math.max(30, textUnits(conn.label) * 4.8 + 10);
-  return { x: lx - width / 2, y: ly - 10, width, height: 14, lx, ly };
 }
 
 function connectionLabelRects() {
@@ -350,22 +350,13 @@ function layoutBoundaryTitles(rawBoundaries, minimumFontSize) {
 // automatic route never borrows a frame border as its corridor), never the
 // title-expanded frames or the viewBox.
 const rawBoundaries = asArray(arch.boundaries).map(boundaryRect).filter(Boolean);
-const routerOptions = {
-  distinctAutomaticPorts: true,
-  preferReadableRoutes: true,
+const { pathFor, connectionSides, connectionEndpointSide } = createArchitectureRouter(components, arch.connections, {
+  fixedCanvas: Boolean(arch.meta?.viewBox),
   frames: rawBoundaries.map((boundary) => ({
     ...boundary,
     radius: boundary.kind === 'security-group' ? 8 : 12,
   })),
-  labelRectFor: (conn, points, { routes, labels }) => (conn.label ? reservedLabelRect({
-    label: { relation: conn, label: conn.label, ...connectionLabelBoxAt(conn, labelPoint(conn, points)) },
-    points,
-    routes: routes.map((route, index) => ({ relationIndex: index, points: route })),
-    labels,
-    components: [...components.values()],
-  }) : null),
-};
-const { pathFor, connectionSides, connectionEndpointSide } = createRouter(components, arch.connections, routerOptions);
+});
 function hasAutomaticRouteGeometry(connection) {
   return !Array.isArray(connection?.via)
     && (!connection?.route || connection.route === 'auto')
@@ -1089,8 +1080,8 @@ function renderComponent(c) {
   const passport = { kind: c.type, sublabel: c.sublabel, tag: c.tag, context: componentContext(c), ...brandMetadataFor(c) };
   return `        <g ${focusNodeAttrs(c.id, c.label, passport, arch.meta.locale)}>
           ${focusNodeTitle(c.label, passport)}
-          <rect x="${c.x}" y="${c.y}" width="${c.width}" height="${c.height}" rx="6" class="c-mask"/>
-          <rect x="${c.x}" y="${c.y}" width="${c.width}" height="${c.height}" rx="6" class="${fill}"${animateAttr(arch.meta, 'node', componentSteps.get(c.id))} stroke-width="1.5"/>
+          <rect x="${c.x}" y="${c.y}" width="${c.width}" height="${c.height}" rx="8" class="c-mask"/>
+          <rect x="${c.x}" y="${c.y}" width="${c.width}" height="${c.height}" rx="8" class="${fill}"${animateAttr(arch.meta, 'node', componentSteps.get(c.id))} stroke-width="1.5"/>
           ${renderSemanticSigil(c.type, { icon: c.icon, x: c.x + 6, y: c.y + 6 })}${brand ? `\n          ${brand}` : ''}
           <text data-node-label=""${hasSub ? ' data-detail-anchor=""' : ''} x="${cx}" y="${labelY}" class="t-primary" font-size="${labelFontSize}" font-weight="600" text-anchor="middle">${esc(c.label)}</text>${sub}${tag}
         </g>`;
@@ -1139,9 +1130,10 @@ function renderSvg() {
   // shrinking a semantically rich graph to the universal emergency floor.
   const readerMinimumText = arch.meta?.viewBox ? '' : ' data-reader-min-text="7.5"';
   const readerPrimaryText = arch.meta?.viewBox ? '' : ' data-reader-primary-text="14"';
-  return `      <svg viewBox="0 0 ${viewBox[0]} ${viewBox[1]}" ${svgRootAttrs(arch.meta)}${readerFit}${readerMinimumText}${readerPrimaryText}>
+  return `      <svg viewBox="0 0 ${viewBox[0]} ${viewBox[1]}" ${svgRootAttrs(arch.meta)} ${NODE_CARD_ATTR}${readerFit}${readerMinimumText}${readerPrimaryText}>
 ${svgAccessibleText(arch.meta, 'architecture')}
 ${renderDefinitions()}
+${nodeCardStyle()}
 
         <!-- Background Grid -->
         <rect width="100%" height="100%" fill="url(#grid)" />

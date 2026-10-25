@@ -149,7 +149,8 @@ const multiDay = (() => {
 })();
 function clockLabel(ms, { seconds = showSeconds, date = multiDay } = {}) {
   const w = wall(ms);
-  return `${date ? `${w.mo}-${w.d} ` : ''}${w.h}:${w.mi}${seconds ? `:${w.s}` : ''}`;
+  const fraction = new Date(ms).getUTCMilliseconds();
+  return `${date ? `${w.mo}-${w.d} ` : ''}${w.h}:${w.mi}${seconds ? `:${w.s}${fraction ? `.${String(fraction).padStart(3, '0')}` : ''}` : ''}`;
 }
 
 function durationLabel(ms) {
@@ -256,6 +257,24 @@ function xOf(time) {
 // on its own whole hours.
 const TICKS = [1000, 2000, 5000, 10_000, 15_000, 30_000, MINUTE, 2 * MINUTE, 5 * MINUTE, 10 * MINUTE, 15 * MINUTE, 30 * MINUTE,
   HOUR, 2 * HOUR, 3 * HOUR, 6 * HOUR, 12 * HOUR, DAY, 2 * DAY, 7 * DAY];
+
+function wallClockTicks(start, end, interval) {
+  // 日探测只收集时区偏移，不把一天当成固定长度的当地日历日。
+  // 即使时间段两端的偏移相同，也不能漏掉段内先进入、再退出的夏令时。
+  const offsets = new Set([zoneOffset(start), zoneOffset(end)]);
+  for (let probe = start + DAY; probe < end; probe += DAY) offsets.add(zoneOffset(probe));
+  const candidates = new Set();
+  for (const offset of offsets) {
+    const firstTick = Math.ceil((start + offset) / interval) * interval - offset;
+    for (let t = firstTick; t <= end; t += interval) {
+      // 同一个墙钟时刻可能对应两个真实瞬间，也可能不存在。按实际偏移回查，
+      // 保留回拨小时的两个刻度，并排除跳时或跳日期产生的虚构时刻。
+      if (offsets.size === 1 || zoneOffset(t) === offset) candidates.add(t);
+    }
+  }
+  return [...candidates].sort((left, right) => left - right);
+}
+
 const ticks = [];
 for (const segment of segments) {
   const length = segment.end - segment.start;
@@ -264,10 +283,8 @@ for (const segment of segments) {
     continue;
   }
   const interval = TICKS.find((candidate) => candidate * scale >= layout.minTickPx) ?? TICKS.at(-1);
-  const offset = zoneOffset(segment.start);
-  let t = Math.ceil((segment.start + offset) / interval) * interval - offset;
   const before = ticks.length;
-  for (; t <= segment.end; t += interval) ticks.push({ t, x: xOf(t), interval });
+  for (const t of wallClockTicks(segment.start, segment.end, interval)) ticks.push({ t, x: xOf(t), interval });
   // A segment too short for a regular tick still states where it starts.
   if (ticks.length === before) ticks.push({ t: segment.start, x: segment.x0, interval });
 }
@@ -452,7 +469,7 @@ function renderEvent(card, order) {
   const passport = { kind: tone, sublabel: card.detail, context };
   const textX = card.left + card.padLeft;
   let y = card.top + 9 + 10;
-  const time = `<text x="${textX}" y="${y}" class="t-muted tl-time" font-size="${layout.timeFont}" font-weight="600">${esc(card.time)}</text>`;
+  const time = `<text x="${textX}" y="${y}" class="t-${tone} tl-time" font-size="${layout.timeFont}" font-weight="600">${esc(card.time)}</text>`;
   y += 2;
   const title = card.lines.map((line) => {
     y += layout.titleLine;
@@ -477,7 +494,7 @@ function legendSwatch(entry) {
 }
 
 function renderSvg() {
-  return `      <svg viewBox="0 0 ${viewBox[0]} ${viewBox[1]}" ${svgRootAttrs(tl.meta)} data-timeline-ui="" data-reader-fit="intrinsic-height" data-reader-min-text="7.5">
+  return `      <svg viewBox="0 0 ${viewBox[0]} ${viewBox[1]}" ${svgRootAttrs(tl.meta)} data-motion-choreography="sweep" data-timeline-ui="" data-reader-fit="intrinsic-height" data-reader-min-text="7.5">
 ${svgAccessibleText(tl.meta, 'timeline')}
 ${renderDefinitions(breaks.length ? `
           <pattern id="tl-break-hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="6" class="tl-hatch" stroke-width="1"/></pattern>` : '')}
@@ -496,7 +513,9 @@ ${renderDefinitions(breaks.length ? `
           svg[data-timeline-ui] .tl-break-chip { fill: var(--mask); stroke: var(--lane-stroke); stroke-width: 1; }
           svg[data-timeline-ui] .tl-hatch { stroke: var(--lane-stroke); }
           svg[data-timeline-ui] .tl-break-zig { stroke: var(--text-dim); }
-${Object.values(KIND_TONE).map((tone) => `          svg[data-timeline-ui] .tl-accent-${tone} { stroke: var(--${tone}-stroke); }`).join('\n')}
+${Object.values(KIND_TONE).map((tone) => `          svg[data-timeline-ui] .tl-accent-${tone} { stroke: var(--${tone}-stroke); }
+          svg[data-timeline-ui] .tl-stem-${tone} { stroke: color-mix(in srgb, var(--${tone}-stroke) 45%, var(--lane-stroke)); }
+          svg[data-timeline-ui] .tl-pin-${tone} { fill: var(--${tone}-fill); stroke: color-mix(in srgb, var(--${tone}-stroke) 35%, transparent); stroke-width: 1; }`).join('\n')}
           svg[data-timeline-ui] .tl-tick, svg[data-timeline-ui] .tl-time { font-variant-numeric: tabular-nums; }
         </style>
 
@@ -513,11 +532,12 @@ ${renderAxis()}
 
         <!-- Stems sit behind every card, so a stacked card is never crossed by
              another event's connector -->
-${cards.map((card) => `        <line data-detail="context" data-timeline-stem="${esc(card.id)}" x1="${card.x}" y1="${card.lineY}" x2="${card.x}" y2="${card.side === 'above' ? card.top + card.height : card.top}" class="tl-stem" stroke-width="1"/>`).join('\n')}
+${cards.map((card) => `        <line data-detail="context" data-timeline-stem="${esc(card.id)}" x1="${card.x}" y1="${card.lineY}" x2="${card.x}" y2="${card.side === 'above' ? card.top + card.height : card.top}" class="tl-stem tl-stem-${KIND_TONE[kindOf(card)]}" stroke-width="1"/>`).join('\n')}
 
         <!-- One halo layer under every dot, so events seconds apart merge into
              one outlined capsule instead of cutting crescents into each other -->
 ${cards.map((card) => `        <circle data-detail="context" cx="${card.x}" cy="${card.lineY}" r="7.5" class="tl-halo"/>`).join('\n')}
+${cards.map((card) => `        <circle data-detail="context" cx="${card.x}" cy="${card.lineY}" r="6.5" class="tl-pin tl-pin-${KIND_TONE[kindOf(card)]}"/>`).join('\n')}
 
         <!-- Events in time order -->
 ${cards.map(renderEvent).join('\n')}
