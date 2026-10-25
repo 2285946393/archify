@@ -116,7 +116,10 @@ test('near-limit explanation keeps Back and keyboard scrolling reachable at refl
   t.after(() => fs.rmSync(scratch, { recursive: true, force: true }));
   const diagram = JSON.parse(fs.readFileSync(path.join(skillRoot, 'examples/web-app.architecture.json'), 'utf8'));
   const prose = ('A reader needs the complete explanation, with every paragraph available.\n\n').repeat(20).slice(0, 1190);
-  diagram.components.find(node => node.id === 'users').explanation = prose;
+  diagram.meta.parentHref = 'grandparent.html';
+  const mixedNode = diagram.components.find(node => node.id === 'users');
+  mixedNode.href = 'child.html?theme=light&embed=0&present=0#focus=users';
+  mixedNode.explanation = prose;
   const input = path.join(scratch, 'long.json'), output = path.join(scratch, 'long.html');
   fs.writeFileSync(input, JSON.stringify(diagram));
   execFileSync(process.execPath, [path.join(skillRoot, 'renderers/architecture/render-architecture.mjs'), input, output]);
@@ -143,15 +146,17 @@ test('near-limit explanation keeps Back and keyboard scrolling reachable at refl
   };
   const click = id => clickControl(send, run, id);
   const state = () => run(`(() => {
-    const chip=document.getElementById('focus-chip'), back=document.getElementById('focus-explanation-back'), body=document.getElementById('focus-explanation-body');
+    const chip=document.getElementById('focus-chip'), back=document.getElementById('focus-explanation-back'), body=document.getElementById('focus-explanation-body'), explain=document.getElementById('btn-focus-explain');
     const box=element=>{const r=element.getBoundingClientRect();return {top:r.top,bottom:r.bottom,left:r.left,right:r.right,height:r.height};};
-    return {chip:box(chip),back:box(back),body:box(body),viewport:{width:innerWidth,height:innerHeight},scrollHeight:body.scrollHeight,clientHeight:body.clientHeight,scrollTop:body.scrollTop,
+    return {chip:box(chip),back:box(back),body:box(body),explain:box(explain),lineHeight:parseFloat(getComputedStyle(body.querySelector('p')||body).lineHeight),fontSize:getComputedStyle(body.querySelector('p')||body).fontSize,panelPosition:getComputedStyle(chip).position,pageScroll:scrollY,parentBackVisible:!document.querySelector('.parent-back-bar').hidden,titleVisible:(()=>{const title=document.getElementById('focus-explanation-title'),r=title.getBoundingClientRect();return title.contains(document.elementFromPoint(r.left+r.width/2,r.top+r.height/2));})(),viewport:{width:innerWidth,height:innerHeight},scrollHeight:body.scrollHeight,clientHeight:body.clientHeight,scrollTop:body.scrollTop,
       text:[...body.querySelectorAll('p')].map(p=>p.textContent).join(String.fromCharCode(10, 10)),focused:document.activeElement.id,focusVisible:back.matches(':focus-visible'),explaining:Archify.focus.explaining()};
   })()`);
   const visible = value => {
     assert.ok(value.chip.top >= 0 && value.chip.bottom <= value.viewport.height + 1, JSON.stringify(value));
     assert.ok(value.back.top >= value.chip.top && value.back.bottom <= value.chip.bottom + 1, JSON.stringify(value));
     assert.ok(value.back.left >= 0 && value.back.right <= value.viewport.width + 1, JSON.stringify(value));
+    assert.equal(value.titleVisible,true,'the explanation title stays above overlapping controls');
+    assert.ok(value.clientHeight >= 2 * value.lineHeight, 'at least two complete prose lines remain readable: ' + JSON.stringify(value));
   };
   await send('Emulation.setFocusEmulationEnabled', { enabled: true });
   await send('Emulation.setDeviceMetricsOverride', { width: 320, height: 300, deviceScaleFactor: 1, mobile: false });
@@ -171,6 +176,7 @@ test('near-limit explanation keeps Back and keyboard scrolling reachable at refl
     fs.writeFileSync(path.join(process.env.ARCHIFY_TEST_EVIDENCE_DIR, 'long-320x300.png'), Buffer.from(capture.data, 'base64'));
     fs.writeFileSync(path.join(process.env.ARCHIFY_TEST_EVIDENCE_DIR, 'long-320x300.json'), JSON.stringify(opened, null, 2));
   }
+  assert.equal(opened.parentBackVisible,true,'the sibling page has its own parent navigation');
   visible(opened);
   assert.equal(opened.focused, 'focus-explanation-back');
   assert.equal(opened.text, prose.trim(), 'all authored prose remains in the scrollable body');
@@ -182,12 +188,21 @@ test('near-limit explanation keeps Back and keyboard scrolling reachable at refl
   assert.ok(scrolled.scrollTop > 0, JSON.stringify(scrolled));
   visible(scrolled);
   await viewport(1440, 900);
-  visible(await state());
+  const desktop = await state();
+  visible(desktop);
+  assert.equal(desktop.panelPosition,'absolute','resizing out restores stage placement');
+  assert.equal(desktop.fontSize,opened.fontSize,'short viewport does not shrink the prose');
   await viewport(320, 300);
-  visible(await state());
+  const beforeClose = await state();
+  visible(beforeClose);
+  assert.equal(beforeClose.panelPosition,'fixed');
   await click('focus-explanation-back');
-  assert.equal((await state()).focused, 'btn-focus-explain');
-  assert.equal((await state()).explaining, false);
+  const closed = await state();
+  assert.equal(closed.focused, 'btn-focus-explain');
+  assert.equal(closed.explaining, false);
+  assert.equal(closed.pageScroll,beforeClose.pageScroll,'restoring Explain does not scroll the page');
+  assert.ok(closed.chip.top >= 0 && closed.chip.bottom <= closed.viewport.height + 1, JSON.stringify(closed));
+  assert.ok(closed.explain.top >= 0 && closed.explain.bottom <= closed.viewport.height + 1, 'restored Explain focus is visible: ' + JSON.stringify(closed));
   await key('Enter', 'Enter', 13);
   const keyboardOpened = await state();
   visible(keyboardOpened);

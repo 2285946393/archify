@@ -387,6 +387,15 @@
       function explanationFor(id) {
         return Archify.explanations && typeof Archify.explanations.node === 'function' ? Archify.explanations.node(id) : null;
       }
+      function compactPassportViewport() {
+        return window.innerWidth <= 720 && window.innerHeight <= 480;
+      }
+      function compactPassportHeight() {
+        var toolbar = document.querySelector('.toolbar');
+        var top = Math.max(8, toolbar ? toolbar.getBoundingClientRect().bottom + 8 : 8);
+        chip.style.setProperty('--passport-viewport-top', top + 'px');
+        return Math.max(0, window.innerHeight - top - 8);
+      }
       function closeExplanation(options) {
         options = options || {};
         if (!explanationFace) return false;
@@ -395,8 +404,15 @@
         chip.style.height = '';
         explanationBaseHeight = 0;
         explanationFace.hidden = true;
+        if (wasOpen) placeRelationshipLens();
         if (wasOpen && options.restoreFocus !== false && explainBtn && !explainBtn.hidden) {
           try { explainBtn.focus({ preventScroll: true }); } catch (_) { try { explainBtn.focus(); } catch (_) {} }
+          if (compactPassportViewport()) {
+            var controlRect = explainBtn.getBoundingClientRect();
+            var panelRect = chip.getBoundingClientRect();
+            if (controlRect.bottom > panelRect.bottom) chip.scrollTop += controlRect.bottom - panelRect.bottom;
+            else if (controlRect.top < panelRect.top) chip.scrollTop -= panelRect.top - controlRect.top;
+          }
         }
         return wasOpen;
       }
@@ -406,6 +422,7 @@
         var padding = window.innerWidth <= 720 ? 8 : 16;
         var available = Math.max(0, Math.min(rect.bottom - padding, window.innerHeight - padding)
           - Math.max(rect.top + padding, padding));
+        if (compactPassportViewport()) available = compactPassportHeight();
         var needed = explanationFace.scrollHeight - explanationBody.clientHeight + explanationBody.scrollHeight + 2;
         chip.style.height = Math.ceil(Math.min(available, Math.max(explanationBaseHeight, needed))) + 'px';
       }
@@ -427,6 +444,7 @@
         explanationFace.hidden = false;
         chip.setAttribute('data-explaining', 'true');
         explanationBody.scrollTop = 0;
+        chip.scrollTop = 0;
         fitExplanation();
         placeRelationshipLens();
         if (explanationBack) { try { explanationBack.focus({ preventScroll: true }); } catch (_) { try { explanationBack.focus(); } catch (_) {} } }
@@ -1368,6 +1386,11 @@
           lensFrame = 0;
         }
         if (chip.hidden || activeIds.length !== 1) return;
+        if (compactPassportViewport()) compactPassportHeight();
+        else {
+          chip.style.removeProperty('--passport-viewport-top');
+          chip.scrollTop = 0;
+        }
         var node = svg.querySelector('[data-node-id="' + activeIds[0] + '"]');
         if (!node) return;
         var containerRect = container.getBoundingClientRect();

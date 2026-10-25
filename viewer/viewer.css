@@ -5098,3 +5098,18 @@ html[data-ambient-motion="running"][data-motion="live"]:not([data-motion-owner])
     @media (prefers-reduced-motion: reduce) {
       .focus-chip[data-explaining="true"] .semantic-passport-explanation { animation: none; }
     }
+
+/* A short mobile viewport cannot fit the Passport below the page header.
+   Keep its controls in the viewport without shrinking the drawing or prose. */
+@media (max-width: 720px) and (max-height: 480px) {
+  .focus-chip {
+    position: fixed;
+    left: 8px !important;
+    top: var(--passport-viewport-top, 8px) !important;
+    width: min(22rem, calc(100vw - 16px));
+    max-width: calc(100vw - 16px);
+    max-height: calc(100vh - var(--passport-viewport-top, 8px) - 8px);
+    overflow-y: auto;
+  }
+  .focus-chip[data-explaining="true"] { overflow: hidden; }
+}
