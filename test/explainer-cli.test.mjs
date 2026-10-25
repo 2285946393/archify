@@ -124,3 +124,60 @@ test('default explainer finalize succeeds without discovering or launching a bro
  const summary=JSON.parse(result.stdout);assert.deepEqual(summary.gates,{validate:'pass',deliver:'pass',check:'pass','browser-check':'not-run'});assert.deepEqual(summary.browserCheck,{requested:false,ran:false});assert.equal(summary.ok,true);
  const full=JSON.parse(fs.readFileSync(summary.evidence.receipt,'utf8'));assert.deepEqual(full.browserCheck,summary.browserCheck);assert.equal(full.stages['browser-check'].execution,'not-requested');
 });
+
+test('CR-only drafts return structured failures through public commands and preserve output (#1083)',t=>{
+  const dir=temporary(t),input=path.join(dir,'cr-only.md'),output=path.join(dir,'result.html');
+  const source='# Title\r\rAnswer.\r\r## Question\r\rText.\r';
+  fs.writeFileSync(input,source);fs.writeFileSync(output,'previous verified artifact');
+  for(const command of ['validate','deliver','finalize']) {
+    const result=run([command,'explainer',input,...(command==='validate'?[]:[output]),'--json']);
+    assert.equal(result.status,1,result.stdout+result.stderr);
+    const receipt=JSON.parse(result.stdout);
+    assert.ok(receipt.diagnostics.some(entry=>entry.code.startsWith('explainer/parse-')),result.stdout);
+    assert.ok(receipt.diagnostics.every(entry=>entry.code!=='input/read'),result.stdout);
+    assert.doesNotMatch(result.stdout+result.stderr,/Cannot read properties of null/);
+    assert.equal(fs.readFileSync(output,'utf8'),'previous verified artifact');
+    assert.equal(fs.readFileSync(input,'utf8'),source);
+  }
+});
+
+
+test('literal heading separators survive public validate, deliver and finalize (#1083)',t=>{
+  const dir=temporary(t),input=path.join(dir,'headings.md'),output=path.join(dir,'result.html');
+  for(const separator of ['\r','\u2028','\u2029']) {
+    const source=`# Title${separator}continued {#heading}\n\nAnswer.\n\n## Question${separator}continued {#question span=7}\n\nText.\n`;
+    fs.writeFileSync(input,source);
+    for(const command of ['validate','deliver','finalize']) {
+      const result=run([command,'explainer',input,...(command==='validate'?[]:[output]),'--json']);
+      assert.equal(result.status,0,result.stdout+result.stderr);
+      assert.equal(JSON.parse(result.stdout).ok,true,result.stdout);
+      if(command!=='validate') {
+        const saved=bundle(output);
+        assert.equal(saved.sourceText,source);
+        assert.equal(saved.document.meta.title,`Title${separator}continued`);
+        assert.equal(saved.document.meta.id,'heading');
+        assert.equal(saved.document.panels[0].title,`Question${separator}continued`);
+        assert.equal(saved.document.panels[0].id,'question');
+        assert.equal(saved.document.panels[0].span,7);
+      }
+      assert.equal(fs.readFileSync(input,'utf8'),source);
+    }
+  }
+});
+
+test('workflow shorthand carries page locale into rendered lane labels (#1082)',t=>{
+  const dir=temporary(t);
+  for(const [locale,label] of [['en','Branch 1'],['es','Branch 1'],['zh-CN','分支 1'],['zh-TW','分支 1'],['zh-Hant','分支 1'],[undefined,'分支 1']]) {
+    const input=path.join(dir,`${locale||'default'}.md`),output=path.join(dir,`${locale||'default'}.html`);
+    const source=`# Release flow\n\nA build either ships or rolls back.\n\n${locale?`@meta locale=${locale}\n\n`:''}## How does a release branch? {#question}\n\n@workflow id=flow\n| a | Build | backend |\n| b | Ship | backend |\n| c | Roll back | backend |\n| a > b | green |\n| a > c | red |\n`;
+    fs.writeFileSync(input,source);
+    const result=run(['deliver','explainer',input,output,'--quality','standard','--json']);
+    assert.equal(result.status,0,result.stdout+result.stderr);
+    const frozen=bundle(output),html=fs.readFileSync(output,'utf8');
+    assert.equal(frozen.sourceText,source);
+    assert.equal(frozen.document.panels[0].blocks[0].spec.lanes[1].label,label);
+    assert.ok(html.includes(`data-node-context="${label}"`),locale||'default');
+    assert.ok(html.includes(`<title>Roll back · ${label}</title>`),locale||'default');
+    assert.match(html,new RegExp(`aria-label="[^"]*Roll back[^"]*${label}"`,'u'),locale||'default');
+  }
+});

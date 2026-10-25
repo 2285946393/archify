@@ -260,3 +260,43 @@ test('a badge-only comparison cell and a route written in the node column are ac
   assert.deepEqual(document.panels[0].blocks[0].rows[0].cells[0],{text:'Drop',assessment:'bad',verdict:'Drop'});
   assert.deepEqual(document.panels[0].blocks[2].items[0].target,{diagram:'flow',route:['a','b']});
 });
+
+test('heading line terminators remain literal text without crashing the parser (#1083)',()=>{
+  for(const separator of ['\r','\u2028','\u2029']) {
+    const source=`# Title${separator}continued {#heading}\n\nAnswer.\n\n## Question${separator}continued {#question span=7}\n\nText.\n`;
+    const result=parse(source);
+    assert.equal(result.document.meta.title,`Title${separator}continued`);
+    assert.equal(result.document.panels[0].title,`Question${separator}continued`);
+    assert.equal(result.document.meta.id,'heading');
+    assert.equal(result.document.panels[0].id,'question');
+    assert.equal(result.document.panels[0].span,7);
+    assert.equal(result.sourceText,source);
+    assert.equal(validateExplainer(result.document).ok,true);
+    const range=result.sourceMap['/panels/0'];
+    assert.equal(range.line,5);
+    assert.equal(source.slice(range.start,range.end),`## Question${separator}continued {#question span=7}\n\nText.\n`);
+  }
+  const malformed=parseExplainer('# Title\r\rAnswer.\r\r## Question\r\rText.\r');
+  assert.equal(malformed.document,null);
+  assert.ok(malformed.diagnostics.length);
+  assert.ok(malformed.diagnostics.every(entry=>entry.code.startsWith('explainer/parse-')));
+});
+
+test('workflow shorthand uses final page locale without moving its source locations (#1082)',()=>{
+ const workflow='@workflow\n| a | Build | backend |\n| b | Ship | backend |\n| c | Roll back | backend |\n| a > b | green |\n| a > c | red |\n';
+ const header='# Release flow\n\nA build ships or rolls back.\n\n';
+ const panel='## What happens? {#question}\n\n';
+ const early=parse(header+'@meta locale=en\n\n'+panel+workflow);
+ const source=header+panel+workflow+'\n@meta locale=en quality_profile=standard\n';
+ const late=parse(source);
+ assert.equal(late.document.meta.locale,'en');
+ assert.equal(late.document.panels[0].blocks[0].spec.lanes[1].label,'Branch 1');
+ assert.equal(late.document.panels[0].blocks[0].spec.meta.quality_profile,'showcase','late metadata does not change the original shorthand quality');
+ const original=parse(header+panel+workflow);
+ assert.equal(late.document.panels[0].blocks[0].id,original.document.panels[0].blocks[0].id,'locale cannot change an automatic source anchor');
+ assert.deepEqual(late.document.panels[0].blocks[0],early.document.panels[0].blocks[0]);
+ const location=late.sourceMap['/panels/0/blocks/0/spec/lanes/1/label'];
+ assert.equal(location.start,source.indexOf('@workflow'));
+ assert.ok(source.slice(location.start,location.end).startsWith(workflow.trimEnd()));
+ assert.equal(late.sourceMap['/meta/locale'].start,source.indexOf('@meta'));
+});

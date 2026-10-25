@@ -44,6 +44,8 @@ their existing rule codes. Use the advertised `validate --json` or
 Unexpected implementation failures retain debugging information in human
 mode and remain `internal/unclassified` in machine receipts.
 
+Declared local Explainer chart data and native-diagram specification files are protected inputs, including physical aliases. Delivery and finalize refuse sidecars that would overwrite those inputs, including when resource preparation fails; an uninspectable draft cannot publish failure evidence.
+
 Each delivered output has two artifact-specific metadata paths. When an output
 stem is too long for those derived filenames, Archify shortens it and appends a
 stable hash:
@@ -415,6 +417,10 @@ The delivery interface exposes four separate claims:
 4. Perceptual visual review records a human or image-capable reviewer's judgment.
 
 Passing one claim never implies the others. Never claim that the deterministic receipt includes browser or perceptual review evidence.
+
+## Comparison presentation changes
+
+Architecture comparisons include authored `meta.translations` in presentation changes. Adding, removing or editing translations changes `summary.presentationChanged`; reordering translation keys does not. An empty translation object is equivalent to an omitted catalog for presentation classification; the canonical source digest still records the authored representation. Component, relationship, boundary and repository-provenance classifications remain independent.
 
 ## Recovering a failed comparison
 

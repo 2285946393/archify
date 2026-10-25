@@ -82,10 +82,11 @@ export function parseExplainer(sourceText, { inputPath, output } = {}) {
   } else {
     document = {schema_version:1,diagram_type:'explainer',meta:{},answer:{summary:''},panels:[],sources:[]};
     let panel = null, panelIndex = -1, titleSeen = false, answerSeen = false, reasonsAllowed = false, cursor = 0;
+    const workflowLocales = [];
     const descriptor = (line, endLine = line + 1) => locate(starts[line] ?? sourceText.length, starts[endLine] ?? sourceText.length);
     const closePanel = end => { if (panelIndex >= 0) sourceMap[`/panels/${panelIndex}`].end = end; };
     function heading(line, prefix) {
-      const match = line.slice(prefix.length).trim().match(/^(.*?)(?:\s+\{(?:#([^}\s]+))?(?:\s*span=(\d+))?\})?$/u);
+      const match = line.slice(prefix.length).trim().match(/^(.*?)(?:\s+\{(?:#([^}\s]+))?(?:\s*span=(\d+))?\})?$/su);
       return {title:match[1].trim(),id:match[2],...(match[3]?{span:Number(match[3])}:{})};
     }
     function addBlock(block, at, until, rows = []) {
@@ -218,7 +219,12 @@ export function parseExplainer(sourceText, { inputPath, output } = {}) {
               r.cells.splice(index,1);
             }
           }
-          if(rows.length&&a.spec===undefined&&a.source===undefined)try{block.spec=compileExplainerDiagram(block.diagramType,rows.map(r=>({cells:r.cells,line:r.line+1})),{id:a.id||stable('diagram',`${panel?.id}\0${JSON.stringify(rows.map(r=>r.cells))}`),title:a.title||panel?.title||document.meta.title,line:at+1,quality:document.meta.quality_profile});}catch(error){const found=error.archifyDiagnostics||error.diagnostics;if(found?.length)diagnostics.push(...found);else fail(at+1,type,'The diagram shorthand could not compile.','@diagram sequence source=cache.sequence.json');}
+          if(rows.length&&a.spec===undefined&&a.source===undefined)try{
+            const input=rows.map(r=>({cells:r.cells,line:r.line+1}));
+            const options={id:a.id||stable('diagram',`${panel?.id}\0${JSON.stringify(rows.map(r=>r.cells))}`),title:a.title||panel?.title||document.meta.title,line:at+1,quality:document.meta.quality_profile};
+            block.spec=compileExplainerDiagram(block.diagramType,input,options);
+            if(block.diagramType==='workflow')workflowLocales.push({block,input,options,pointer:`/panels/${panelIndex}/blocks/${panel?.blocks.length}/spec`});
+          }catch(error){const found=error.archifyDiagnostics||error.diagnostics;if(found?.length)diagnostics.push(...found);else fail(at+1,type,'The diagram shorthand could not compile.','@diagram sequence source=cache.sequence.json');}
           if(a.changes!==undefined)block.changes=csv(a.changes).map(value=>{const [target,change]=value.split(':');return{target,change};});break;
         }
         case 'code':Object.assign(block,select(a,['source','language']));break;
@@ -289,6 +295,13 @@ export function parseExplainer(sourceText, { inputPath, output } = {}) {
       } else addBlock({type:'prose',text},at,cursor);
     }
     closePanel(sourceText.length);
+    // Resolve workflow labels after metadata without changing the original compile
+    // options or the automatic block ID already bound to the authored rows.
+    for(const {block,input,options,pointer} of workflowLocales)if(typeof document.meta.locale==='string'&&!document.meta.locale.startsWith('zh')){
+      block.spec=compileExplainerDiagram('workflow',input,{...options,locale:document.meta.locale});
+      if(sourceMap[pointer])map(pointer,block.spec,sourceMap[pointer]);
+    }
+
     if(!titleSeen)fail(1,'title','A document requires one # title.','# What should we choose?');
     if(!answerSeen)fail(1,'answer','A short answer is required before question panels.','# A title\n\nA direct answer.\n\n## Why?');
     if(!document.panels.length)fail(1,'panel','At least one question panel is required.','## Why does this happen?');
