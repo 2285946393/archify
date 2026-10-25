@@ -26,9 +26,18 @@ test('explainer chart fences render static themed SVG without shipping the chart
 });
 
 test('explainer chart fences send native diagram types to shorthand and locate syntax errors', t => {
-  const flow = finalize(t, 'flowchart LR\n  A --> B');
-  assert.notEqual(flow.status, 0);
-  assert.ok(flow.receipt.diagnostics.some(d => d.code === 'explainer/chart' && /native workflow/.test(d.message) && d.subject.line === 10));
+  for (const [chart, native] of [
+    ['flowchart LR\n  A --> B', 'workflow'],
+    ['treeView-beta\n  a\n    b', 'tree'],
+    ['mindmap\n  a', 'tree'],
+  ]) {
+    const result = finalize(t, chart);
+    assert.notEqual(result.status, 0);
+    assert.ok(result.receipt.diagnostics.some(d => d.code === 'explainer/chart'
+      && d.message.includes(`native ${native}`) && d.subject.line === 10), chart);
+    assert.ok(result.receipt.diagnostics.some(d => d.supportedFixes?.some(fix => fix.includes(`@${native} id=...`))), chart);
+    assert.equal(result.html, null);
+  }
   const broken = finalize(t, 'pie title Share\n  "A" : abc');
   assert.ok(broken.receipt.diagnostics.some(d => d.code === 'explainer/chart' && d.subject.line === 11));
   assert.equal(broken.html, null);
