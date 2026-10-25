@@ -1,3 +1,4 @@
+import { softwareNoticesHtml } from '../renderers/shared/software-notices.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
@@ -11,6 +12,7 @@ export function attachStory(nativeHtml,storyHtml){
   const at=body?.sourceCodeLocation?.endTag?.startOffset;
   if(at===undefined)throw Error('The native HTML needs a body element.');
   const payload=JSON.stringify({version:1,html:Buffer.from(storyHtml).toString('base64'),messages:JSON.parse(fs.readFileSync(path.join(here,'messages.json'),'utf8'))});
-  const addon='<style id="archify-story-attachment-style">'+fs.readFileSync(path.join(here,'story-attachment.css'),'utf8')+'</style><script id="archify-story-payload" type="application/json">'+payload+'</script><script>'+fs.readFileSync(path.join(here,'story-attachment.js'),'utf8')+'</script>';
+  const notice = nativeHtml.includes('id="archify-software-notices"') ? '' : softwareNoticesHtml;
+  const addon='<style id="archify-story-attachment-style">'+fs.readFileSync(path.join(here,'story-attachment.css'),'utf8')+'</style>'+notice+'<script id="archify-story-payload" type="application/json">'+payload+'</script><script>'+fs.readFileSync(path.join(here,'story-attachment.js'),'utf8')+'</script>';
   return nativeHtml.slice(0,at)+addon+nativeHtml.slice(at);
 }
