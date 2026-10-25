@@ -100,6 +100,11 @@ renderer:
   back to the ordinary families and stays unbundled, and anything authored
   (`route`, `via`, `labelAt`) keeps its own line. Logical routes still traverse
   the trunk, so every gate, label, and the layout report see the full geometry.
+  自动补出的主干桥接还会检查无关关系及已接受的其他桥接；出现交叉、接触或
+  重叠时保留分离的主干段，避免把独立关系画成同一条总线。检查按双方描边的
+  半宽之和留出间隔，并计入无关关系的显式 `width`；中心线未相交但描边接触
+  也会阻止桥接。这个回退不移动
+  实体、显式途经点或端口，也不改变关系基数；无障碍的同簇分支仍可共享主干。
 - Entity boxes are opaque obstacles. When a third entity sits between two
   aligned anchors, the shared obstacle grid routes around it, and a route that
   still cannot clear an unrelated entity fails with
@@ -113,19 +118,20 @@ text cannot fit inside the declared entity width.
 ## Domain bands
 
 `tag` names a table's functional domain, and a domain is drawn as a band when the
-tables carrying that tag fill a solid block of grid cells — every cell of their
-bounding box holds one of them. A single row, a single column, and a block are
-all that same claim, and a one-table domain is that claim at its smallest. The
+tables carrying that tag fill a solid rectangle of grid cells — every cell of
+their bounding box holds one of them. A single row, a single column, and a filled
+rectangular block are all that same claim (an L or diagonal is not); a one-table
+domain is that claim at its smallest. The
 band is measured from the placed boxes and carries the tag as its caption, which
 is what makes a grouped schema readable at a glance: the reader sees blocks
 instead of six equally weighted boxes.
 
-A tag whose members do not fill one block earns no band, because a band around
-them would enclose cells the domain does not own and claim a grouping the
+A tag whose members do not fill one rectangle earns no band, because a band
+around them would enclose cells the domain does not own and claim a grouping the
 placement contradicts. The band is the only place a domain name is drawn, so the
 renderer returns `erd/domain-not-drawn` rather than publishing a diagram whose
 tables are complete and whose domain cannot be named. Move the members into one
-block, split the tag, or drop it. The same diagnostic covers the other ways the
+rectangle, split the tag, or drop it. The same diagnostic covers the other ways the
 name can go missing: a member placed outside the grid, because a band is measured
 from cells and absolute coordinates have none; two members in one cell, which the
 grid placement check reports instead so the author gets the pair that has to move;

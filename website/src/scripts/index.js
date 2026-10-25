@@ -2,172 +2,8 @@
   /* ══════════════════════════════════════
      i18n strings
   ══════════════════════════════════════ */
-  const LANGS = {
-    en: {
-      'label-life':'Beyond code',
-      'life-h2':'Not just for code. <em>For anything with steps.</em>',
-      'life-body':'Leave plans, job hunts, renting, a monthly budget — each one below is a real Archify artifact, generated and validated exactly like a system diagram. Open one and click around.',
-      'life-note':'Numbers in these examples are illustrative. Describe your own situation and your agent draws yours.',
-      'life-leave-k':'Workflow',
-      'life-leave-q':'How should I spread my leave across the year?',
-      'life-job-k':'Lifecycle',
-      'life-job-q':'Where does each job application stand?',
-      'life-money-k':'Data flow',
-      'life-money-q':'Where does my paycheck go each month?',
-      'life-rent-k':'Sequence',
-      'life-rent-q':'Who says what when I rent a flat?',
-      'arch-k':'Architecture',
-      'wf-k':'Workflow',
-      'seq-k':'Sequence',
-      'flow-k':'Data flow',
-      'life-k':'Lifecycle',
-      'nav-guide':'Guide','nav-gallery':'Proof Lab','nav-start':'Start','nav-community':'Community','nav-install':'Install Skill',
-      'hero-badge':"Development Agent Skill · see what's new",'hero-works':'Works with',
-      'hero-h1':'<span class="l">Describe it in plain words.</span><span class="l">Get a map <em>you can trust.</em></span>',
-      'hero-sub':'A leave plan, a job hunt, a monthly budget, or a software system — if it has steps, parts, relationships, or states, your AI agent turns it into one explorable HTML map, validated before it ships.',
-      'hero-cta':'Get started','hero-stars':'stars on GitHub','copy':'Copy','copied':'Copied',
-      'demo-watch':'Watch the 35s demo','demo-title':'Archify 35-second demo','demo-close':'Close demo',
-      'tour-title':'Live artifact tour',
-      'proof-live':'Live','proof-open':'Open artifact',
-      'beat-0-k':'Map','beat-1-k':'Focus','beat-2-k':'Upstream','beat-3-k':'Lens',
-      'beat-0-t':'The whole system, in one readable frame.','beat-0-b':'This is the real generated artifact, not a screenshot. Lanes, boundaries, and every authored edge — scroll to move its camera.',
-      'beat-1-t':'Focus one node, see what it drives.','beat-1-b':'Press Enter on any node — or open a stable link — and the camera isolates everything downstream of it.',
-      'beat-2-t':'Flip the reach. Find the cause.','beat-2-b':'Trace upstream to every dependency that feeds a step. Same file, same authored relationships, one hash change.',
-      'beat-3-t':'Compare by meaning, not by box.','beat-3-b':'Lens keeps only the semantic kinds you name — security against data, backend against storage — and quiets the rest.',
-      'stat-types':'Diagram types','stat-presets':'Visual presets','stat-checks':'Validation checks per artifact','stat-export':'Native export scale','stat-deps':'Runtime dependencies',
-      'label-types':'Diagram types',
-      'types-h2':'Five questions. <em>Five kinds of map.</em>',
-      'types-body':'Ask the question you actually have. Archify picks the picture that answers it — for a software system, a plan, or something in your own life.',
-      'types-more':'Browse the full proof gallery','types-more-sub':'Live artifacts · every preset · every type',
-      'arch-h':'What is it made of?',
-      'arch-p':'The parts of something and how they connect — a household\'s accounts and cards, a team\'s roles, or a cloud system\'s services, databases, and security boundaries.',
-      'arch-li1':'Household accounts','arch-li2':'Team roles','arch-li3':'Microservices topology','arch-li4':'Cloud + security boundaries',
-      'wf-h':'What happens next?',
-      'wf-p':'Steps across people or stages — a visa application, a leave plan, onboarding, an approval chain, or a CI/CD pipeline, lane by lane.',
-      'seq-h':'Who says what, in what order?',
-      'seq-p':'Back-and-forth in order — renting a flat through an agent, an expense claim, or an API call chain with its returns.',
-      'flow-h':'Where does it all go?',
-      'flow-p':'Where something moves and where it lands — a paycheck into bills and savings, documents through review, or data through a pipeline.',
-      'life-h':'Where does it stand now?',
-      'life-p':'States and what moves between them — job applications, an order, a passport renewal, or a deployment — with waits, retries, and endings.',
-      'label-features':'Output',
-      'features-h2':'One file. <em>Everything inside.</em>',
-      'cmp-light':'Light','cmp-dark':'Dark',
-      'fv1-h':'Dual-theme output','fv1-p':"Every diagram ships with coordinated dark and light variable sets. The HTML theme toggle and the SVG @media prefers-color-scheme rule switch together — one file follows the reader's theme.",'fv1-tag':'LIGHT · DARK · ONE FILE',
-      'fv2-h':'One menu, every format','fv2-p':'PNG, JPEG, WebP, dual-theme SVG, WebM motion, or straight to the clipboard — every export renders natively in the browser from the same menu.',
-      'exp-clip-fmt':'Clipboard',
-      'f2-h':'Ultra-crisp 4× export','f2-p':'PNG, JPEG, WebP — all rasterized natively at up to 4× source resolution by the browser. No upsampling blur. Sharp on retina displays, slides, and print.',
-      'f5-h':'Self-contained HTML','f5-p':'One HTML file. Zero dependencies, no server, no runtime. Open it in any browser and it works. Share by attaching it to an email or PR comment.',
-      'f6-h':'Iterate by chat','f6-p':'"Move the summer trip to August", "add Redis", "make the deadline red" — refine in plain words. No diagram editor to learn.',
-      'f7-h':'Inspect and play real routes','f7-p':'Route Journey keeps the complete authored path visible while you inspect any stop or play one finite, reader-controlled pass over each exact incoming relationship.','f7-tag':'INSPECT · PLAY · PAUSE',
-      'label-palette':'Design system',
-      'palette-h2':'Color that <em>means something.</em>',
-      'palette-body':'Seven node colours, consistent in both themes. The legend renames them for your story — Backend can read as Vacation, Security as Rule.',
-      'chip-frontend':'Frontend','chip-frontend-use':'Client apps, browsers, mobile, UI',
-      'chip-backend':'Backend','chip-backend-use':'Services, APIs, workers, daemons',
-      'chip-database':'Database','chip-database-use':'DBs, caches, stores, AI/ML',
-      'chip-cloud':'Cloud','chip-cloud-use':'Managed services, infra',
-      'chip-security':'Security','chip-security-use':'Auth, secrets, guards',
-      'chip-bus':'Message Bus','chip-bus-use':'Kafka, RabbitMQ, SNS',
-      'chip-external':'External','chip-external-use':'Users, 3rd parties, generic',
-      'label-qs':'Quick start',
-      'qs-h2':'Three steps. <em>One command.</em>',
-      'qs-body':'One checked Skill for Claude Code, Codex, Cursor, OpenCode, and GitHub Copilot. Pick your agent for the exact command.',
-      'term-c1':'# Install globally for your agent','term-c2':'# Or try it once with Codex, no permanent install','term-c3':'# Then just ask',
-      'term-ask':'› Use Archify to plan my annual leave: 10 days, plus 2 comp days that expire at the end of June.',
-      'step1-h':'Install in one command','step1-p':'Run the command for your agent, or open the <a href="start.html?agent=cursor&amp;type=architecture">agent-aware quick start</a> for project-scoped installs.',
-      'step2-h':'Describe your system','step2-p':'Describe the steps, people, parts, or states — or ask your agent to read a repository first.',
-      'step3-h':'Ask your agent to draw it','step3-p':'Tell your agent to use Archify. It generates a self-contained HTML file you can open in any browser and refine in chat.',
-      'kbd-label':'Inside every artifact','kbd-guide':'Diagram guide','kbd-theme':'Toggle theme','kbd-find':'Find node / route endpoint','kbd-route':'Trace, inspect, and play a route','kbd-radar':'Semantic radar','kbd-lens':'Compare semantic kinds','kbd-present':'Presentation stage','kbd-export':'Open export menu','kbd-focus':'Focus node','kbd-zoom':'Reading depth / reset','kbd-nav':'Navigate menu','kbd-close':'Close menu',
-      'footer-meta':'development &nbsp;·&nbsp; v[[ARCHIFY_VERSION]] &nbsp;·&nbsp; MIT License<br>Based on Cocoon-AI/architecture-diagram-generator',
-      'cta-h':'Describe it once.<br><em>Share the map.</em>',
-      'cta-sub':'One command installs the checked skill for your agent — and your next diagram is a chat message away.',
-      'cta-install':'Install the skill','cta-gh':'Star on GitHub',
-      'footer-changelog':'Changelog','footer-license':'License','footer-community':'Community'
-    },
-    zh: {
-      'label-life':'不只是代码',
-      'life-h2':'不只是代码，<br><em>生活里的事也能画。</em>',
-      'life-body':'年假规划、求职进度、租房沟通、每月收支——下面每一张都是真实生成的 Archify 成品，和系统架构图走同一套生成与校验流程。点开就能探索。',
-      'life-note':'示例里的数字仅作演示。描述你自己的情况，Agent 就会画出你的那一张。',
-      'life-leave-k':'工作流',
-      'life-leave-q':'一年的假怎么排最划算？',
-      'life-job-k':'生命周期',
-      'life-job-q':'每份求职申请走到哪一步了？',
-      'life-money-k':'数据流',
-      'life-money-q':'工资每个月都去哪了？',
-      'life-rent-k':'时序图',
-      'life-rent-q':'租房时，谁跟谁说了什么？',
-      'arch-k':'架构图',
-      'wf-k':'工作流',
-      'seq-k':'时序图',
-      'flow-k':'数据流',
-      'life-k':'生命周期',
-      'nav-guide':'场景指南','nav-gallery':'验证作品集','nav-start':'快速上手','nav-community':'社区包','nav-install':'安装技能',
-      'hero-badge':'开发版 Agent 技能 · 查看更新','hero-works':'支持',
-      'hero-h1':'<span class="l">用大白话讲清楚，</span><span class="l">得到<em>一张可信的图。</em></span>',
-      'hero-sub':'年假怎么排、求职走到哪步、工资去哪了，或者一整套软件系统——只要它有步骤、组成、关系或状态，你的 AI Agent 都能把它变成一张可以点开探索、交付前已经校验过的 HTML 图。',
-      'hero-cta':'开始使用','hero-stars':'GitHub Star','copy':'复制','copied':'已复制',
-      'demo-watch':'观看 35 秒演示','demo-title':'Archify 35 秒演示','demo-close':'关闭演示',
-      'tour-title':'实时成品导览',
-      'proof-live':'实时','proof-open':'打开完整成品',
-      'beat-0-k':'全景','beat-1-k':'聚焦','beat-2-k':'上游','beat-3-k':'语义镜头',
-      'beat-0-t':'整个系统，一屏读完。','beat-0-b':'这是真实生成的成品，不是截图。泳道、边界和每一条作者连线都在这里——继续滚动，移动它的镜头。',
-      'beat-1-t':'聚焦一个节点，看清它驱动了什么。','beat-1-b':'在任意节点上按 Enter，或打开一个稳定链接，镜头会只保留它下游的一切。',
-      'beat-2-t':'反转方向，找到源头。','beat-2-b':'向上游追溯，看清喂给这一步的每个依赖。同一个文件、同一组作者关系，只改一次 hash。',
-      'beat-3-t':'按语义对比，而不是按方框。','beat-3-b':'语义镜头只保留你点名的类型——安全对数据、后端对存储——其余全部压暗。',
-      'stat-types':'图表类型','stat-presets':'视觉预设','stat-checks':'每个成品的校验项','stat-export':'原生导出倍率','stat-deps':'运行时依赖',
-      'label-types':'图表类型',
-      'types-h2':'五个问题，<br><em>五种图。</em>',
-      'types-body':'问你真正想问的问题。Archify 会选出能回答它的那种图——不管是一套软件系统、一份计划，还是你自己生活里的事。',
-      'types-more':'浏览完整作品集','types-more-sub':'实时成品 · 全部预设 · 全部图型',
-      'arch-h':'它由什么组成？',
-      'arch-p':'一件事由哪些部分组成、彼此怎么连接——家里的账户和银行卡、团队分工，或者云上系统的服务、数据库与安全边界。',
-      'arch-li1':'家庭账户','arch-li2':'团队分工','arch-li3':'微服务拓扑','arch-li4':'云与安全边界',
-      'wf-h':'下一步做什么？',
-      'wf-p':'跨人、跨阶段的步骤——办签证、排年假、新人入职、审批链，或者 CI/CD 流水线，逐泳道铺开。',
-      'seq-h':'谁先谁后，怎么来回？',
-      'seq-p':'按顺序的一来一回——通过中介租房、报销往返，或者带返回值的 API 调用链。',
-      'flow-h':'东西都流向哪里？',
-      'flow-p':'东西从哪来、最后落到哪——工资流向账单和储蓄、文件流转审阅，或者数据穿过管道。',
-      'life-h':'现在走到哪一步了？',
-      'life-p':'有哪些状态、怎么在状态之间变化——求职申请、一笔订单、护照换发或一次部署，含等待、重试和结局。',
-      'label-features':'输出',
-      'features-h2':'一个文件，<br><em>全部都在里面。</em>',
-      'cmp-light':'浅色','cmp-dark':'深色',
-      'fv1-h':'双主题输出','fv1-p':'每张图都内置协调的深色与浅色变量集：HTML 的主题开关与 SVG 的 @media prefers-color-scheme 规则同步切换——一个文件，自动跟随读者主题。','fv1-tag':'浅色 · 深色 · 单文件',
-      'fv2-h':'一个菜单，全部格式','fv2-p':'PNG、JPEG、WebP、双主题 SVG、WebM 动图，或直接复制到剪贴板——所有导出都在浏览器内原生渲染，同一个菜单完成。',
-      'exp-clip-fmt':'剪贴板',
-      'f2-h':'超清 4× 导出','f2-p':'PNG、JPEG、WebP——由浏览器以最高 4 倍分辨率原生栅格化，无上采样模糊。视网膜屏、幻灯片、印刷均清晰。',
-      'f5-h':'独立 HTML 文件','f5-p':'单个 HTML 文件，零依赖、无需服务器或构建工具，任意浏览器打开即用。作为附件发邮件或贴 PR 评论均可。',
-      'f6-h':'对话式迭代','f6-p':'「把暑假旅行挪到八月」「加一个 Redis」「把截止日标红」——用大白话精调，不用学任何画图工具。',
-      'f7-h':'检查并播放真实路径','f7-p':'Route Journey 始终保留完整作者路径，可逐站检查，也可沿每条精确入向关系播放一次由读者控制的有限旅程。','f7-tag':'检查 · 播放 · 暂停',
-      'label-palette':'设计系统',
-      'palette-h2':'每种颜色，<br><em>都有含义。</em>',
-      'palette-body':'七种节点颜色，深浅主题下保持一致。图例可以按你的故事改名——「后端」可以叫「假期」，「安全」可以叫「规则」。',
-      'chip-frontend':'前端','chip-frontend-use':'客户端、浏览器、移动端、UI',
-      'chip-backend':'后端','chip-backend-use':'服务、API、Worker、守护进程',
-      'chip-database':'数据库','chip-database-use':'数据库、缓存、存储、AI/ML',
-      'chip-cloud':'云服务','chip-cloud-use':'托管服务、基础设施',
-      'chip-security':'安全','chip-security-use':'鉴权、密钥、安全网关',
-      'chip-bus':'消息总线','chip-bus-use':'Kafka、RabbitMQ、SNS',
-      'chip-external':'外部系统','chip-external-use':'用户、第三方、通用外部',
-      'label-qs':'快速开始',
-      'qs-h2':'三步上手，<br><em>一条命令。</em>',
-      'qs-body':'同一份经过检查的 Skill 可用于 Claude Code、Codex、Cursor、OpenCode 和 GitHub Copilot。选择你的 Agent，获取准确命令。',
-      'term-c1':'# 为你的 Agent 全局安装','term-c2':'# 或者用临时副本在 Codex 中试一次','term-c3':'# 然后直接说',
-      'term-ask':'› 用 Archify 帮我排一下今年的年假：10 天年假，加 2 天 6 月底过期的调休。',
-      'step1-h':'一条命令安装','step1-p':'运行对应 Agent 的命令，或打开<a href="start.html?agent=cursor&amp;type=architecture">可切换 Agent 的快速开始页</a>获取项目级安装命令。',
-      'step2-h':'描述你的系统','step2-p':'描述步骤、角色、组成或状态，也可以先让 agent 读一下代码仓库。',
-      'step3-h':'让 agent 绘制','step3-p':'告诉 agent 使用 Archify，它会生成可在任意浏览器打开的单文件 HTML，并可继续在对话中迭代。',
-      'kbd-label':'每个成品都内置','kbd-guide':'图表指南','kbd-theme':'切换主题','kbd-find':'查找节点 / 路径端点','kbd-route':'探查、检查并播放路径','kbd-radar':'语义雷达','kbd-lens':'对比语义类型','kbd-present':'演示舞台','kbd-export':'打开导出菜单','kbd-focus':'聚焦节点','kbd-zoom':'阅读层级 / 复位','kbd-nav':'菜单导航','kbd-close':'关闭菜单',
-      'footer-meta':'开发版 &nbsp;·&nbsp; v[[ARCHIFY_VERSION]] &nbsp;·&nbsp; MIT 许可证<br>基于 Cocoon-AI/architecture-diagram-generator',
-      'cta-h':'描述一次，<br><em>分享这张图。</em>',
-      'cta-sub':'一条命令为你的 Agent 安装经过检查的技能——下一张架构图，只差一句对话。',
-      'cta-install':'安装技能','cta-gh':'在 GitHub 上 Star',
-      'footer-changelog':'更新日志','footer-license':'许可证','footer-community':'社区包'
-    }
-  };
+  const LANGS = JSON.parse(document.getElementById('site-copy').textContent);
+  const DEFAULT_PROOF_LABELS = JSON.parse(document.getElementById('site-proof-labels').textContent);
 
   /* The MAP beat clears focus/lens with a fragment that names no element: an
      empty '#' would make the browser scroll the indicated "top of document"
@@ -184,8 +20,8 @@
       beats: [MAP, '#focus=planner&reach=downstream', '#focus=approval&reach=upstream', '#lens=security~database'],
       iframeTitle: { en: 'Agent Tool Call live Archify proof', zh: '智能体工具调用 Archify 实时成品' },
       name: { en: 'Agent Tool Call', zh: '智能体工具调用' },
-      meta: { en: 'Workflow · Signal Flow · 12 nodes · 11 edges', zh: '工作流 · Signal Flow · 12 节点 · 11 条关系' },
-      title: { en: 'Agent Tool Call — policy, execution, recovery, and evidence', zh: '智能体工具调用——策略、执行、恢复与证据闭环' }
+      meta: DEFAULT_PROOF_LABELS.meta,
+      title: DEFAULT_PROOF_LABELS.title
     },
     blueprint: {
       artifact: 'gallery/artifacts/production-deployment.architecture.html',
@@ -217,13 +53,42 @@
     }
   };
 
+  /* One-page answers: real explainer pages. The scroll walks each through five beats by
+     driving the page's own reader (hover, source cards, style, follow-up dialog) — never its
+     storage or keyboard focus, so a visitor's saved choices and scrolling stay theirs. */
+  const PAGES = {
+    tls: {
+      page: 'cases/explainer/tls-first-visit.html',
+      name: { en: 'First HTTPS Visit', zh: '第一次打开 HTTPS' },
+      meta: { en: 'One-page answer · 4 panels · sequence diagram', zh: '一页式解答 · 4 个面板 · 时序图' },
+      title: { en: 'What happens when a browser opens an HTTPS site for the first time?', zh: '浏览器第一次打开 HTTPS 网站时发生了什么？' },
+      ask: 'Why is one round trip enough?'
+    },
+    repo: {
+      page: 'cases/explainer/finalize-delivery.html',
+      name: { en: 'Read a Repo', zh: '读代码仓库' },
+      meta: { en: 'One-page answer · 4 panels · code pinned to a commit', zh: '一页式解答 · 4 个面板 · 代码固定到提交' },
+      title: { en: 'Which modules does Archify finalize pass through, and how is the last good file kept?', zh: 'Archify finalize 经过哪些模块？失败时旧产物怎么保住？' },
+      ask: '提交前为什么要先备份旧文件？'
+    }
+  };
+  /* the style beat leaves the authored style; the middle style also flips light and dark */
+  const PAGE_STYLES = ['editorial', 'product', 'swiss'];
+  /* The pinned stage tells two chapters in order: four camera beats on a map, then five on a page. */
+  const CHAPTERS = { map: 4, page: 5 };
+  const TOTAL = CHAPTERS.map + CHAPTERS.page;
+
   let lang = ArchifySiteLanguage.read();
   let activeProof = 'signal';
+  let activePage = lang === 'zh' ? 'repo' : 'tls';
+  let mode = 'map';
   let beat = 0;
+  let pageBeat = 0;
   const $ = id => document.getElementById(id);
   const btnLang = $('btn-lang');
   const proofStage = $('hero-proof-stage');
   const proofFrame = $('hero-proof-frame');
+  const pageFrame = $('hero-page-frame');
   const proofPanel = $('hero-proof-panel');
   const proofOpen = $('proof-open');
   const proofMeta = $('proof-meta');
@@ -231,12 +96,15 @@
   const addressFile = $('address-file');
   const addressHash = $('address-hash');
   const beatCard = document.querySelector('.beat-card');
-  const beatTicks = [...document.querySelectorAll('.beat-tick')];
+  const modeButtons = [...document.querySelectorAll('.mode-switch button')];
+  const rails = { map: document.querySelector('.beat-rail[data-mode="map"]'), page: document.querySelector('.beat-rail[data-mode="page"]') };
+  const ticks = { map: [...rails.map.querySelectorAll('.beat-tick')], page: [...rails.page.querySelectorAll('.beat-tick')] };
 
   const siteTheme = () => document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
-  /* the artifact is same-origin, so its own theme attribute follows the site */
+  /* both artifacts are same-origin, so their themes follow the site */
   function syncFrameTheme() {
     try { proofFrame.contentDocument.documentElement.setAttribute('data-theme', siteTheme()); } catch (_) {}
+    pageDoc()?.querySelector(`[data-theme-choice="${siteTheme()}"]`)?.click();
   }
   window.addEventListener('archify:themechange', syncFrameTheme);
 
@@ -252,45 +120,85 @@
     } catch (_) {}
   }
 
+  function caption(prefix, index, changed) {
+    $('beat-title').textContent = LANGS[lang][`${prefix}-${index}-t`];
+    $('beat-body').textContent = LANGS[lang][`${prefix}-${index}-b`];
+    if (changed) { beatCard.classList.remove('is-swapping'); void beatCard.offsetWidth; beatCard.classList.add('is-swapping'); }
+  }
+
   function renderBeat(next, { apply = true } = {}) {
     const proof = PROOFS[activeProof];
     const hash = proof.beats[next];
     const changed = next !== beat;
     beat = next;
-    beatTicks.forEach((tick, i) => tick.setAttribute('aria-pressed', String(i === next)));
-    $('beat-title').textContent = LANGS[lang][`beat-${next}-t`];
-    $('beat-body').textContent = LANGS[lang][`beat-${next}-b`];
-    addressHash.textContent = hash === MAP ? '' : hash;
-    if (changed) {
-      beatCard.classList.remove('is-swapping'); void beatCard.offsetWidth; beatCard.classList.add('is-swapping');
-      addressHash.classList.remove('is-flash'); void addressHash.offsetWidth; addressHash.classList.add('is-flash');
+    ticks.map.forEach((tick, i) => tick.setAttribute('aria-pressed', String(i === next)));
+    if (mode === 'map') {
+      caption('beat', next, changed);
+      addressHash.textContent = hash === MAP ? '' : hash;
+      if (changed) { addressHash.classList.remove('is-flash'); void addressHash.offsetWidth; addressHash.classList.add('is-flash'); }
     }
     if (apply && changed) replaceFrameHash(hash);
+  }
+
+  function renderPageBeat(next) {
+    const changed = next !== pageBeat;
+    pageBeat = next;
+    ticks.page.forEach((tick, i) => tick.setAttribute('aria-pressed', String(i === next)));
+    if (mode === 'page') { caption('pbeat', next, changed); addressHash.textContent = ''; }
+  }
+
+  /* The window bar, tabs and caption belong to whichever chapter is showing. */
+  function renderChrome({ focus = false } = {}) {
+    const current = mode === 'map' ? activeProof : activePage;
+    document.querySelectorAll('.spec-card').forEach(tab => {
+      const visible = tab.dataset.mode === mode, selected = visible && tab.dataset.proof === current;
+      tab.hidden = !visible;
+      tab.setAttribute('aria-selected', String(selected));
+      tab.tabIndex = selected ? 0 : -1;
+      tab.querySelector('.spec-name').textContent = (tab.dataset.mode === 'page' ? PAGES : PROOFS)[tab.dataset.proof].name[lang];
+      if (selected && focus) tab.focus();
+    });
+    proofPanel.setAttribute('aria-labelledby', `proof-tab-${current}`);
+    const entry = mode === 'map' ? PROOFS[activeProof] : PAGES[activePage];
+    proofOpen.href = mode === 'map' ? `${entry.artifact}?present=1${entry.hash}` : entry.page;
+    proofMeta.textContent = entry.meta[lang];
+    proofTitle.textContent = entry.title[lang];
+    addressFile.textContent = (entry.artifact || entry.page).split('/').pop();
+    pageFrame.title = lang === 'zh' ? `${PAGES[activePage].name.zh} Archify 一页式解答` : `${PAGES[activePage].name.en} live Archify one-page answer`;
+    if (mode === 'map') renderBeat(beat, { apply: false }); else renderPageBeat(pageBeat);
   }
 
   function renderProof(key, { focus = false } = {}) {
     const proof = PROOFS[key];
     if (!proof) return;
     activeProof = key;
-    document.querySelectorAll('.spec-card').forEach(tab => {
-      const selected = tab.dataset.proof === key;
-      tab.setAttribute('aria-selected', String(selected));
-      tab.tabIndex = selected ? 0 : -1;
-      tab.querySelector('.spec-name').textContent = PROOFS[tab.dataset.proof].name[lang];
-      if (selected && focus) tab.focus();
-    });
-    proofPanel.setAttribute('aria-labelledby', `proof-tab-${key}`);
-    proofOpen.href = `${proof.artifact}?present=1${proof.hash}`;
-    proofMeta.textContent = proof.meta[lang];
-    proofTitle.textContent = proof.title[lang];
     proofFrame.title = proof.iframeTitle[lang];
-    addressFile.textContent = proof.artifact.split('/').pop();
     if (proofFrame.dataset.proof !== key) {
       proofStage.classList.add('is-loading');
       proofFrame.dataset.proof = key;
       proofFrame.src = proofEmbedUrl(proof);
     }
-    renderBeat(beat, { apply: false });
+    renderChrome({ focus });
+  }
+
+  function renderPage(key, { focus = false } = {}) {
+    if (!PAGES[key]) return;
+    activePage = key;
+    if (mode === 'page') loadPage();
+    renderChrome({ focus });
+  }
+
+  function setMode(next) {
+    if (next === mode) return;
+    if (mode === 'page') pageScene(-1);
+    mode = next;
+    proofStage.dataset.mode = next;
+    modeButtons.forEach(button => button.setAttribute('aria-pressed', String(button.dataset.mode === next)));
+    rails.map.hidden = next !== 'map';
+    rails.page.hidden = next !== 'page';
+    if (next === 'page') loadPage();
+    renderChrome();
+    caption(next === 'map' ? 'beat' : 'pbeat', next === 'map' ? beat : pageBeat, true);
   }
 
   proofFrame.addEventListener('load', () => {
@@ -299,9 +207,9 @@
     replaceFrameHash(PROOFS[activeProof].beats[beat]);
   });
   document.querySelectorAll('.spec-card').forEach(tab => {
-    tab.addEventListener('click', () => renderProof(tab.dataset.proof));
+    tab.addEventListener('click', () => (tab.dataset.mode === 'page' ? renderPage : renderProof)(tab.dataset.proof));
     tab.addEventListener('keydown', event => {
-      const tabs = [...document.querySelectorAll('.spec-card')];
+      const tabs = [...document.querySelectorAll('.spec-card:not([hidden])')];
       const current = tabs.indexOf(tab);
       let next = current;
       if (event.key === 'ArrowRight') next = (current + 1) % tabs.length;
@@ -310,13 +218,90 @@
       else if (event.key === 'End') next = tabs.length - 1;
       else return;
       event.preventDefault();
-      renderProof(tabs[next].dataset.proof, { focus: true });
+      (tabs[next].dataset.mode === 'page' ? renderPage : renderProof)(tabs[next].dataset.proof, { focus: true });
     });
   });
 
+  /* ══ Page chapter — the scene each beat asks of the live explainer ══ */
+  let scene = {};
+  let sceneArgs = [-1, 0];
+  const pageDoc = () => {
+    try { const doc = pageFrame.contentDocument; return doc?.documentElement.classList.contains('js') ? doc : null; } catch (_) { return null; }
+  };
+  function loadPage() {
+    if (pageFrame.dataset.page === activePage) return;
+    pageFrame.dataset.page = activePage;
+    proofStage.classList.add('is-page-loading');
+    pageFrame.src = PAGES[activePage].page;
+  }
+  pageFrame.addEventListener('load', () => {
+    proofStage.classList.remove('is-page-loading');
+    scene = {};
+    syncFrameTheme();
+    /* a source card waits for the page to stop scrolling, so it opens beside its citation */
+    pageFrame.contentWindow.addEventListener('scroll', () => requestAnimationFrame(() => { if (mode === 'page') pageScene(...sceneArgs); }), { passive: true });
+    if (mode === 'page') applyScroll();
+  });
+
+  function pageScene(local, progress = 0) {
+    sceneArgs = [local, progress];
+    const doc = pageDoc();
+    if (!doc) return;
+    const win = pageFrame.contentWindow, root = doc.documentElement, proof = PAGES[activePage];
+    const fire = (element, type) => element?.dispatchEvent(new win.MouseEvent(type));
+    const steps = [...doc.querySelectorAll('ol.steps > li')].filter(item => item.querySelector('[data-diagram-link]'));
+    const cites = [...doc.querySelectorAll('.cite a[href^="#source-"]')];
+    const panel = steps[0]?.closest('.panel');
+    const pick = list => list[Math.min(list.length - 1, Math.floor(progress * list.length))] || null;
+    scene.authored ??= root.dataset.style;
+    scene.words ??= JSON.parse(doc.getElementById('explainer-reader-words')?.textContent || '{}');
+    const style = local === 3 ? pick(PAGE_STYLES) : scene.authored;
+    const next = {
+      top: (local === 1 || local === 4) && panel ? Math.round(panel.getBoundingClientRect().top + win.scrollY - 16) : 0,
+      step: local === 1 ? pick(steps) : null,
+      cite: local === 2 ? pick(cites) : null,
+      style,
+      theme: local === 3 && style === PAGE_STYLES[1] ? (siteTheme() === 'dark' ? 'light' : 'dark') : siteTheme(),
+      ask: local === 4 ? proof.ask.slice(0, Math.ceil(proof.ask.length * Math.min(1, progress * 1.8))) : null
+    };
+    if (next.theme !== scene.theme) doc.querySelector(`[data-theme-choice="${next.theme}"]`)?.click();
+    if (next.top !== scene.top) win.scrollTo({ top: next.top, behavior: reducedMotion.matches ? 'auto' : 'smooth' });
+    if (next.step !== scene.step) {
+      if (scene.step) { scene.step.classList.remove('walk-current'); fire(scene.step, 'mouseleave'); }
+      if (next.step) { next.step.classList.add('walk-current'); fire(next.step, 'mouseenter'); }
+    }
+    /* the card is placed from the citation's position, so it opens once the page has settled */
+    if (next.cite && Math.abs(win.scrollY - next.top) > 2) next.cite = scene.cite || null;
+    if (next.cite !== scene.cite) {
+      if (scene.cite) fire(scene.cite, 'mouseleave');
+      if (next.cite) fire(next.cite, 'mouseenter');
+    }
+    if (next.style && next.style !== root.dataset.style) {
+      root.dataset.style = next.style;
+      const label = doc.querySelector('[data-style-label]'), swatch = doc.querySelector('[data-style-toggle] .style-swatch');
+      if (label) label.textContent = scene.words.styles?.[next.style] || next.style;
+      if (swatch) swatch.dataset.swatch = next.style;
+      doc.querySelectorAll('[data-style-choice]').forEach(item => item.setAttribute('aria-checked', String(item.dataset.styleChoice === next.style)));
+      win.dispatchEvent(new win.Event('resize'));
+    }
+    /* opened without showModal(), which would move keyboard focus into the frame */
+    const dialog = doc.querySelector('.ask-dialog');
+    if (dialog && next.ask !== null && panel) {
+      if (!dialog.open) {
+        const number = panel.querySelector('.panel-id')?.textContent.trim(), title = panel.dataset.title || panel.querySelector('h2')?.textContent.trim();
+        dialog.querySelector('.ask-where').textContent = root.lang.startsWith('zh') ? `面板 ${number} · ${title}` : `Panel ${number} · ${title}`;
+        dialog.querySelector('blockquote').hidden = true;
+        dialog.style.cssText = 'position:fixed;inset:0;margin:auto;height:fit-content;z-index:40;box-shadow:0 30px 90px rgb(0 0 0/.3)';
+        dialog.setAttribute('open', '');
+      }
+      dialog.querySelector('textarea').value = next.ask;
+    } else if (dialog?.open) { dialog.removeAttribute('open'); dialog.style.cssText = ''; }
+    Object.assign(scene, next);
+  }
+
   function applyLang(l) {
     lang = ArchifySiteLanguage.write(l);
-    document.documentElement.lang = lang === 'zh' ? 'zh-CN' : 'en';
+    document.documentElement.lang = lang === 'zh' ? 'zh-Hans' : 'en';
     btnLang.textContent = lang === 'zh' ? 'EN' : '中文';
     btnLang.setAttribute('aria-label', lang === 'zh' ? 'Switch to English' : '切换到中文');
     const dict = LANGS[lang];
@@ -327,7 +312,6 @@
     renderProof(activeProof);
   }
 
-  btnLang.addEventListener('click', () => applyLang(lang === 'en' ? 'zh' : 'en'));
   applyLang(lang);
 
   /* ══ Reveal on enter ══ */
@@ -344,7 +328,6 @@
      scroll distance is split into four camera beats ══ */
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
   const stage = $('tour');
-  const BEATS = beatTicks.length;
 
   function stageProgress() {
     const rect = stage.getBoundingClientRect();
@@ -358,17 +341,28 @@
   function applyScroll() {
     const { enter, pinned } = stageProgress();
     if (!reducedMotion.matches) stage.style.setProperty('--enter', enter.toFixed(3));
-    const span = pinned * BEATS;
-    const next = Math.min(BEATS - 1, Math.floor(span));
-    beatTicks.forEach((tick, i) => tick.style.setProperty('--fill', `${Math.round(Math.min(1, Math.max(0, span - i)) * 100)}%`));
-    if (next !== beat) renderBeat(next);
+    const span = pinned * TOTAL;
+    const fill = (list, offset) => list.forEach((tick, i) => tick.style.setProperty('--fill', `${Math.round(Math.min(1, Math.max(0, span - offset - i)) * 100)}%`));
+    fill(ticks.map, 0);
+    fill(ticks.page, CHAPTERS.map);
+    const global = Math.min(TOTAL - 1, Math.floor(span));
+    setMode(global < CHAPTERS.map ? 'map' : 'page');
+    if (mode === 'map') { if (global !== beat) renderBeat(global); return; }
+    const local = global - CHAPTERS.map;
+    if (local !== pageBeat) renderPageBeat(local);
+    pageScene(local, Math.min(1, Math.max(0, span - global)));
   }
 
-  beatTicks.forEach((tick, i) => tick.addEventListener('click', () => {
+  function scrollToBeat(global) {
     const { rect, travel } = stageProgress();
-    const top = window.scrollY + rect.top + travel * ((i + 0.5) / BEATS);
+    const top = window.scrollY + rect.top + travel * ((global + (global < CHAPTERS.map ? 0.5 : 0.2)) / TOTAL);
     window.scrollTo({ top, behavior: reducedMotion.matches ? 'auto' : 'smooth' });
-  }));
+  }
+  ticks.map.forEach((tick, i) => tick.addEventListener('click', () => scrollToBeat(i)));
+  ticks.page.forEach((tick, i) => tick.addEventListener('click', () => scrollToBeat(CHAPTERS.map + i)));
+  modeButtons.forEach(button => button.addEventListener('click', () => scrollToBeat(button.dataset.mode === 'map' ? 0 : CHAPTERS.map)));
+  /* the page chapter's frame loads once the first fold has settled, not on the critical path */
+  window.addEventListener('load', () => setTimeout(loadPage, 1200), { once: true });
 
   let scrollTick = false;
   const onScroll = () => {
@@ -378,7 +372,61 @@
   };
   window.addEventListener('scroll', onScroll, { passive: true });
   window.addEventListener('resize', onScroll);
+  /* the demo page keeps a desktop layout at least 1180 px wide, scaled into the window */
+  const fitPage = () => pageFrame.style.setProperty('--page-scale', Math.min(1, pageFrame.parentElement.clientWidth / 1180).toFixed(4));
+  /* the frame also narrows when the page chapter opens its caption rail */
+  if ('ResizeObserver' in window) new ResizeObserver(fitPage).observe(pageFrame.parentElement);
+  else window.addEventListener('resize', fitPage);
+  fitPage();
   applyScroll();
+
+  /* ══ Arrival effects: the finalize replay and the counting stats. Each arms only while its
+     section is still below the fold, so nothing a reader already sees is hidden. ══ */
+  function onArrival(element, arm, play) {
+    if (!element || reducedMotion.matches || !('IntersectionObserver' in window) || element.getBoundingClientRect().top < innerHeight) return;
+    arm();
+    const seen = new IntersectionObserver(entries => {
+      if (!entries.some(entry => entry.isIntersecting)) return;
+      seen.disconnect();
+      play();
+    }, { threshold: .3 });
+    seen.observe(element);
+  }
+  const trustRun = $('trust-run');
+  onArrival(trustRun, () => trustRun.classList.add('is-armed'), () => trustRun.classList.replace('is-armed', 'is-run'));
+  const counters = [...document.querySelectorAll('.receipt b')];
+  onArrival(document.querySelector('.receipts'), () => counters.forEach(b => { b.dataset.final = b.textContent; }), () => {
+    const start = performance.now();
+    const frame = now => {
+      const t = Math.min(1, (now - start) / 1100), ease = 1 - Math.pow(1 - t, 3);
+      counters.forEach(b => { b.textContent = b.dataset.final.replace(/\d+/g, n => String(Math.round(+n * ease))); });
+      if (t < 1) requestAnimationFrame(frame);
+    };
+    requestAnimationFrame(frame);
+  });
+
+  /* ══ Closing prompt — types example requests in turn, maps and pages alike; the first is in the
+     HTML, and nothing cycles under reduced motion ══ */
+  const PROMPTS = {
+    en: ['Use Archify to answer as one page: why did P99 jump while the mean stayed flat?', 'Use Archify to map our checkout services and show where the cache sits.', 'Use Archify to read this repository and show how a request reaches the database.', 'Use Archify to plan my annual leave around two comp days that expire in June.', 'Use Archify to answer as one page: what should I check before signing a lease?', "Use Archify to draw a timeline of last night's incident."],
+    zh: ['用 Archify 一页回答：P99 暴涨、平均值几乎没变，为什么？', '用 Archify 画出我们的结账服务，标出缓存在哪一层。', '用 Archify 读一下这个仓库，画出一个请求怎么走到数据库。', '用 Archify 帮我排年假，有两天调休 6 月底过期。', '用 Archify 一页回答：第一次租房，签合同前要确认什么？', '用 Archify 画出昨晚那次事故的时间线。']
+  };
+  const ctaPrompt = $('cta-prompt');
+  if (ctaPrompt && !reducedMotion.matches && 'IntersectionObserver' in window) {
+    let index = 0;
+    const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+    async function cycle() {
+      for (;;) {
+        await sleep(2600);
+        for (let n = ctaPrompt.textContent.length; n >= 0; n -= 2) { ctaPrompt.textContent = ctaPrompt.textContent.slice(0, n); await sleep(14); }
+        index = (index + 1) % PROMPTS[lang].length;
+        const next = PROMPTS[lang][index];
+        for (let n = 1; n <= next.length; n++) { ctaPrompt.textContent = next.slice(0, n); await sleep(lang === 'zh' ? 70 : 32); }
+      }
+    }
+    let started = false;
+    new IntersectionObserver(entries => { if (!started && entries.some(entry => entry.isIntersecting)) { started = true; cycle(); } }).observe(ctaPrompt);
+  }
 
   /* ══ Hero pointer spotlight — fine pointers only, never under reduced motion ══ */
   const hero = document.querySelector('.hero');

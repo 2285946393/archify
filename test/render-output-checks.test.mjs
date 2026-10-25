@@ -84,6 +84,19 @@ test('render output check: predicts the certain 1440x900 overflow of a fixed-wid
   const declaredFit = checkHtml('viewport-height-fit', node, 'showcase', '0 0 1080 780', '', ' data-reader-fit="intrinsic-height"');
   assert.equal(declaredFit.result.composition.issues.some((item) => item.code === 'composition/viewport-height'), false, 'a Reader-declared fit can scroll readably');
 
+  // Long automatic rows already have readable document scrolling; declaration
+  // changes must not invent fixed-canvas warnings for the same geometry.
+  for (const fit of ['intrinsic-height', 'width-first']) {
+    const tallAutomatic = checkHtml(`viewport-tall-${fit}`, node, 'showcase', '0 0 920 2400', '', ` data-reader-fit="${fit}"`);
+    assert.equal(tallAutomatic.result.composition.issues.some(item => item.code === 'composition/viewport-height'), false);
+  }
+  for (const attributes of ['', ' data-reader-fit="unknown"', ' data-sequence-column-fit="fixed"', ' data-waterfall-ui=""']) {
+    const tallUndeclared = checkHtml('viewport-tall-undeclared', node, 'showcase', '0 0 920 2400', '', attributes);
+    const warning = tallUndeclared.result.composition.issues.find(item => item.code === 'composition/viewport-height');
+    assert.equal(warning?.severity, 'warning');
+    assert.ok(warning?.pageHeightPx > 3000);
+  }
+
   for (const type of ['architecture', 'workflow', '']) {
     const fixed = checkHtml(`viewport-authored-${type}`, node, 'showcase', '0 0 1080 780', '',
       ` data-reader-fit="authored-height" data-diagram-type="${type}"`);
@@ -168,6 +181,19 @@ test('render output check: recognized declared-wide Reader admits the hard floor
   assert.equal(result.composition.desktopReadability.requestedTargetPx, 7.5);
   assert.equal(result.composition.desktopReadability.requestedTargetMet, false);
   assert.ok(result.composition.desktopReadability.minimumProjectedTextPx < 7.5);
+});
+
+test('render output check: width-first preserves the intrinsic declared-wide readability budget', () => {
+  const body = '<g data-node-id="node"><text data-node-label x="160" y="126" class="t-primary" font-size="8">Node</text></g>';
+  const head = '<meta name="archify-reader-contract" content="declared-wide-v1">';
+  const intrinsic = checkHtml('intrinsic-budget', body, 'showcase', '0 0 1438 800', head, ' data-reader-fit="intrinsic-height" data-reader-min-text="7.5"');
+  const widthFirst = checkHtml('width-first-budget', body, 'showcase', '0 0 1438 800', head, ' data-reader-fit="width-first" data-reader-min-text="7.5"');
+  assert.equal(widthFirst.code, intrinsic.code);
+  assert.deepEqual(widthFirst.result.composition.desktopReadability, intrinsic.result.composition.desktopReadability);
+  for (const marker of ['data-sequence-column-fit="fixed"', 'data-waterfall-ui=""', 'data-reader-fit="unknown"']) {
+    const undeclared = checkHtml('undeclared-budget', body, 'showcase', '0 0 1438 800', head, ` ${marker} data-reader-min-text="7.5"`);
+    assert.equal(undeclared.result.composition.desktopReadability.budgetBasis, 'legacy-930');
+  }
 });
 
 test('render output check: ordinary metadata preserves legacy readability and bare semantic markers', () => {
@@ -286,6 +312,23 @@ test('render output check: rejects a diagonal segment inside a polyline', () => 
   assert.equal(check.ok, false);
   assert.match(check.details[0], /path 1/);
   assert.match(check.details[0], /segment 1/);
+});
+
+test('render output check: measures a non-Latin legend label with the shared text model', () => {
+  // The renderer's footprint for "\u03a3\u03cd\u03c3\u03c4\u03b7\u03bc\u03b1" at font-size 10 ends near x=103
+  // (measured with textUnits), so a route that begins at x=160 is clear of it. A
+  // Latin-1-only heuristic bills those seven characters at 1.8 units each and
+  // stretches the box to x=186, reporting a crossing that does not exist.
+  const { code, result } = checkHtml('legend-non-latin-clear', `
+    <path d="M 200 140 L 160 140" class="a-default" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+    <!-- Legend -->
+    <text x="40" y="120" class="t-primary" font-size="10">Legend</text>
+    <rect x="40" y="132" width="14" height="9" class="c-backend"/>
+    <text x="60" y="140" class="t-muted" font-size="10">\u03a3\u03cd\u03c3\u03c4\u03b7\u03bc\u03b1</text>
+  `);
+  const clearance = result.checks.find((entry) => entry.name === 'legend_clearance');
+  assert.equal(code, 0, JSON.stringify(clearance, null, 2));
+  assert.equal(result.ok, true);
 });
 
 test('render output check: rejects arrows crossing legend text', () => {

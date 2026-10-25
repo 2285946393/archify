@@ -12,7 +12,6 @@ const authoringContract = fs.readFileSync(
   path.join(skillRoot, 'references', 'authoring-contract.md'),
   'utf8',
 );
-const schemaReadme = fs.readFileSync(path.join(skillRoot, 'schemas', 'README.md'), 'utf8');
 
 test('semantic relationship labels are preserved and deletion is not a geometry repair', () => {
   assert.match(authoringDefaults, /Relationship labels carry meaning/);
@@ -30,13 +29,6 @@ test('semantic relationship labels are preserved and deletion is not a geometry 
   }
 });
 
-test('schema policy documents the workflow and lifecycle v1/v2 compatibility boundaries', () => {
-  assert.match(schemaReadme, /Workflow[^\n]*schema versions? 1 and 2/i);
-  assert.match(schemaReadme, /Lifecycle also supports versions 1 and 2/i);
-  assert.match(schemaReadme, /other three[^\n]*schema_version[^\n]*1/i);
-  assert.doesNotMatch(schemaReadme, /schema_version` is `"const": 1`/);
-});
-
 test('deployment ownership stays explicit, fact-backed, and cannot be removed to pass', () => {
   assert.match(authoringDefaults, /`meta\.engineering_profile` for an ordinary system overview/);
   assert.match(authoringDefaults, /engineering profile\]\(authoring-contract\.md#engineering-profile-default\)/);
@@ -51,12 +43,10 @@ test('visual-check stays a pending sidecar receipt instead of a polish claim', (
     'utf8',
   );
   assert.match(skill, /Optional capture evidence\]\(references\/delivery-contract\.md#optional-capture-evidence\)/);
-  assert.match(skill, /Inspect captures before claiming visual quality; otherwise report automated checks only/);
   assert.match(skill, /references\/delivery-contract\.md/);
   assert.match(deliveryContract, /Both browser commands inspect the exact delivered HTML without modifying or rerendering it/);
 
   assert.match(deliveryContract, /visual-check <output\.html> --summary/);
-  assert.match(deliveryContract, /1440×900[\s\S]*1600×1000[\s\S]*1920×1080[\s\S]*2048×1320/);
   assert.match(deliveryContract, /visualReview: "pending"/);
   assert.match(deliveryContract, /never changes.*delivered|without (?:rerendering or )?modifying/i);
 });

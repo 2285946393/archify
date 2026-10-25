@@ -51,6 +51,7 @@ import {
   variantAccent,
 } from '../shared/geometry.mjs';
 import { createRouter } from '../architecture/routing.mjs';
+import { placeAutomaticLabels } from '../shared/automatic-labels.mjs';
 import { entityBox, connectionPath as relationshipPath } from '../shared/layout-report.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -147,7 +148,49 @@ const measuredEntities = asArray(er.entities).map((entity) => {
   };
 });
 
-const bands = grid ? bandedLayout(measuredEntities, grid) : null;
+// A relationship label is semantic data and the smallest text the diagram
+// carries: at the shared 8-unit default it projects to ~7.0px on a tall canvas,
+// under the 7.5px the canvas declares.
+const RELATIONSHIP_LABEL_FONT = 9;
+// The label's advance is measured from that size, not from a literal: the mask
+// the renderer draws, the rect the layout checks measure, and the obstacle the
+// legend measures must be the same rectangle, or a label can sit on a table edge
+// with no diagnostic (the checks would be measuring a narrower box than the ink).
+const RELATIONSHIP_LABEL_ADVANCE = 0.62;
+const relationshipLabelWidth = (label) => Math.max(30, textUnits(label) * RELATIONSHIP_LABEL_FONT * RELATIONSHIP_LABEL_ADVANCE + 10);
+
+// A label between two neighbouring columns is drawn in the gap between them:
+// on the straight line of a same-row relationship, or across the channel of a
+// bent one. The fixed gap was narrower than an ordinary two-word label plus the
+// cardinality glyph at each table edge, so most first drafts failed with a
+// label drawn over a table. When the grid owns every coordinate (no pinned
+// position, route, channel, or label point refers to absolute geometry), each
+// such gap widens just enough for its widest label to clear both glyphs.
+const LABEL_GLYPH_CLEARANCE = 24 + 4;
+function labelColumnGaps() {
+  if (!grid || Array.isArray(er.meta?.viewBox)) return null;
+  const rawEntities = asArray(er.entities);
+  const rawRelationships = asArray(er.relationships);
+  const absolute = rawEntities.some((entity) => Array.isArray(entity.pos))
+    || rawRelationships.some((relationship) => relationship.via?.length || relationship.labelAt
+      || (relationship.route && relationship.route !== 'auto')
+      || relationship.channelX !== undefined || relationship.channelY !== undefined);
+  if (absolute) return null;
+  const byId = new Map(rawEntities.map((entity) => [entity.id, entity]));
+  const gaps = new Map();
+  for (const relationship of rawRelationships) {
+    if (!relationship.label) continue;
+    const from = byId.get(relationship.from);
+    const to = byId.get(relationship.to);
+    if (![from?.col, to?.col].every(Number.isInteger) || Math.abs(from.col - to.col) !== 1) continue;
+    const gap = Math.min(from.col, to.col);
+    const demand = Math.ceil(relationshipLabelWidth(relationship.label) + LABEL_GLYPH_CLEARANCE * 2);
+    gaps.set(gap, Math.max(gaps.get(gap) || 0, demand));
+  }
+  return gaps.size ? gaps : null;
+}
+
+const bands = grid ? bandedLayout(measuredEntities, grid, { columnGaps: labelColumnGaps() }) : null;
 
 const entities = new Map(measuredEntities.map((entity) => {
   const [x, y] = resolveEntityPos(entity, grid, bands);
@@ -169,10 +212,10 @@ const DOMAIN_PAD_X = 12;
 const DOMAIN_PAD_TOP = 18;
 const DOMAIN_PAD_BOTTOM = 8;
 
-// A domain is drawn as a band when its members fill a solid block of grid cells:
-// every cell of the bounding box holds one of them, so the band encloses no cell
-// the domain does not own. A single row or column, the common case, is that same
-// claim with one dimension of one.
+// A domain is drawn as a band when its members fill a solid rectangle of grid
+// cells: every cell of the bounding box holds one of them, so the band encloses
+// no cell the domain does not own. A single row or column, the common case, is
+// that same claim with one dimension of one; an L or diagonal is not contiguous.
 function gridRunIsContiguous(members) {
   const cols = members.map((entity) => entity.col);
   const rows = members.map((entity) => entity.row);
@@ -253,14 +296,27 @@ function domainBandCaption(box) {
   return { x: box.x + 10, y: box.y + 13 };
 }
 
+// Each domain owns one hue that its band and its tables share, so a table's
+// domain reads from its header before the band caption is found. Untagged
+// tables keep the schema's database hue.
+const DOMAIN_HUES = ['database', 'frontend', 'backend', 'cloud', 'messagebus', 'security'];
+const domainHue = new Map();
+for (const entity of entities.values()) {
+  if (entity.tag && !domainHue.has(entity.tag)) domainHue.set(entity.tag, DOMAIN_HUES[domainHue.size % DOMAIN_HUES.length]);
+}
+const hueClassOf = (tag) => `er-hue-${(tag && domainHue.get(tag)) || 'database'}`;
+
 function renderDomainBands() {
   if (!domainGroups.length) return '';
   return domainGroups.map(({ tag, members }) => {
     const box = domainBandBox(members);
     const caption = domainBandCaption(box);
-    return `        <g data-domain-band="${esc(tag)}">
-          <rect x="${box.x}" y="${box.y}" width="${box.width}" height="${box.height}" rx="8" class="c-lane" stroke-width="1"/>
-          <text data-domain-label="" x="${caption.x}" y="${caption.y}" class="t-muted" font-size="9" font-weight="700">${esc(tag)}</text>
+    const pillWidth = Math.ceil(textUnits(tag) * (9 * nodeTextFit.widthFactor + 0.8) + 14);
+    return `        <g data-domain-band="${esc(tag)}" class="${hueClassOf(tag)}">
+          <rect x="${box.x}" y="${box.y}" width="${box.width}" height="${box.height}" rx="12" class="c-lane er-band" stroke-width="1"/>
+          <rect x="${caption.x - 2}" y="${box.y - 7}" width="${pillWidth}" height="15" rx="7.5" class="c-mask"/>
+          <rect x="${caption.x - 2}" y="${box.y - 7}" width="${pillWidth}" height="15" rx="7.5" class="er-band-pill"/>
+          <text data-domain-label="" x="${caption.x + 5}" y="${box.y + 3.6}" class="t-muted er-band-label" font-size="9" font-weight="700">${esc(tag)}</text>
         </g>`;
   }).join('\n');
 }
@@ -476,18 +532,9 @@ const viewBox = Array.isArray(er.meta?.viewBox) ? er.meta.viewBox : autoViewBox(
 // skipped and the shared candidate families run unchanged.
 const LANE_STEP = 12;
 
-// A relationship label is semantic data and the smallest text the diagram
-// carries: at the shared 8-unit default it projects to ~7.0px on a tall canvas,
-// under the 7.5px the canvas declares.
-const RELATIONSHIP_LABEL_FONT = 9;
-// The label's advance is measured from that size, not from a literal: the mask
-// the renderer draws, the rect the layout checks measure, and the obstacle the
-// legend measures must be the same rectangle, or a label can sit on a table edge
-// with no diagnostic (the checks would be measuring a narrower box than the ink).
-const RELATIONSHIP_LABEL_ADVANCE = 0.62;
 function relationshipLabelBox(relationship) {
   const [lx, ly] = erLabelPoint(relationship);
-  const width = Math.max(30, textUnits(relationship.label) * RELATIONSHIP_LABEL_FONT * RELATIONSHIP_LABEL_ADVANCE + 10);
+  const width = relationshipLabelWidth(relationship.label);
   return { x: lx - width / 2, y: ly - 10, width, height: 14 };
 }
 
@@ -524,6 +571,21 @@ const { ports, pathFor, inferredSides, connectionEndpointSide } = createRouter(e
   // A cardinality glyph is 14 units tall, so ports must clear it (see
   // ERD_PORT_SPACING, which the trunk bridge is derived from).
   maxPortSpacing: ERD_PORT_SPACING,
+  // Greedy planning routes each relationship against only the earlier ones, so
+  // a later route could cross an earlier corridor while an empty side of the
+  // table was free. Architecture's bounded readability sweep re-plans one
+  // route at a time against the complete scene and keeps a change only when it
+  // removes crossings or bends at bounded extra length.
+  preferReadableRoutes: true,
+  // A proper crossing fails the showcase gate, so a relationship that needs
+  // the obstacle search first looks for a detour that crosses nothing.
+  crossingFreeGridFirst: true,
+  // A detour keeps a readable gap from every table it only passes instead of
+  // running along its border at the grid's 2-unit clearance.
+  componentGapPx: 10,
+  // Corners are drawn with a 6-unit radius; an end segment shorter than the
+  // radius plus the 8-unit micro-segment floor fails the drawn-route gate.
+  minimumTerminalSegmentPx: 14,
 });
 
 function corridorKey(relationship) {
@@ -578,6 +640,11 @@ const TRUNK_SNAP = LANE_STEP;
 const TRUNK_BRIDGE = ERD_PORT_SPACING + 8;
 const TRUNK_CAP = 10;
 const TRUNK_LEG = 12;
+const DEFAULT_RELATIONSHIP_STROKE_WIDTH = 1.5;
+
+function relationshipStrokeWidth(relationship) {
+  return Number.isFinite(relationship.width) ? relationship.width : DEFAULT_RELATIONSHIP_STROKE_WIDTH;
+}
 
 const isHorizontalSide = (side) => (side === 'left' || side === 'right');
 
@@ -739,7 +806,14 @@ function relationshipTrunkRuns(relationship) {
   const assignment = trunkAssignments.get(relationship);
   if (!assignment) return [];
   if (trunkRunCache.has(relationship)) return trunkRunCache.get(relationship);
-  const { axis, coordinate } = assignment.group;
+  const { axis, coordinate, role, side } = assignment.group;
+  // The readability sweep may move a member to another table side after the
+  // groups were formed. Such a route no longer leaves through the shared side,
+  // so it is drawn whole instead of losing a coincidental stretch to the bus.
+  if (connectionEndpointSide(relationship, role === 'in' ? 'target' : 'source') !== side) {
+    trunkRunCache.set(relationship, []);
+    return [];
+  }
   const points = pathFor(relationship).points;
   const runs = [];
   for (let index = 0; index < points.length - 1; index += 1) {
@@ -796,13 +870,17 @@ function bundledTrunkPaths() {
     const key = `${axis}:${coordinate}:${styleKey}`;
     const list = clusters.get(key) || [];
     for (const run of runs) {
-      list.push({ low: run.low, high: run.high, styleKey });
+      list.push({ low: run.low, high: run.high, styleKey, relationship });
     }
     clusters.set(key, list);
   }
   const paths = [];
+  const bridged = [];
+  const routed = relationships.filter(renderableRelationship)
+    .map((relationship) => ({ relationship, points: pathFor(relationship).points, width: relationshipStrokeWidth(relationship) }));
   for (const [key, runs] of clusters) {
     const [axis, coordinate] = key.split(':').slice(0, 2).map(Number);
+    const members = new Set(runs.map((run) => run.relationship));
     runs.sort((left, right) => left.low - right.low);
     const merged = [];
     for (const run of runs) {
@@ -821,7 +899,20 @@ function bundledTrunkPaths() {
         const probe = axis === 0
           ? { start: [coordinate, last.high], end: [coordinate, segment.low] }
           : { start: [last.high, coordinate], end: [segment.low, coordinate] };
-        if (![...entities.values()].some((entity) => segmentIntersectsRect(probe, entity))) {
+        // 桥接不在任何逻辑关系中，必须检查它实际增加的墨迹。同簇成员可以共享总线；
+        // 无关路线和已补出的其他桥接一旦交叉、相接或重叠，就保留两段独立主干。
+        const box = {
+          x: probe.start[0], y: probe.start[1],
+          width: probe.end[0] - probe.start[0], height: probe.end[1] - probe.start[1],
+        };
+        // 两条线的半宽之和才是描边的接触边界，显式加粗关系也使用实际绘制宽度。
+        const conflicts = routed.some(({ relationship, points, width }) => !members.has(relationship)
+          && points.slice(1).some((end, index) => segmentIntersectsRect(
+            { start: points[index], end }, box, (DEFAULT_RELATIONSHIP_STROKE_WIDTH + width) / 2,
+          )))
+          || bridged.some((other) => segmentIntersectsRect(other, box, DEFAULT_RELATIONSHIP_STROKE_WIDTH));
+        if (!conflicts && ![...entities.values()].some((entity) => segmentIntersectsRect(probe, entity))) {
+          bridged.push(probe);
           last.high = segment.high;
           continue;
         }
@@ -833,7 +924,7 @@ function bundledTrunkPaths() {
       const points = axis === 0
         ? [[coordinate, segment.low], [coordinate, segment.high]]
         : [[segment.low, coordinate], [segment.high, coordinate]];
-      paths.push(`        <path data-er-trunk="" data-composition-points="${routePointsValue(points)}" d="${roundedPath(points, 8)}" class="${cls}" stroke-width="1.5"/>`);
+      paths.push(`        <path data-er-trunk="" data-composition-points="${routePointsValue(points)}" d="${roundedPath(points, 8)}" class="${cls}" stroke-width="${DEFAULT_RELATIONSHIP_STROKE_WIDTH}"/>`);
     }
   }
   return paths.join('\n');
@@ -841,10 +932,93 @@ function bundledTrunkPaths() {
 
 // Bundled labels default to the source-side stub so they never sit on the
 // shared trunk, where they would read as annotating every branch at once.
-function erLabelPoint(relationship) {
+function defaultErLabelPoint(relationship) {
   const points = pathFor(relationship).points;
   if (!trunkAssignments.get(relationship)) return labelPoint(relationship, points);
   return labelPoint({ ...relationship, labelSegment: relationship.labelSegment ?? 0 }, points);
+}
+
+const resolvedLabelPoints = new Map();
+function erLabelPoint(relationship) {
+  return resolvedLabelPoints.get(relationship) ?? defaultErLabelPoint(relationship);
+}
+
+// ---- Automatic label placement ----------------------------------------------
+// The default point is the midpoint of one segment, which knows nothing about
+// the tables, glyphs, or other routes around it: a vertical relationship put
+// its label on the source table's cardinality glyph, and a label in a busy gap
+// sat over a neighbouring table or channel. The shared bounded placer (the one
+// architecture and dataflow use) keeps every clear default and moves only a
+// colliding unpinned label to the nearest clear spot beside its own route.
+// Each relationship end reserves its cardinality glyph, and a bundled member's
+// shared trunk counts as another route, so a moved label never annotates the
+// bus or covers a crow's foot.
+// Half the glyph's 16-unit height plus the 2-unit overlap the shared placer
+// tolerates before it moves a label, so even a default spot keeps clear ink.
+const GLYPH_HALF_HEIGHT = 10;
+function cardinalityGlyphBox(point, side) {
+  const [x, y] = point;
+  const reach = MARKER_GLYPH_WIDTH;
+  if (side === 'left') return { x: x - reach, y: y - GLYPH_HALF_HEIGHT, width: reach, height: GLYPH_HALF_HEIGHT * 2 };
+  if (side === 'right') return { x, y: y - GLYPH_HALF_HEIGHT, width: reach, height: GLYPH_HALF_HEIGHT * 2 };
+  if (side === 'top') return { x: x - GLYPH_HALF_HEIGHT, y: y - reach, width: GLYPH_HALF_HEIGHT * 2, height: reach };
+  return { x: x - GLYPH_HALF_HEIGHT, y, width: GLYPH_HALF_HEIGHT * 2, height: reach };
+}
+
+{
+  const placeable = relationships.filter(renderableRelationship);
+  const labels = placeable.filter((relationship) => relationship.label).map((relationship) => {
+    const [lx, ly] = defaultErLabelPoint(relationship);
+    const width = relationshipLabelWidth(relationship.label);
+    return {
+      relation: relationship, relationIndex: relationships.indexOf(relationship), label: relationship.label,
+      x: lx - width / 2, y: ly - 10, width, height: 14, lx, ly,
+    };
+  });
+  if (labels.length) {
+    const routes = [];
+    const glyphs = [];
+    placeable.forEach((relationship) => {
+      const relationIndex = relationships.indexOf(relationship);
+      const { points } = pathFor(relationship);
+      glyphs.push(cardinalityGlyphBox(points[0], connectionEndpointSide(relationship, 'source')));
+      glyphs.push(cardinalityGlyphBox(points.at(-1), connectionEndpointSide(relationship, 'target')));
+      const runs = relationshipTrunkRuns(relationship);
+      if (!runs.length) {
+        routes.push({ relationIndex, points });
+        return;
+      }
+      const inRun = new Set(runs.flatMap((run) => Array.from({ length: run.endIndex - run.startIndex }, (_, step) => run.startIndex + step)));
+      let piece = [points[0]];
+      for (let index = 0; index < points.length - 1; index += 1) {
+        if (inRun.has(index)) {
+          if (piece.length > 1) routes.push({ relationIndex, points: piece });
+          routes.push({ relationIndex: -1 - routes.length, points: [points[index], points[index + 1]] });
+          piece = [points[index + 1]];
+        } else {
+          piece.push(points[index + 1]);
+        }
+      }
+      if (piece.length > 1) routes.push({ relationIndex, points: piece });
+    });
+    const titles = domainGroups.map(({ tag, members }) => {
+      const caption = domainBandCaption(domainBandBox(members));
+      return { x: caption.x - 2, y: caption.y - 10, width: textUnits(tag) * 9 * 0.65 + 4, height: 13 };
+    });
+    const footprint = legendFootprint(erLegendEntries, { width: Math.max(1, viewBox[0] - layout.margin * 2) });
+    const placed = placeAutomaticLabels({
+      labels,
+      routes,
+      components: [...entities.values(), ...glyphs],
+      titles,
+      viewBox,
+      placementBottom: viewBox[1] - layout.legendH - footprint.extraHeight,
+      keepFallbackNearRoute: true,
+    });
+    placed.forEach((rect, index) => {
+      if (rect !== labels[index]) resolvedLabelPoints.set(rect.relation, [rect.lx, rect.ly]);
+    });
+  }
 }
 
 function channelFallback({ conn, start, end, fromSide, toSide }) {
@@ -899,8 +1073,13 @@ function entityHeader(entity) {
 
 function validateEr() {
   const problems = [];
+  // A self-relationship is reported once below; route checks skip it so they
+  // do not suggest side or route repairs for a line that is never drawn.
+  const routableRelationships = relationships.map((relationship) => (
+    relationship.from === relationship.to ? null : relationship));
   const headerDetails = [];
   const domainDetails = [];
+  const attributeDetails = [];
   for (const entity of entities.values()) {
     const header = entityHeader(entity);
     if (!header.problem) continue;
@@ -923,7 +1102,7 @@ function validateEr() {
     const offGrid = domain.offGrid.map((id) => `"${id}"`).join(', ');
     const message = domain.reason === 'no-grid'
       ? `Domain "${domain.tag}" is named but cannot be drawn: ${offGrid} have no grid cells, and a band is measured from them. Give every member row/col cells, or drop the tag.`
-      : `Domain "${domain.tag}" is named but cannot be drawn: ${listed} do not fill a solid block of grid cells, and a band around them would enclose cells the domain does not own. Move them into one block, or split the tag.`;
+      : `Domain "${domain.tag}" is named but cannot be drawn: ${listed} do not fill a solid rectangle of grid cells (a row, a column, or a filled block — not an L or diagonal), and a band around them would enclose cells the domain does not own. Move them into one block, or split the tag.`;
     problems.push(message);
     domainDetails.push({
       code: 'erd/domain-not-drawn', severity: 'error', message,
@@ -931,7 +1110,7 @@ function validateEr() {
       evidence: { domain: domain.tag, entities: members, reason: domain.reason, offGrid: domain.offGrid },
       supportedFixes: domain.reason === 'no-grid'
         ? ['Give every domain member row/col cells.', 'Drop the tag to group nothing.']
-        : ['Give the domain members one solid block of grid cells.', 'Split the tag so each domain can be drawn as a band.', 'Drop the tag to group nothing.'],
+        : ['Give the domain members one solid rectangle of grid cells (a row, a column, or a filled block — not an L).', 'Split the tag so each domain can be drawn as a band.', 'Drop the tag to group nothing.'],
     });
   }
   // The band draws the domain name, so a band the canvas cannot show would put
@@ -972,7 +1151,7 @@ function validateEr() {
   }
   validateErGridPlacement(er, grid, bands, problems);
   const seenEntityIds = new Set();
-  for (const entity of asArray(er.entities)) {
+  for (const [entityIndex, entity] of asArray(er.entities).entries()) {
     if (seenEntityIds.has(entity.id)) problems.push(`Entity ids must be unique; "${entity.id}" is declared twice.`);
     seenEntityIds.add(entity.id);
 
@@ -992,9 +1171,21 @@ function validateEr() {
       const available = entityWidth(entity) - layout.padX * 2 - keyColumnWidth(entity);
       const needed = nameUnits * layout.rowFont + (typeUnits ? typeUnits * layout.typeFont + 8 : 0);
       if (needed > available) {
-        problems.push(
-          `Entity "${entity.id}" attribute ${attributeIndex} "${attribute.name}" needs ${Math.ceil(needed)}px of text but only ${Math.floor(available)}px is available — widen the entity, shorten the attribute name, or drop the type.`,
-        );
+        const requiredEntityWidth = Math.ceil(needed + layout.padX * 2 + keyColumnWidth(entity));
+        const fix = `For this attribute row's text capacity, set entities[${entityIndex}].width to at least ${requiredEntityWidth}px, preserving the attribute name, type and key roles.`;
+        const message = `Entity "${entity.id}" attribute ${attributeIndex} "${attribute.name}" needs ${Math.ceil(needed)}px of text but only ${Math.floor(available)}px is available — ${fix}`;
+        problems.push(message);
+        attributeDetails.push({
+          code: 'erd/attribute-text-capacity', severity: 'error', message,
+          subject: { diagramType: 'erd', entityId: entity.id, attributeIndex, attributeName: attribute.name },
+          evidence: {
+            entityWidth: entityWidth(entity), requiredEntityWidth,
+            availableTextWidth: available, requiredTextWidth: needed,
+            paddingWidth: layout.padX * 2, keyColumnWidth: keyColumnWidth(entity),
+            nameFontSize: layout.rowFont, typeFontSize: layout.typeFont,
+          },
+          supportedFixes: [fix],
+        });
       }
     }
   }
@@ -1081,7 +1272,7 @@ function validateEr() {
   }
 
   problems.push(...cleanEndpointSideProblems({
-    relations: relationships,
+    relations: routableRelationships,
     endpointIds: new Set(entities.keys()),
     pathFor,
     diagramType: 'erd',
@@ -1091,7 +1282,7 @@ function validateEr() {
     routeHint: 'keep automatic routing so the renderer can use a side-aware bridge, or set truthful fromSide/toSide',
   }));
   problems.push(...cleanFlowProblems({
-    relations: relationships,
+    relations: routableRelationships,
     obstacles: entities.values(),
     pathFor,
     diagramType: 'erd',
@@ -1100,16 +1291,16 @@ function validateEr() {
     routeHint: 'adjust fromSide/toSide, set route/via, or move the entity',
   }));
   problems.push(...cleanCrossingProblems({
-    relations: relationships,
+    relations: routableRelationships,
     endpointIds: new Set(entities.keys()),
     pathFor,
     diagramType: 'erd',
     relationCollection: 'relationships',
     profile: er.meta?.quality_profile,
-    routeHint: 'move the entities so unrelated relationships use separate corridors',
+    routeHint: 'move the entities so unrelated relationships use separate corridors — put a junction beside both parents inside one solid domain rectangle',
   }));
   problems.push(...cleanAmbiguousCorridorProblems({
-    relations: relationships,
+    relations: routableRelationships,
     endpointIds: new Set(entities.keys()),
     pathFor,
     diagramType: 'erd',
@@ -1118,7 +1309,7 @@ function validateEr() {
     routeHint: 'give the relationships different fromSide/toSide targets, or move an entity so their corridors differ',
   }));
   problems.push(...cleanRouteRhythmProblems({
-    relations: relationships,
+    relations: routableRelationships,
     endpointIds: new Set(entities.keys()),
     pathFor,
     diagramType: 'erd',
@@ -1147,7 +1338,7 @@ function validateEr() {
     }
   }
   problems.push(...cleanLabelRouteClearanceProblems({
-    relations: relationships,
+    relations: routableRelationships,
     labels: labelRects,
     endpointIds: new Set(entities.keys()),
     pathFor,
@@ -1160,7 +1351,7 @@ function validateEr() {
     throwDiagnosticProblems('Entity-relationship layout validation failed', problems, {
       code: 'layout/constraint',
       subject: { diagramType: 'erd' },
-      diagnostics: [...headerDetails, ...domainDetails, ...portSpacingDetails],
+      diagnostics: [...headerDetails, ...domainDetails, ...portSpacingDetails, ...attributeDetails],
     });
   }
 }
@@ -1174,7 +1365,7 @@ function buildLayoutReport() {
     relationships: relationships
       .filter(renderableRelationship)
       .map((relationship) => ({
-        ...relationshipPath(relationship, pathFor(relationship), relationship.labelAt),
+        ...relationshipPath(relationship, pathFor(relationship), relationship.labelAt || resolvedLabelPoints.get(relationship)),
         fromCardinality: cardinalityOf(relationship, 'from'),
         toCardinality: cardinalityOf(relationship, 'to'),
       })),
@@ -1203,12 +1394,17 @@ function renderEntityColumnRows(entity) {
     const type = attribute.type
       ? `<text data-detail="context" x="${entity.x + entity.width - layout.padX}" y="${baseline}" class="er-type" font-size="${layout.typeFont}" text-anchor="end">${esc(attribute.type)}</text>`
       : '';
+    const zebra = index % 2
+      ? `<rect x="${entity.x + 4}" y="${rowTop + 1}" width="${entity.width - 8}" height="${metrics.rowH - 2}" rx="4" class="er-zebra"/>`
+      : '';
+    const primary = keyRoles(attribute).includes('pk');
     return `          <g data-detail="context" data-er-row="${index}">
             <line x1="${entity.x}" y1="${rowTop}" x2="${entity.x + entity.width}" y2="${rowTop}" class="c-grid er-row-rule" stroke-width="0.5"/>
+            ${zebra}
             ${keyGlyph}
-            <text data-detail="context" x="${nameX}" y="${baseline}" class="t-primary" font-size="${nameFontSize}">${esc(attribute.name)}</text>
+            <text data-detail="context" x="${nameX}" y="${baseline}" class="t-primary${primary ? ' er-name-pk' : ''}" font-size="${nameFontSize}">${esc(attribute.name)}</text>
             ${type}
-          </g>`;
+          </g>`.replace(/[ \t]+$/gm, '');
   }).join('\n');
 }
 
@@ -1222,14 +1418,16 @@ function renderEntity(entity) {
     context: i18nText(er.meta.locale, 'node.context.erd'),
   };
   const rows = renderEntityColumnRows(entity);
-  return `        <g ${focusNodeAttrs(entity.id, entity.label, passport, er.meta.locale)}>
+  const r = 8;
+  return `        <g ${focusNodeAttrs(entity.id, entity.label, passport, er.meta.locale)} class="${hueClassOf(entity.tag)}">
           ${focusNodeTitle(entity.label, passport)}
-          <rect x="${entity.x}" y="${entity.y}" width="${entity.width}" height="${entity.height}" rx="5" class="c-mask"/>
-          <rect x="${entity.x}" y="${entity.y}" width="${entity.width}" height="${entity.height}" rx="5" class="c-database er-table"${animateAttr(er.meta, 'node', entitySteps.get(entity.id))} stroke-width="1.5"/>
-          <path class="er-table-header" d="M ${entity.x + 5} ${entity.y} H ${entity.x + entity.width - 5} Q ${entity.x + entity.width} ${entity.y} ${entity.x + entity.width} ${entity.y + 5} V ${header} H ${entity.x} V ${entity.y + 5} Q ${entity.x} ${entity.y} ${entity.x + 5} ${entity.y} Z"/>
+          <rect x="${entity.x}" y="${entity.y}" width="${entity.width}" height="${entity.height}" rx="${r}" class="c-mask"/>
+          <rect x="${entity.x}" y="${entity.y}" width="${entity.width}" height="${entity.height}" rx="${r}" class="c-database er-table"${animateAttr(er.meta, 'node', entitySteps.get(entity.id))} stroke-width="1.2"/>
+          <path class="er-table-header" d="M ${entity.x + r} ${entity.y} H ${entity.x + entity.width - r} A ${r} ${r} 0 0 1 ${entity.x + entity.width} ${entity.y + r} V ${header} H ${entity.x} V ${entity.y + r} A ${r} ${r} 0 0 1 ${entity.x + r} ${entity.y} Z"/>
+          <path class="er-table-cap" d="M ${entity.x + 12} ${entity.y + 1.4} H ${entity.x + entity.width - 12}" stroke-width="2.6" stroke-linecap="round" fill="none"/>
           ${renderSemanticSigil('database', { x: entity.x + 8, y: entity.y + 7, size: 14 })}
-          <text data-node-label="" x="${labelX}" y="${entity.y + labelY}" class="t-primary" font-size="${labelFont}" font-weight="700" text-anchor="middle">${esc(entity.label)}</text>
-          <line x1="${entity.x}" y1="${header}" x2="${entity.x + entity.width}" y2="${header}" class="c-grid" stroke-width="1"/>
+          <text data-node-label="" x="${labelX}" y="${entity.y + labelY}" class="t-primary er-title" font-size="${labelFont}" font-weight="700" text-anchor="middle">${esc(entity.label)}</text>
+          <line x1="${entity.x}" y1="${header}" x2="${entity.x + entity.width}" y2="${header}" class="c-grid er-header-rule" stroke-width="1"/>
 ${rows}
         </g>`;
 }
@@ -1238,7 +1436,7 @@ function renderRelationshipPath(relationship, index) {
   const [cls] = arrowClassMap[markerStyleOf(relationship)] || arrowClassMap.default;
   const routed = pathFor(relationship);
   const d = bundledRelationshipD(routed, relationshipTrunkRuns(relationship));
-  const strokeWidth = Number.isFinite(relationship.width) ? relationship.width : 1.5;
+  const strokeWidth = relationshipStrokeWidth(relationship);
   return `        <path ${focusEdgeAttrs(relationship.from, relationship.to, relationship.label, index, relationship.id)} data-er-ends="${relationshipEnds(relationship).join(' ')}" data-composition-points="${routePointsValue(routed.points)}" d="${d}" class="${cls}"${animateAttr(er.meta, 'edge', index)} stroke-width="${strokeWidth}" marker-start="url(#${cardinalityMarkerId(relationship, 'from')})" marker-end="url(#${cardinalityMarkerId(relationship, 'to')})"/>`;
 }
 
@@ -1316,10 +1514,19 @@ function renderSvg() {
 ${svgAccessibleText(er.meta, 'erd')}
 ${renderDefinitions(renderCardinalityDefs())}
         <style>
-          svg[data-erd-ui="cards"] .er-table { fill: var(--mask); stroke: var(--lane-stroke); }
-          svg[data-erd-ui="cards"] .er-table-header { fill: var(--database-fill); stroke: none; }
-          svg[data-erd-ui="cards"] .er-row-rule { stroke: var(--lane-stroke); stroke-opacity: .55; }
-          svg[data-erd-ui="cards"] .er-type { fill: var(--text-muted); }
+${DOMAIN_HUES.map((hue) => `          svg[data-erd-ui="cards"] .er-hue-${hue} { --er-hue: var(--${hue}-stroke); --er-wash: var(--${hue}-fill); }`).join('\n')}
+          svg[data-erd-ui="cards"] .er-band { fill: color-mix(in srgb, var(--er-hue) 4%, transparent); stroke: color-mix(in srgb, var(--er-hue) 20%, transparent); stroke-dasharray: none; }
+          svg[data-erd-ui="cards"] .er-band-pill { fill: var(--er-wash); stroke: color-mix(in srgb, var(--er-hue) 30%, transparent); stroke-width: .8; }
+          svg[data-erd-ui="cards"] .er-band-label { fill: var(--er-hue); letter-spacing: .08em; text-transform: uppercase; }
+          svg[data-erd-ui="cards"] .er-table { fill: var(--mask); stroke: color-mix(in srgb, var(--er-hue) 34%, var(--lane-stroke)); }
+          svg[data-erd-ui="cards"] .er-table-header { fill: var(--er-wash); stroke: none; }
+          svg[data-erd-ui="cards"] .er-table-cap { stroke: var(--er-hue); pointer-events: none; }
+          svg[data-erd-ui="cards"] .er-header-rule { stroke: color-mix(in srgb, var(--er-hue) 30%, var(--lane-stroke)); }
+          svg[data-erd-ui="cards"] [class*="er-hue-"] .semantic-sigil { color: var(--er-hue); }
+          svg[data-erd-ui="cards"] .er-row-rule { stroke-opacity: 0; }
+          svg[data-erd-ui="cards"] .er-zebra { fill: color-mix(in srgb, var(--er-hue) 6%, transparent); }
+          svg[data-erd-ui="cards"] .er-name-pk { font-weight: 700; }
+          svg[data-erd-ui="cards"] .er-type { fill: var(--text-muted); opacity: .86; }
           svg[data-erd-ui="cards"] .er-key-badge { fill: var(--database-fill); stroke: none; }
           svg[data-erd-ui="cards"] .er-key-badge[data-er-badge="fk"] { fill: var(--messagebus-fill); }
           svg[data-erd-ui="cards"] .er-key-badge[data-er-badge="uk"] { fill: none; stroke: var(--lane-stroke); }

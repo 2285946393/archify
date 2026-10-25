@@ -129,6 +129,7 @@ test('Focus preserves semantic selection, relationships, reachability and shared
     await load();await select('cdn');await focus('#btn-focus-relations');await key('Enter','Enter',13);
     assert.equal(await run(`document.querySelectorAll('#relationship-lens-list [data-relationship-target]').length`),5);
     await focus(relation('a'));await key('End','End',35);assert.equal(await run('document.activeElement.dataset.relationshipKey'),'i');await key('Home','Home',36);assert.equal(await run('document.activeElement.dataset.relationshipKey'),'b');
+    assert.deepEqual(await run(`(()=>{const before=document.activeElement.dataset.relationshipKey,event=new KeyboardEvent('keydown',{key:'End',bubbles:true,cancelable:true,ctrlKey:true});document.activeElement.dispatchEvent(event);return {prevented:event.defaultPrevented,focus:document.activeElement.dataset.relationshipKey,before};})()`),{prevented:false,focus:'b',before:'b'});
     await key('ArrowDown','ArrowDown',40);assert.equal(await run('document.activeElement.dataset.relationshipKey'),'d');await key('Enter','Enter',13);assert.equal(await run('Archify.focus.active()'),'api');assert.equal(await run('document.activeElement.dataset.nodeId'),'api');
     await select('isolated');const s=await snapshot('isolated-passport');assert.equal(s.rows.length,0);assert.deepEqual(await run(`({up:document.getElementById('btn-reach-upstream').disabled,down:document.getElementById('btn-reach-downstream').disabled,evidence:document.getElementById('focus-evidence').hidden,detail:document.getElementById('focus-detail').hidden})`),{up:true,down:true,evidence:true,detail:true});assert.equal(await run(`Archify.focus.reach('upstream')`),false);
   });
@@ -189,19 +190,54 @@ test('Focus preserves semantic selection, relationships, reachability and shared
       assert.equal(r.copied,!['false','throw'].includes(mode));assert.equal(r.hash,'#focus=cdn&reach=downstream');assert.match(r.query,/keep=yes/);assert.equal(r.remaining,0);assert.equal(r.label,r.copied?'Copied':'Copy failed');records.push({scenario:'copy-'+mode,...r});
       await run(`focusWait(()=>document.getElementById('btn-focus-copy').textContent===viewerText('viewer.passport.copy'))`);
     }
-    await load();await run(`Archify.focus.inspectRelationshipById('edge-d');Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:value=>{window.copiedFocusUrl=value;return Promise.resolve();}}})`);assert.equal(await run('Archify.focus.copyLink()'),true);assert.equal(await run('new URL(copiedFocusUrl).hash'),'#relation=edge-d');await run('Archify.focus.clear()');await run('new Promise(resolve=>setTimeout(resolve,1650))');assert.equal(await run(`document.getElementById('btn-focus-copy').textContent`),await run(`viewerText('viewer.passport.copy')`));assert.equal(await run('Archify.focus.copyLink()'),false);
+    await load();
+    const clearedFeedback = await run(`(async () => {
+      Archify.focus.inspectRelationshipById('edge-d');
+      let copiedUrl;
+      Object.defineProperty(navigator, 'clipboard', { configurable: true, value: {
+        writeText: value => { copiedUrl = value; return Promise.resolve(); }
+      } });
+      // Capture only this copy call's delayed feedback. Replay production's
+      // callback after clear rather than prescribing its delay or navigating
+      // away before a stale callback can run.
+      const schedule = window.setTimeout, callbacks = [];
+      let copied, copiedLabel;
+      window.setTimeout = (callback, delay, ...args) => {
+        callbacks.push(() => callback(...args));
+        return callbacks.length;
+      };
+      try {
+        copied = await Archify.focus.copyLink();
+        copiedLabel = document.getElementById('btn-focus-copy').textContent;
+      } finally { window.setTimeout = schedule; }
+      Archify.focus.clear();
+      for (const callback of callbacks) callback();
+      const button = document.getElementById('btn-focus-copy');
+      return { copied, hash: new URL(copiedUrl).hash, copiedLabel,
+        callbackCount: callbacks.length, label: button.textContent,
+        aria: button.getAttribute('aria-label'), canCopy: await Archify.focus.copyLink(),
+        defaultLabel: viewerText('viewer.passport.copy'), defaultAria: viewerText('viewer.passport.copy.focus') };
+    })()`);
+    assert.equal(clearedFeedback.copied, true);
+    assert.equal(clearedFeedback.hash, '#relation=edge-d');
+    assert.equal(clearedFeedback.copiedLabel, 'Copied');
+    assert.ok(clearedFeedback.callbackCount > 0, 'copy feedback must actually execute after clear');
+    assert.equal(clearedFeedback.label, clearedFeedback.defaultLabel);
+    assert.equal(clearedFeedback.aria, clearedFeedback.defaultAria);
+    assert.equal(clearedFeedback.canCopy, false);
+
   });
   await t.test('real pulse completion and motion transitions preserve static relationship state',async()=>{
-    await load('graph',{reduced:false});await run(`Archify.focus.inspectRelationshipById('edge-d')`);assert.equal(await run(`document.querySelectorAll('[data-relationship-pulse-overlay]').length`),1);
+    await load('graph',{reduced:false});await run(`Archify.motionGovernor.resume();Archify.focus.inspectRelationshipById('edge-d')`);assert.equal(await run(`document.querySelectorAll('[data-relationship-pulse-overlay]').length`),1);
     await run(`focusWait(()=>pulseEvents.some(e=>e.type==='animationend'&&e.trusted))`);assert.equal((await snapshot('pulse-ended')).pulse,0);
     await run(`Archify.focus.clear();Archify.focus.inspectRelationshipById('edge-d')`);await send('Emulation.setEmulatedMedia',{features:[{name:'prefers-reduced-motion',value:'reduce'}]});await run(`focusWait(()=>!document.querySelector('[data-relationship-pulse-overlay]'))`);assert.equal((await snapshot('reduced-preserves-pin')).relationship.id,'edge-d');
-    await load('graph',{reduced:false});await run(`Archify.focus.inspectRelationshipById('edge-d');focusWait(()=>document.querySelector('.relationship-flow-pulse').getAnimations().some(a=>a.currentTime>0))`);await run(`document.querySelector('.relationship-flow-pulse').style.animation='none'`);await run(`focusWait(()=>pulseEvents.some(e=>e.type==='animationcancel'&&e.trusted))`);assert.equal(await run(`document.querySelectorAll('[data-relationship-pulse-overlay]').length`),0);
+    await load('graph',{reduced:false});await run(`Archify.motionGovernor.resume();Archify.focus.inspectRelationshipById('edge-d');focusWait(()=>document.querySelector('.relationship-flow-pulse').getAnimations().some(a=>a.currentTime>0))`);await run(`document.querySelector('.relationship-flow-pulse').style.animation='none'`);await run(`focusWait(()=>pulseEvents.some(e=>e.type==='animationcancel'&&e.trusted))`);assert.equal(await run(`document.querySelectorAll('[data-relationship-pulse-overlay]').length`),0);
     await run(`Archify.focus.clear();Object.defineProperty(document,'hidden',{configurable:true,value:true});Archify.focus.inspectRelationshipById('edge-d');document.dispatchEvent(new Event('visibilitychange'))`);assert.equal((await snapshot('hidden-fixture')).pulse,0);
     await load('graph',{reduced:false});await run(`Archify.motionGovernor.pause();Archify.focus.inspectRelationshipById('edge-d')`);assert.equal((await snapshot('still-preserves-pin')).pulse,0);
   });
   await t.test('real SVG export strips temporary Focus, Reach and relationship state from clones',async()=>{
     for(const [name,setup] of [['focus',`Archify.focus.set('cdn')`],['reach',`Archify.focus.set('cdn');Archify.focus.reach('downstream',{reveal:false})`],['pin',`Archify.focus.inspectRelationshipById('edge-d')`],['preview',`Archify.focus.set('cdn');document.getElementById('btn-focus-relations').click();document.querySelector('#relationship-lens-list [data-relationship-key="b"]').focus()`]]) {
-      await load('graph',{reduced:false});await run(setup);
+      await load('graph',{reduced:false});await run(`Archify.motionGovernor.resume()`);await run(setup);
       const present=await run(`(()=>{const svg=document.querySelector('.diagram-container > svg');return {focus:svg.hasAttribute('data-focus-active'),reach:svg.hasAttribute('data-reach-active'),pin:svg.hasAttribute('data-relationship-pin-active'),preview:svg.hasAttribute('data-relationship-preview-active'),pulse:!!svg.querySelector('[data-relationship-pulse-overlay]'),hits:!!svg.querySelector('[data-relationship-hit-overlay]')};})()`);
       assert.deepEqual(present,{focus:true,reach:name==='reach',pin:name==='pin',preview:['pin','preview'].includes(name),pulse:['pin','preview'].includes(name),hits:true});
       const r=await run(`(async()=>{const svg=document.querySelector('.diagram-container > svg'),before=svg.outerHTML,create=URL.createObjectURL;let blob,after;

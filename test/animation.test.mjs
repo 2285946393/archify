@@ -46,10 +46,17 @@ function svgBlock(html) {
   return html.match(/<svg\b[\s\S]*?<\/svg>/)?.[0] || '';
 }
 
-test('static output omits animation attributes', () => {
-  const svg = svgBlock(render('workflow', CASES.workflow, null, null));
-  assert.doesNotMatch(svg, /data-animation=/);
-  assert.doesNotMatch(svg, /data-animate=/);
+test('all ten diagram modes enable motion without an authoring switch', () => {
+  const examples = { ...CASES, erd: 'orders.erd.json', class: 'payments.class.json',
+    tree: 'payment-platform.tree.json', timeline: 'payment-incident.timeline.json',
+    waterfall: 'checkout-request.waterfall.json' };
+  for (const [mode, example] of Object.entries(examples)) {
+    const defaultSvg = svgBlock(render(mode, example, null, null));
+    assert.match(defaultSvg, /data-animation="trace"/, mode);
+    assert.match(defaultSvg, /data-animate="node"/, mode);
+    assert.equal(defaultSvg, svgBlock(render(mode, example, 'trace', null)), `${mode}: unchanged geometry`);
+    assert.equal(defaultSvg, svgBlock(render(mode, example, 'none', null)), `${mode}: legacy input remains accepted`);
+  }
 });
 
 test('classic preset remains the default for existing diagrams', () => {
@@ -129,10 +136,13 @@ test('editorial preset reaches every visual surface and all five typed renderers
   }
 });
 
-test('all five renderers add one geometry-neutral semantic sigil per primary node', () => {
+test('all five renderers add one geometry-neutral semantic sigil per sigil-bearing node', () => {
   for (const [mode, example] of Object.entries(CASES)) {
     const source = JSON.parse(fs.readFileSync(path.join(skillRoot, 'examples', example), 'utf8'));
-    const expected = source[NODE_COLLECTION[mode]].length;
+    // Lifecycle start, active and neutral states have no default sigil unless final.
+    const outgoing = new Set((source.transitions || []).map((transition) => transition.from));
+    const expected = source[NODE_COLLECTION[mode]].filter((node) => mode !== 'lifecycle' || node.icon
+      || !['start', 'active', 'neutral'].includes(node.type) || !outgoing.has(node.id)).length;
     const staticHtml = render(mode, example, null, 'classic');
     const traceHtml = render(mode, example, 'trace', 'classic');
     const staticSvg = svgBlock(staticHtml);
@@ -172,6 +182,24 @@ test('semantic SVG identity is deterministic for unchanged input', () => {
   const second = svgBlock(render('workflow', CASES.workflow));
   const hooks = (svg) => [...svg.matchAll(/(?:id="node-|data-edge-from=")[^>]+/g)].map((match) => match[0]);
   assert.deepEqual(hooks(first), hooks(second));
+});
+
+test('Live relay ships comet layers whose timing the Motion Governor plans', () => {
+  const html = render('architecture', CASES.architecture);
+  for (const layer of ['wake', 'glow', 'halo', 'tail', 'head', 'ripple']) {
+    assert.match(html, new RegExp(`\\.ambient-flow-${layer} \\{`));
+  }
+  assert.match(html, /@keyframes archify-node-enter/);
+  assert.match(html, /--flow-cycle: 6\.4s/);
+  assert.match(html, /html\[data-theme="light"\] svg\[data-animation="trace"\] \{/);
+  assert.match(html, /html\[data-theme="light"\] \.ambient-flow-head \{/);
+  // Per-edge keyframes come from the planned relay; no fixed shared-cycle
+  // cascade, echo comet or load-time trace layer remains.
+  assert.match(html, /function planRelay\(records, windows\)/);
+  assert.match(html, /animation-name: var\(--flow-name, none\)/);
+  assert.doesNotMatch(html, /archify-cascade-|archify-flow-ripple-echo|tail echo|--flow-step-delay/);
+  assert.doesNotMatch(html, /archify-ambient-flow|--ambient-flow-duration/);
+  assert.doesNotMatch(html, /ambient-flow-trace|archify-trace-in|archify-trace-fade/);
 });
 
 process.on('exit', () => fs.rmSync(tmp, { recursive: true, force: true }));

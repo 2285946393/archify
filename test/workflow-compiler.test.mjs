@@ -26,13 +26,8 @@ function sha256(value) {
   return createHash('sha256').update(value).digest('hex');
 }
 
-// #199 intentionally changes only text positions inside fixed-v1 nodes.
-// Pin every other SVG byte to the pre-fix baseline, including labels, fonts,
-// node bounds, icon shapes, edges, ports, viewBox and accessibility metadata.
-function withoutNodeTextPositions(svg) {
-  return svg.replace(/<text\b(?=[^>]*\bdata-(?:node-label|detail)=)[^>]*>/g,
-    tag => tag.replace(/\s[xy]="[^"]*"/g, ''));
-}
+// Receipt digests are frozen from pre-styling 7122e1da: they retain node bounds,
+// routes, ports, labels and canvas without pinning approved SVG presentation.
 
 function attribute(tag, name) {
   const value = tag.match(new RegExp(`\\b${name}="([^"]*)"`))?.[1];
@@ -319,13 +314,13 @@ function assertReadableAdjacentResult(result, { label, widths = [92, 92] } = {})
   }
 }
 
-test('fixed-v1 preserves baseline SVG except repaired node text positions', () => {
+test('fixed-v1 preserves baseline geometry and content through presentation changes', () => {
   const workflow = readJson(path.join(__dirname, 'fixtures', 'v1-baseline', 'agent-tool-call.workflow.json'));
   const result = compileSuccessfully(workflow);
   assert.equal(result.receipt.contract, 'fixed-v1');
   assert.equal(
-    sha256(withoutNodeTextPositions(result.svg)),
-    'e64795a4521e8568718981bf053c6e8f4e0cf714e27f70f0087d1850ae1fe633',
+    sha256(JSON.stringify(result.receipt)),
+    'fa7fe055050cbd43adbb2c56fd5bf6e69b9ae0e66808c4eb6528cb4fb94d8cac',
   );
 });
 
@@ -341,9 +336,9 @@ test('fixed-v1 compiler preserves the exact 700x400 compatibility geometry', () 
   assert.deepEqual(result.receipt.viewBox, [700, 400]);
   assert.deepEqual(svgViewBox(result.svg), [0, 0, 700, 400]);
   assert.equal(
-    sha256(withoutNodeTextPositions(result.svg)),
-    '79ac3e30f9e81263f9c7941339a6fe684f3a33dd2ac3ce4f7281a03fa2ee1c6b',
-    'the clearance repair must not move or reserialize legacy geometry outside node text',
+    sha256(JSON.stringify(result.receipt)),
+    '95fc3f75b7067ac01c807ba53eae5cb05e122f10c3002560b7a91a4446ea4f6e',
+    'presentation changes must retain the pre-styling geometry receipt',
   );
 });
 
@@ -352,13 +347,14 @@ test('readable-v2 separates approval branches in the checked-in workflow example
   const result = compileSuccessfully(workflow);
 
   assert.equal(result.receipt.contract, 'readable-v2');
-  assert.equal(
-    // The only visible delta is approved-tool's source moving 12px left:
-    // approval-denied and approved-tool previously shared a mixed-style trunk.
-    // Node geometry, labels, all other paths and v1 baselines are unchanged.
-    sha256(result.svg.replace(/ data-(?:composition-routing|edge-role|layout-contract)="[^"]*"/g, '')),
-    '7a4effe6000ef4d5c8e2e933186ff225f6398d76216d916600e51f8e05a7e139',
-  );
+  // Showcase checks the complete routes for shared corridors and collisions.
+  // Keep these branches visually distinct without freezing automatic SVG bytes;
+  // the golden test separately verifies checked-in artifact freshness.
+  const denied = edgePoints(result.svg, 'approval-denied');
+  const approved = edgePoints(result.svg, 'approved-tool');
+  assert.notDeepEqual(denied[0], approved[0], 'approval outcomes need distinct exits');
+  assert.equal(result.receipt.edges.length, workflow.edges.length);
+  assert.equal(result.receipt.labels.find(({ edge }) => edge === 'approval-denied').label, 'denied');
 });
 
 test('fixed-v1 keeps valid phase and group spans independent of label measurement', () => {
@@ -380,8 +376,8 @@ test('fixed-v1 keeps valid phase and group spans independent of label measuremen
   const result = compileSuccessfully(workflow);
   assert.match(
     result.svg,
-    /<line x1="42" y1="35" x2="134" y2="35"/,
-    'v1 phase spans must retain the legacy fixed 46px padding',
+    /<path d="M 50 35 H 126"/,
+    'v1 phase hairlines retain the fixed span with the approved 8px end inset',
   );
   assert.match(
     result.svg,
@@ -481,27 +477,120 @@ test('absolute route pins retain shared-height readable-v2 geometry', () => {
   assert.deepEqual([0, 1, 2].map((index) => laneFrameRect(result.svg, index).height), [276, 270, 270]);
 });
 
-test('a measured intrinsic readable-v2 tall lane opts into height-aware reader fitting', () => {
+test('an automatic readable-v2 vertical stack opts into width-first reader fitting', () => {
   const result = compileSuccessfully(stackedGroupWorkflow({
     schemaVersion: 2,
     offsets: [-90, 0, 90],
   }));
   const svgRoot = result.svg.match(/<svg\b[^>]*>/)?.[0];
   assert.ok(svgRoot, 'expected an SVG root');
-  assert.equal(attribute(svgRoot, 'data-reader-fit'), 'intrinsic-height');
+  assert.equal(attribute(svgRoot, 'data-reader-fit'), 'width-first');
 });
 
-test('height-aware reader fitting stays off for authored canvases, fixed-v1, and baseline lanes', () => {
+test('a readable-v2 node without an authored width grows to fit its label', () => {
+  const workflow = adjacentWorkflow({ widths: [undefined, undefined], nodeLabels: ['Start', 'TOOL_RESULT 策略'] });
+  const before = JSON.stringify(workflow);
+  const result = compileSuccessfully(workflow);
+  const width = Number(result.svg.match(/data-node-id="b"[\s\S]*?<rect[^>]*width="([\d.]+)"/)[1]);
+  assert.equal(JSON.stringify(workflow), before, 'the authored document is not rewritten');
+  assert.equal(width, 104);
+});
+
+test('automatic widths are recomputed after editing the same workflow object', () => {
+  const document = adjacentWorkflow({ widths: [undefined, undefined], nodeLabels: ['Start', 'a'.repeat(29)] });
+  document.nodes[1].col = 5;
+  const expanded = compileSuccessfully(document);
+  assert.equal(expanded.receipt.nodes.find(({ id }) => id === 'b').width, 192);
+  document.nodes[1].label = 'A';
+  document.meta.viewBox = [768, 420];
+  const reused = compileSuccessfully(document);
+  const fresh = compileSuccessfully(clone(document));
+  assert.equal(reused.receipt.nodes.find(({ id }) => id === 'b').width, 92);
+  assert.equal(reused.svg, fresh.svg);
+  assert.deepEqual(reused.receipt, fresh.receipt);
+});
+
+test('switching an edited document to fixed-v1 does not reuse automatic widths', () => {
+  const document = adjacentWorkflow({ widths: [undefined, undefined], nodeLabels: ['Start', 'a'.repeat(29)] });
+  document.nodes[1].col = 5;
+  compileSuccessfully(document);
+  document.nodes[1].label = 'A';
+  document.schema_version = 1;
+  const reused = compileSuccessfully(document);
+  const fresh = compileSuccessfully(clone(document));
+  assert.equal(reused.receipt.nodes.find(({ id }) => id === 'b').width, 92);
+  assert.equal(reused.svg, fresh.svg);
+});
+
+test('authored canvases and standard workflows preserve bounded sublabel fonts', () => {
+  for (const qualityProfile of ['standard', 'showcase']) {
+    const document = adjacentWorkflow({ widths: [92, 92], viewBox: [10000, 420] });
+    document.nodes[0].sublabel = 'x';
+    const result = compileSuccessfully(document, qualityProfile);
+    assert.match(result.svg, /data-detail="context"[^>]*font-size="8"[^>]*>x<\/text>/);
+  }
+  const document = adjacentWorkflow({ widths: [132, 200] });
+  document.nodes[1].col = 5;
+  document.nodes[0].sublabel = 'chain / debate / synthesis 调度';
+  for (const col of [0, 2, 3, 4]) document.nodes.push({ id: `wide-${col}`, lane: 'main', col, type: 'backend', label: `Step ${col}`, width: 200 });
+  compileSuccessfully(document, 'standard');
+});
+
+test('readable-v2 sublabels must fit at the size that stays readable on the final canvas', () => {
+  const workflow = adjacentWorkflow({ widths: [132, 200] });
+  workflow.nodes[1].col = 5;
+  workflow.nodes[0].sublabel = 'chain / debate / synthesis 调度';
+  for (const col of [0, 2, 3, 4]) {
+    workflow.nodes.push({ id: `wide-${col}`, lane: 'main', col, type: 'backend', label: `Step ${col}`, width: 200 });
+  }
+  const result = compileWorkflow({ workflow, qualityProfile: 'showcase' });
+  assert.equal(result.ok, false, 'expected a readable-size failure on a canvas wider than the reader');
+  assert.match(JSON.stringify(result.diagnostics), /minimum that stays readable on this \d+px canvas/);
+});
+
+test('automatic showcase rejects a sublabel floor above the fixed row font budget', () => {
+  const workflow = adjacentWorkflow({ fromCol: 0, widths: [400, 400] });
+  workflow.nodes[0].sublabel = 'x';
+  workflow.nodes[1].col = 5;
+  for (const col of [2, 3, 4]) workflow.nodes.push({ id: `wide-${col}`, lane: 'main', col, type: 'backend', label: `Step ${col}`, width: 400 });
+  const result = compileWorkflow({ workflow, qualityProfile: 'showcase' });
+  assert.equal(result.ok, false);
+  assert.match(JSON.stringify(result.diagnostics), /above the supported 8px text row/);
+  const diagnostic = result.diagnostics.find(({ code }) => code === 'workflow/sublabel-readability');
+  assert.equal(diagnostic.subject.path, '/nodes/0/sublabel');
+  assert.ok(diagnostic.evidence.requiredFontPx > diagnostic.evidence.maximumSlotFontPx);
+  assert.equal(diagnostic.evidence.maximumSlotFontPx, 8);
+  assert.ok(diagnostic.supportedFixes.some(fix => /compact column spacing/.test(fix)));
+  compileSuccessfully(workflow, 'standard');
+});
+
+test('an automatic readable-v2 canvas too tall for the desktop page reads at page width', () => {
+  const workflow = adjacentWorkflow();
+  workflow.lanes = Array.from({ length: 6 }, (_, index) => ({ id: `lane-${index}`, label: `Lane ${index}` }));
+  workflow.nodes = workflow.lanes.map((lane, index) => ({ id: `n${index}`, lane: lane.id, col: 1, type: 'backend', label: `Step ${index}` }));
+  workflow.edges = workflow.nodes.slice(1).map((node, index) => ({ id: `e${index}`, from: workflow.nodes[index].id, to: node.id }));
+  const result = compileSuccessfully(workflow);
+  const svgRoot = result.svg.match(/<svg\b[^>]*>/)?.[0];
+  const [, , width, height] = attribute(svgRoot, 'viewBox').split(' ').map(Number);
+  assert.ok(width / height < 1.55, `${width}x${height} must be below the wide ratio`);
+  assert.equal(attribute(svgRoot, 'data-reader-fit'), 'width-first');
+});
+
+test('stack reader fitting stays off for authored canvases, fixed-v1, and workflows without a vertical stack', () => {
   const authoredCanvas = stackedGroupWorkflow({ schemaVersion: 2, offsets: [-90, 0, 90] });
   authoredCanvas.meta.viewBox = [768, 452];
+  const tallWithoutStack = adjacentWorkflow();
+  tallWithoutStack.nodes.forEach((node) => { node.height = 130; });
 
   const cases = [
     ['authored readable-v2 canvas', authoredCanvas],
     ['fixed-v1 workflow', stackedGroupWorkflow({ offsets: [0] })],
     ['baseline readable-v2 lane', adjacentWorkflow()],
+    ['tall readable-v2 lane without a vertical stack', tallWithoutStack],
   ];
   for (const [description, workflow] of cases) {
     const result = compileSuccessfully(workflow);
+    if (workflow === tallWithoutStack) assert.ok(laneFrameRect(result.svg, 0).height > 104);
     const svgRoot = result.svg.match(/<svg\b[^>]*>/)?.[0];
     assert.ok(svgRoot, `${description}: expected an SVG root`);
     assert.equal(
@@ -833,12 +922,26 @@ test('readable-v2 shifts top-side routes beyond lane header text deterministical
   );
 });
 
-test('explicit viewBox width is containment capacity and never stretches readable-v2 geometry', () => {
+test('an authored historical workflow canvas retains its valid rank plan', () => {
+  const document = readJson(path.join(__dirname, 'fixtures/workflow-viewport/order-overflow.workflow.json'));
+  document.meta.viewBox = [860, 786];
+  const before = JSON.stringify(document);
+  const result = compileSuccessfully(document, 'showcase');
+  assert.deepEqual(result.receipt.viewBox, [860, 786]);
+  assert.deepEqual(result.receipt.requiredViewBox, [860, 786]);
+  assert.equal(JSON.stringify(document), before);
+  assert.doesNotMatch(result.svg.match(/<svg[^>]*>/)[0], /data-reader-fit=/);
+});
+
+test('explicit viewBox width is containment capacity and never stretches its historical readable-v2 geometry', () => {
   for (const qualityProfile of ['standard', 'showcase']) {
     for (let fromCol = 0; fromCol < 5; fromCol += 1) {
+      // Compare authored capacities against the same historical rank plan.
+      // Unpinned drafts may reserve larger optional routing corridors.
       const intrinsic = compileSuccessfully(adjacentWorkflow({
         fromCol,
         label: 'liga',
+        viewBox: [1600, 420],
       }), qualityProfile);
       const expectedGeometry = {
         columns: intrinsic.receipt.columns,
@@ -866,7 +969,7 @@ test('explicit viewBox width is containment capacity and never stretches readabl
   }
 });
 
-test('capacity-only viewBox failures preserve the intrinsic routes, labels, and requirement', () => {
+test('capacity-only viewBox failures preserve historical routes, labels, and requirement', () => {
   const document = {
     schema_version: 2,
     diagram_type: 'workflow',
@@ -888,10 +991,13 @@ test('capacity-only viewBox failures preserve the intrinsic routes, labels, and 
       },
     ],
   };
-  const intrinsic = compileSuccessfully(clone(document), 'showcase');
+  const referenceDocument = clone(document);
+  referenceDocument.meta.viewBox = [1600, 1000];
+  const intrinsic = compileSuccessfully(referenceDocument, 'showcase');
+  assert.deepEqual(intrinsic.receipt.requiredViewBox, [768, 404]);
 
   const insufficientDocument = clone(document);
-  insufficientDocument.meta.viewBox = [900, 1000];
+  insufficientDocument.meta.viewBox = [700, 1000];
   const insufficient = compileWorkflow({
     workflow: insufficientDocument,
     qualityProfile: 'showcase',
@@ -901,7 +1007,7 @@ test('capacity-only viewBox failures preserve the intrinsic routes, labels, and 
   assert.equal(insufficient.diagnostics.length, 1, JSON.stringify(insufficient.diagnostics, null, 2));
   const [capacity] = insufficient.diagnostics;
   assert.equal(capacity.code, 'workflow/viewbox-capacity');
-  assert.deepEqual(capacity.evidence.actualViewBox, [900, 1000]);
+  assert.deepEqual(capacity.evidence.actualViewBox, [700, 1000]);
   assert.deepEqual(capacity.evidence.requiredViewBox, intrinsic.receipt.requiredViewBox);
 
   const sufficientDocument = clone(document);
@@ -1218,13 +1324,17 @@ test('readable-v2 measures multi-row legends into intrinsic and explicit viewBox
   const sufficient = compileSuccessfully(sufficientDocument, 'showcase');
   assert.deepEqual(sufficient.receipt.viewBox, intrinsic.receipt.requiredViewBox);
 
+  const referenceDocument = clone(workflow);
+  referenceDocument.meta.viewBox = [1600, 1000];
+  const reference = compileSuccessfully(referenceDocument, 'showcase');
+  assert.deepEqual(reference.receipt.requiredViewBox, [768, 302]);
   const expectedGeometry = {
-    requiredViewBox: intrinsic.receipt.requiredViewBox,
-    columns: intrinsic.receipt.columns,
-    nodes: intrinsic.receipt.nodes,
-    edges: intrinsic.receipt.edges,
-    labels: intrinsic.receipt.labels,
-    legend: legendGeometry(intrinsic.svg),
+    requiredViewBox: reference.receipt.requiredViewBox,
+    columns: reference.receipt.columns,
+    nodes: reference.receipt.nodes,
+    edges: reference.receipt.edges,
+    labels: reference.receipt.labels,
+    legend: legendGeometry(reference.svg),
   };
   for (const width of [900, 1400]) {
     const explicitDocument = clone(workflow);
@@ -1411,6 +1521,13 @@ test('CLI validate workflow --layout-json returns only the causal compiler failu
   assert.equal(receipt.contract, 'fixed-v1');
   assert.equal(receipt.diagnostics.length, 1, JSON.stringify(receipt.diagnostics, null, 2));
   assert.equal(receipt.diagnostics[0].code, 'workflow/column-capacity');
+});
+
+test('a dense automatic first draft routes between columns without crossings', () => {
+  // A generated first draft: five lanes, 150px nodes and no authored routes.
+  const workflow = readJson(path.join(__dirname, 'fixtures', 'workflow-dense-automatic.json'));
+  const result = compileWorkflow({ workflow, qualityProfile: 'showcase' });
+  assert.equal(result.ok, true, JSON.stringify(result.diagnostics, null, 2));
 });
 
 process.on('exit', () => fs.rmSync(tmp, { recursive: true, force: true }));

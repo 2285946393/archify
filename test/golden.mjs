@@ -148,13 +148,9 @@ expectFailure('column beyond layout maximum', 'workflow',
   (d) => { d.nodes[0].col = 7; }, '<= 5');
 expectFailure('missing schema_version', 'sequence',
   (d) => { delete d.schema_version; }, 'schema_version');
-expectFailure('cross-lane state overlap', 'lifecycle',
-  (d) => {
-    const approval = d.states.find((s) => s.id === 'approval');
-    const failed = d.states.find((s) => s.id === 'failed');
-    delete failed.yOffset;
-    failed.col = approval.col;
-  }, 'less than 10px apart');
+expectFailure('main-path step without a transition', 'lifecycle',
+  (d) => { d.transitions = d.transitions.filter((t) => !(t.from === 'queued' && t.to === 'planning')); },
+  'mainPath step "queued" -> "planning" has no transition');
 expectFailure('zero component width rejected by schema', 'architecture',
   (d) => { d.components[0].size = [0, 60]; }, '/components/0/size/0');
 expectFailure('zero component height rejected by schema', 'architecture',
@@ -217,14 +213,15 @@ function blocks(html, tag) {
 
 const template = fs.readFileSync(path.join(skillRoot, 'assets/template.html'), 'utf8');
 const webApp = fs.readFileSync(path.join(repoRoot, 'examples/web-app.html'), 'utf8');
-// <style> and <script> blocks pass through applyTemplate untouched, so the
-// architecture-mode example must contain them verbatim or it has drifted.
+// Viewer styles in the document head and executable scripts pass through
+// applyTemplate untouched. Renderer-owned SVG styles are covered by golden renders.
 for (const tag of ['style', 'script']) {
   // The guided-view JSON script is generated from meta.views; compare only
   // template-owned executable scripts, not per-diagram data payloads.
   const isTemplateOwned = (block) => !block.includes('type="application/json"');
   const t = blocks(template, tag).filter((b) => !b.includes('[PROJECT NAME]') && isTemplateOwned(b));
-  const w = blocks(webApp, tag).filter((b) => !b.includes('Sample Web App') && isTemplateOwned(b));
+  const viewerHtml = tag === 'style' ? webApp.slice(0, webApp.indexOf('</head>')) : webApp;
+  const w = blocks(viewerHtml, tag).filter((b) => !b.includes('Sample Web App') && isTemplateOwned(b));
   check(`web-app.html ${tag} blocks match template`,
     JSON.stringify(t) === JSON.stringify(w),
     'examples/web-app.html was generated from a stale template — re-derive it');

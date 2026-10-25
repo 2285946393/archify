@@ -66,6 +66,9 @@ for (const [index, span] of raw.entries()) {
   const hasDuration = Number.isFinite(span.duration);
   const timing = (message, fixes) => fail('waterfall/invalid-timing', `Span "${span.id}" ${message}`, { path: `/spans/${index}`, nodeId: span.id },
     { start: span.start, end: span.end ?? null, duration: span.duration ?? null, status: span.status ?? 'ok' }, fixes);
+  if (hasDuration && !Number.isFinite(span.start + span.duration)) {
+    timing('has a derived end outside the finite numeric range.', ['Rescale the recorded timing and unit to a representable range.']);
+  }
   if (hasEnd && span.end < span.start) timing(`ends (${span.end}) before it starts (${span.start}).`, ['Correct start or end from the recorded timing.']);
   if (hasEnd && hasDuration && Math.abs(span.end - span.start - span.duration) > 1e-9) {
     timing(`states end ${span.end} and duration ${span.duration}, which disagree with start ${span.start}.`, ['Keep only one of end or duration.']);
@@ -126,7 +129,11 @@ const rows = [];
 }(spans.filter((span) => span.parent === undefined), 0));
 
 function number(value) {
-  const rounded = Math.round(value * 100) / 100;
+  if (value !== 0 && Math.abs(value) < 0.01) {
+    return Math.abs(value) < 1e-6 ? Number(value.toPrecision(3)).toString()
+      : value.toLocaleString('en-US', { maximumSignificantDigits: 3 });
+  }
+  const rounded = Math.abs(value) > Number.MAX_VALUE / 100 ? value : Math.round(value * 100) / 100;
   return rounded.toLocaleString('en-US', { maximumFractionDigits: 2 });
 }
 const formatDuration = (value) => `${number(value)} ${unitLabel}`;
@@ -157,6 +164,11 @@ const labelW = Math.ceil(Math.max(140, ...rows.map(nameWidth)));
 const axisX0 = layout.margin + labelW + layout.columnGap;
 const axisX1 = axisX0 + layout.axisWidth;
 const scale = wall > 0 ? layout.axisWidth / wall : 0;
+if (!Number.isFinite(scale)) {
+  fail('waterfall/invalid-timing', 'The recorded range cannot form a finite axis scale.',
+    { path: '/spans' }, { start: t0, end: t1, wall }, ['Rescale the recorded timing and unit to a representable range.']);
+  throwDiagnosticProblems('Waterfall validation failed', problems, { diagnostics: details });
+}
 const xOf = (t) => Math.round((axisX0 + (t - t0) * scale) * 100) / 100;
 const rowsTop = layout.top + layout.axisH;
 
@@ -171,7 +183,25 @@ const tickStep = (() => {
   }
 })();
 const ticks = [];
-for (let t = Math.ceil(t0 / tickStep) * tickStep; t <= t1 + 1e-9; t += tickStep) ticks.push({ t, x: xOf(t) });
+const firstTick = Math.ceil(t0 / tickStep) * tickStep;
+const tickCount = Math.max(0, Math.floor((t1 - firstTick) / tickStep + 1e-9) + 1);
+for (let index = 0; index < tickCount; index += 1) {
+  const t = firstTick + index * tickStep;
+  // Large timestamps can round adjacent ticks to the same double. Index-based
+  // iteration remains bounded even when adding tickStep cannot advance t.
+  if (ticks.at(-1)?.t !== t) ticks.push({ t, x: xOf(t) });
+}
+
+// Absolute times need enough precision for the axis and the shortest recorded
+// span, rather than the duration formatter's fixed significant-digit floor.
+const timeResolution = Math.min(tickStep, ...spans.filter(row => row.duration > 0).map(row => row.duration));
+function timeNumber(value) {
+  const ordinary = number(value);
+  if (Math.abs(value) < 1e21 && Math.abs(Number(ordinary.replaceAll(',', '')) - value) <= timeResolution / 100) return ordinary;
+  const digits = value === 0 ? 1 : Math.min(17, Math.max(1, Math.floor(Math.log10(Math.abs(value))) - Math.floor(Math.log10(timeResolution)) + 2));
+  const rounded = Number(value.toPrecision(digits));
+  return Number.isFinite(rounded) ? rounded.toString() : value.toString();
+}
 
 const LABEL_GAP = 7;
 const parentIds = new Set(rows.map((row) => row.parent).filter((id) => id !== undefined));
@@ -193,13 +223,48 @@ const placed = rows.map((row, index) => {
 // that changes a bar's paint; a single-service trace with only ok spans needs
 // no key.
 const presentStatuses = new Set(placed.map((row) => row.status));
+// Past five services the palette repeats. Services that share a colour share
+// one entry, so the key never claims a colour belongs to a single service.
+const serviceLegendEntries = [...services.reduce((byTone, service) => {
+  const tone = serviceTone(service);
+  byTone.set(tone, [...(byTone.get(tone) || []), service]);
+  return byTone;
+}, new Map())].map(([tone, owners]) => ({ kind: `service:${owners[0]}`, label: owners.join(' · '), tone, interactive: false }));
 const legendEntries = [
-  ...(services.length > 1 ? services.map((service) => ({ kind: `service:${service}`, label: service, tone: serviceTone(service), interactive: false })) : []),
+  ...(services.length > 1 ? serviceLegendEntries : []),
   ...resolveLegend(undefined, ['error', 'cancelled', 'incomplete'].map((kind) => ({ kind, label: i18nText(locale, `legend.waterfall.${kind}`), tone: STATUS_TONE[kind] ?? 'external', interactive: false })), presentStatuses),
 ];
 const contentBottom = rowsTop + placed.length * layout.rowH + 8;
 const labelRoom = Math.ceil(Math.max(...placed.map((row) => row.x1 + LABEL_GAP + row.labelWidth)) - axisX1);
 const width = Math.ceil(axisX1 + Math.max(24, labelRoom) + layout.margin);
+const axisLabels = ticks.map(tick => {
+  const text = `${timeNumber(tick.t)} ${unitLabel}`;
+  const halfWidth = (textUnits(text) * 10.5 * ADVANCE + 4) / 2;
+  const x = Math.max(layout.margin + halfWidth, Math.min(tick.x, width - layout.margin - halfWidth));
+  return { text, x, left: x - halfWidth, right: x + halfWidth };
+});
+// Keep the endpoints readable; omit intermediate labels that cannot fit. The
+// ticks and the proportional time geometry remain unchanged.
+if (axisLabels.length > 1) {
+  const first = axisLabels[0];
+  const last = axisLabels.at(-1);
+  const overlap = Math.max(0, first.right + 8 - last.left);
+  const leftShift = Math.min(overlap, first.left - layout.margin);
+  first.x -= leftShift;
+  first.left -= leftShift;
+  first.right -= leftShift;
+  const rightShift = Math.min(overlap - leftShift, width - layout.margin - last.right);
+  last.x += rightShift;
+  last.left += rightShift;
+  last.right += rightShift;
+}
+let previousLabelRight = -Infinity;
+for (const [index, label] of axisLabels.entries()) {
+  const last = axisLabels.at(-1);
+  if (label.left < previousLabelRight + 8 || (index > 0 && index < axisLabels.length - 1 && label.right + 8 > last.left)) continue;
+  label.visible = true;
+  previousLabelRight = label.right;
+}
 const footprint = legendFootprint(legendEntries, { width: width - layout.margin * 2, fontSize: 11 });
 const height = Math.ceil(contentBottom + layout.margin + (legendEntries.length ? 34 + footprint.extraHeight : 0));
 const viewBox = [width, height];
@@ -210,7 +275,7 @@ function renderHeader() {
   const evidenceW = Math.ceil(textUnits(evidence) * 10.5 * ADVANCE + 24);
   const tone = wf.meta.evidence === 'measured' ? 'backend' : 'messagebus';
   const wallText = i18nText(locale, 'waterfall.wall', { duration: formatDuration(wall) });
-  const range = `${number(t0)} → ${number(t1)} ${unitLabel}`;
+  const range = `${timeNumber(t0)} → ${timeNumber(t1)} ${unitLabel}`;
   const wallX = layout.margin + evidenceW + 14;
   return `        <g data-waterfall-evidence="${esc(wf.meta.evidence)}">
           <rect x="${layout.margin}" y="14" width="${evidenceW}" height="22" rx="11" class="c-${tone}" stroke-width="1"/>
@@ -227,7 +292,7 @@ function renderAxis() {
     `        <line x1="${axisX0}" y1="${lineY}" x2="${axisX1}" y2="${lineY}" class="wf-axis" stroke-width="1"/>`,
     ...ticks.map((tick, index) => `        <line x1="${tick.x}" y1="${lineY}" x2="${tick.x}" y2="${contentBottom}" class="wf-grid${index ? '' : ' wf-grid-origin'}" stroke-width="1"/>
         <line x1="${tick.x}" y1="${lineY - 4}" x2="${tick.x}" y2="${lineY}" class="wf-axis" stroke-width="1"/>
-        <text x="${tick.x}" y="${lineY - 10}" class="t-muted wf-num" font-size="10.5" text-anchor="middle">${esc(number(tick.t))} ${esc(unitLabel)}</text>`),
+        ${axisLabels[index].visible ? `<text x="${axisLabels[index].x}" y="${lineY - 10}" class="t-muted wf-num" font-size="10.5" text-anchor="middle">${esc(axisLabels[index].text)}</text>` : ''}`),
   ].join('\n');
 }
 
@@ -251,7 +316,7 @@ function renderGuides() {
 // added together, and the paint says which bars are inclusive summaries.
 function renderRow(row, order) {
   const parent = row.parent !== undefined ? placed.find((candidate) => candidate.id === row.parent) : null;
-  const timing = `${number(row.start)}–${row.open ? '…' : number(row.end)} ${unitLabel} · ${row.label} · ${i18nText(locale, 'waterfall.share', { percent: percent(row.duration), total: formatDuration(wall) })}`;
+  const timing = `${timeNumber(row.start)}–${row.open ? '…' : timeNumber(row.end)} ${unitLabel} · ${row.label} · ${i18nText(locale, 'waterfall.share', { percent: percent(row.duration), total: formatDuration(wall) })}`;
   const service = serviceOf.get(row.id);
   const passport = { kind: row.tone, sublabel: [timing, row.detail].filter(Boolean).join(' — '), context: [service, parent?.name].filter(Boolean).join(' \u203a ') || undefined };
   const midY = row.y + layout.rowH / 2;
@@ -278,7 +343,7 @@ function legendSwatch(entry) {
 const SOLID_TONES = ['frontend', 'backend', 'database', 'cloud', 'messagebus', 'security', 'external'];
 
 function renderSvg() {
-  return `      <svg viewBox="0 0 ${viewBox[0]} ${viewBox[1]}" ${svgRootAttrs(wf.meta)} data-waterfall-ui="" data-waterfall-unit="${esc(unit)}" data-reader-fit="intrinsic-height" data-reader-min-text="7.5">
+  return `      <svg viewBox="0 0 ${viewBox[0]} ${viewBox[1]}" ${svgRootAttrs(wf.meta)} data-motion-choreography="replay" data-waterfall-ui="" data-waterfall-unit="${esc(unit)}" data-reader-fit="width-first" data-reader-min-text="7.5">
 ${svgAccessibleText(wf.meta, 'waterfall')}
 ${renderDefinitions()}
         <style>

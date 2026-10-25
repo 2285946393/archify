@@ -1,4 +1,5 @@
 import { test } from 'node:test';
+import { createScratchDirectory } from './helpers/scratch-directory.mjs';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -53,7 +54,7 @@ function attrs(tag) {
 function entityBoxes(html) {
   const svg = html.match(/<svg\b[\s\S]*?<\/svg>/gi)[0];
   const boxes = new Map();
-  for (const match of svg.matchAll(/data-node-id="([a-z_]+)"[\s\S]{0,500}?<rect x="([\d.]+)" y="([\d.]+)" width="([\d.]+)" height="([\d.]+)" rx="5" class="c-database(?: er-table)?"/g)) {
+  for (const match of svg.matchAll(/data-node-id="([a-z_]+)"[\s\S]{0,500}?<rect x="([\d.]+)" y="([\d.]+)" width="([\d.]+)" height="([\d.]+)" rx="[\d.]+" class="c-database(?: er-table)?"/g)) {
     boxes.set(match[1], { x: +match[2], y: +match[3], width: +match[4], height: +match[5] });
   }
   return boxes;
@@ -93,7 +94,7 @@ function crossingsOfUnrelatedEntities(html) {
 }
 
 test('the example renders with every artifact check passing', () => {
-  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'archify-er-'));
+  const directory = createScratchDirectory(path.join(os.tmpdir(), 'archify-er-'));
   const { status, output } = render(example, directory);
   assert.equal(status, 0, 'renderer should exit cleanly');
   assert.equal(crossingsOfUnrelatedEntities(fs.readFileSync(output, 'utf8')).length, 0);
@@ -106,7 +107,7 @@ test('the example renders with every artifact check passing', () => {
 });
 
 test('ERD fields are visible at the default read level', () => {
-  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'archify-er-fields-'));
+  const directory = createScratchDirectory(path.join(os.tmpdir(), 'archify-er-fields-'));
   const { status, output } = render(example, directory);
   assert.equal(status, 0, 'renderer should exit cleanly');
   const html = fs.readFileSync(output, 'utf8');
@@ -131,7 +132,7 @@ test('an entity between two aligned anchors is routed around, never through', ()
       { id: 'blocker_alpha', from: 'blocker', to: 'alpha', fromCardinality: 'many', toCardinality: 'one' },
     ],
   };
-  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'archify-er-blocked-'));
+  const directory = createScratchDirectory(path.join(os.tmpdir(), 'archify-er-blocked-'));
   const { status, output } = render(diagram, directory);
   assert.equal(status, 0, 'a blocked corridor should still route');
   const html = fs.readFileSync(output, 'utf8');
@@ -164,7 +165,7 @@ test('an author-forced through-box route fails with the clean-flow diagnostic', 
       via: [[380, 104]],
     },
   ];
-  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'archify-er-wall-'));
+  const directory = createScratchDirectory(path.join(os.tmpdir(), 'archify-er-wall-'));
   const { status, stdout, stderr } = render(diagram, directory);
   assert.notEqual(status, 0, 'a through-box route must fail');
   const output = `${stdout}${stderr}`;
@@ -197,7 +198,7 @@ test('relationships sharing one target side bundle into a trunk with short branc
       { id: 'b_hub', from: 'east_b', to: 'hub', fromCardinality: 'many', toCardinality: 'one' },
     ],
   };
-  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'archify-er-trunk-'));
+  const directory = createScratchDirectory(path.join(os.tmpdir(), 'archify-er-trunk-'));
   const { status, output } = render(diagram, directory);
   assert.equal(status, 0, 'a bundled fan-in should render');
   const html = fs.readFileSync(output, 'utf8');
@@ -236,7 +237,7 @@ test('relationships sharing one target side bundle into a trunk with short branc
   // group dissolves it instead of drawing a trunk with a borrowed style.
   const mixed = clone(diagram);
   mixed.relationships[1].identifying = false;
-  const mixedDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'archify-er-trunk-mixed-'));
+  const mixedDirectory = createScratchDirectory(path.join(os.tmpdir(), 'archify-er-trunk-mixed-'));
   const mixedResult = render(mixed, mixedDirectory);
   assert.equal(mixedResult.status, 0);
   assert.doesNotMatch(fs.readFileSync(mixedResult.output, 'utf8'), /data-er-trunk/);
@@ -282,7 +283,7 @@ test('differently styled fan-in groups never share one trunk coordinate', () => 
       { id: 'b2_hub', from: 'east_b2', to: 'hub_b', fromCardinality: 'many', toCardinality: 'one', identifying: false },
     ],
   };
-  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'archify-er-trunk-styles-'));
+  const directory = createScratchDirectory(path.join(os.tmpdir(), 'archify-er-trunk-styles-'));
   const { status, output } = render(diagram, directory);
   assert.equal(status, 0, 'two styled trunk lanes should render');
   const html = fs.readFileSync(output, 'utf8');
@@ -311,25 +312,25 @@ test('schema and reference mistakes fail with an addressed diagnostic', () => {
   const unknownEntity = cloneWithoutViews(example);
   unknownEntity.relationships[0].to = 'ghost';
   unknownEntity.relationships[0].id = 'ghost_link';
-  let result = render(unknownEntity, fs.mkdtempSync(path.join(os.tmpdir(), 'archify-er-bad-')));
+  let result = render(unknownEntity, createScratchDirectory(path.join(os.tmpdir(), 'archify-er-bad-')));
   assert.notEqual(result.status, 0);
   assert.match(`${result.stdout}${result.stderr}`, /unknown target entity "ghost"/);
 
   const unknownColumn = cloneWithoutViews(example);
   unknownColumn.entities[1].attributes[1].references = 'customer.nope';
-  result = render(unknownColumn, fs.mkdtempSync(path.join(os.tmpdir(), 'archify-er-bad-')));
+  result = render(unknownColumn, createScratchDirectory(path.join(os.tmpdir(), 'archify-er-bad-')));
   assert.notEqual(result.status, 0);
   assert.match(`${result.stdout}${result.stderr}`, /references unknown attribute "customer\.nope"/);
 
   const duplicateColumn = cloneWithoutViews(example);
   duplicateColumn.entities[0].attributes.push({ name: 'id', type: 'bigint' });
-  result = render(duplicateColumn, fs.mkdtempSync(path.join(os.tmpdir(), 'archify-er-bad-')));
+  result = render(duplicateColumn, createScratchDirectory(path.join(os.tmpdir(), 'archify-er-bad-')));
   assert.notEqual(result.status, 0);
   assert.match(`${result.stdout}${result.stderr}`, /declares attribute "id" twice/);
 
   const tooNarrow = cloneWithoutViews(example);
   tooNarrow.entities[0].width = 90;
-  result = render(tooNarrow, fs.mkdtempSync(path.join(os.tmpdir(), 'archify-er-bad-')));
+  result = render(tooNarrow, createScratchDirectory(path.join(os.tmpdir(), 'archify-er-bad-')));
   assert.notEqual(result.status, 0);
   assert.match(`${result.stdout}${result.stderr}`, /of text but only|too short|is too short/);
 
@@ -346,7 +347,7 @@ test('schema and reference mistakes fail with an addressed diagnostic', () => {
     ],
     relationships: [],
   };
-  result = render(defaultWidthOverflow, fs.mkdtempSync(path.join(os.tmpdir(), 'archify-er-bad-')));
+  result = render(defaultWidthOverflow, createScratchDirectory(path.join(os.tmpdir(), 'archify-er-bad-')));
   assert.notEqual(result.status, 0);
   assert.match(`${result.stdout}${result.stderr}`, /attribute 0 "extremely_long_attribute_name_here" needs \d+px of text but only \d+px/);
 
@@ -369,12 +370,12 @@ test('schema and reference mistakes fail with an addressed diagnostic', () => {
     ],
     relationships: [],
   };
-  result = render(compositeOverflow, fs.mkdtempSync(path.join(os.tmpdir(), 'archify-er-bad-')));
+  result = render(compositeOverflow, createScratchDirectory(path.join(os.tmpdir(), 'archify-er-bad-')));
   assert.notEqual(result.status, 0, 'the widened key column is charged to the field name');
   assert.match(`${result.stdout}${result.stderr}`, /attribute 0 "external_reference_code" needs \d+px of text but only \d+px/);
   compositeOverflow.entities[0].attributes[0].key = 'pk';
   delete compositeOverflow.entities[0].attributes[0].references;
-  result = render(compositeOverflow, fs.mkdtempSync(path.join(os.tmpdir(), 'archify-er-ok-')));
+  result = render(compositeOverflow, createScratchDirectory(path.join(os.tmpdir(), 'archify-er-ok-')));
   assert.equal(result.status, 0, `the same table fits under a single marker: ${result.stdout}${result.stderr}`);
 });
 
@@ -390,7 +391,7 @@ test('declared cardinality is drawn at both ends', () => {
     ],
     relationships: [{ id: 'child_parent', from: 'child', to: 'parent', fromCardinality: 'many', toCardinality: 'one' }],
   };
-  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'archify-er-cardinality-'));
+  const directory = createScratchDirectory(path.join(os.tmpdir(), 'archify-er-cardinality-'));
   const { status, output } = render(diagram, directory);
   assert.equal(status, 0);
   const html = fs.readFileSync(output, 'utf8');
@@ -410,7 +411,7 @@ test('a relationship that drops its declared cardinality is rejected', () => {
     delete relationship.fromCardinality;
     delete relationship.toCardinality;
   }
-  const result = render(diagram, fs.mkdtempSync(path.join(os.tmpdir(), 'archify-er-unstated-cardinality-')));
+  const result = render(diagram, createScratchDirectory(path.join(os.tmpdir(), 'archify-er-unstated-cardinality-')));
   assert.notEqual(result.status, 0);
   assert.match(`${result.stdout}${result.stderr}`, /must have required property 'fromCardinality'/);
 });
@@ -424,14 +425,14 @@ test('an fk attribute that drops its references target is rejected', () => {
       if (attribute.key === 'fk') delete attribute.references;
     }
   }
-  const result = render(diagram, fs.mkdtempSync(path.join(os.tmpdir(), 'archify-er-unresolved-fk-')));
+  const result = render(diagram, createScratchDirectory(path.join(os.tmpdir(), 'archify-er-unresolved-fk-')));
   assert.notEqual(result.status, 0);
   assert.match(`${result.stdout}${result.stderr}`, /must have required property 'references'/);
 });
 
 test('optionality adds the zero marker and identifying false draws the dashed variant', () => {
   const diagram = cloneWithoutViews(example);
-  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'archify-er-optional-'));
+  const directory = createScratchDirectory(path.join(os.tmpdir(), 'archify-er-optional-'));
   const { status, output } = render(diagram, directory);
   assert.equal(status, 0);
   const html = fs.readFileSync(output, 'utf8');
@@ -497,11 +498,11 @@ function attributeNameX(html, entityId, name) {
   const rest = html.slice(html.indexOf(`data-node-id="${entityId}"`) + 1);
   const next = rest.indexOf('data-node-id="');
   const group = next === -1 ? rest : rest.slice(0, next);
-  return +group.match(new RegExp(`<text data-detail="context" x="([\\d.]+)" y="[\\d.]+" class="t-primary" font-size="[\\d.]+">${name}</text>`))[1];
+  return +group.match(new RegExp(`<text data-detail="context" x="([\\d.]+)" y="[\\d.]+" class="t-primary(?: er-name-pk)?" font-size="[\\d.]+">${name}</text>`))[1];
 }
 
 test('a column that is both a primary and a foreign key draws both markers', () => {
-  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'archify-er-composite-key-'));
+  const directory = createScratchDirectory(path.join(os.tmpdir(), 'archify-er-composite-key-'));
   const { status, stdout, stderr, output } = render(junctionDiagram(), directory);
   assert.equal(status, 0, stdout + stderr);
   const html = fs.readFileSync(output, 'utf8');
@@ -541,7 +542,7 @@ test('a column that is both a primary and a foreign key draws both markers', () 
 test('a foreign key role inside a list is still checked against the declared schema', () => {
   const diagram = junctionDiagram();
   diagram.entities[2].attributes[0].references = 'tenant.missing';
-  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'archify-er-composite-target-'));
+  const directory = createScratchDirectory(path.join(os.tmpdir(), 'archify-er-composite-target-'));
   const { status, stdout, stderr } = render(diagram, directory);
   assert.notEqual(status, 0);
   assert.match(`${stdout}${stderr}`, /has no attribute "missing"/);
@@ -581,7 +582,7 @@ test('an entity that omits its width is placed at the grid default', () => {
     ],
     relationships: [{ id: 'child_parent', from: 'child', to: 'parent', fromCardinality: 'many', toCardinality: 'one' }],
   };
-  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'archify-er-default-width-'));
+  const directory = createScratchDirectory(path.join(os.tmpdir(), 'archify-er-default-width-'));
   const { status, stdout, stderr, output } = render(diagram, directory);
   assert.equal(status, 0, stdout + stderr);
   const boxes = entityBoxes(fs.readFileSync(output, 'utf8'));
@@ -604,7 +605,7 @@ test('a contiguous domain draws a band and a scattered tag does not', () => {
       entities,
       relationships,
     };
-    const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'archify-er-band-'));
+    const directory = createScratchDirectory(path.join(os.tmpdir(), 'archify-er-band-'));
     const { status, stdout, stderr, output } = render(diagram, directory);
     assert.equal(status, 0, stdout + stderr);
     return fs.readFileSync(output, 'utf8');
@@ -632,11 +633,11 @@ test('a contiguous domain draws a band and a scattered tag does not', () => {
     entities: nodes((id) => (id === 'alpha' || id === 'delta' ? 'checkout' : 'other')),
     relationships: links,
   };
-  const scatteredDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'archify-er-band-scattered-'));
+  const scatteredDirectory = createScratchDirectory(path.join(os.tmpdir(), 'archify-er-band-scattered-'));
   const scattered = render(scatteredDiagram, scatteredDirectory);
   assert.notEqual(scattered.status, 0, 'a tag split across the canvas must not render');
   assert.match(scattered.stderr + scattered.stdout, /erd\/domain-not-drawn/);
-  assert.match(scattered.stderr + scattered.stdout, /"alpha", "delta" do not fill a solid block/);
+  assert.match(scattered.stderr + scattered.stdout, /"alpha", "delta" do not fill a solid rectangle/);
   assert.equal(fs.existsSync(scattered.output), false, 'the diagram is not written at all');
 });
 
@@ -659,7 +660,7 @@ test('same-side ports clear the marker glyph and the markers carry the stronger 
       { id: 'b_hub', from: 'left_b', to: 'hub', fromCardinality: 'many', toCardinality: 'one' },
     ],
   };
-  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'archify-er-ports-'));
+  const directory = createScratchDirectory(path.join(os.tmpdir(), 'archify-er-ports-'));
   const { status, stdout, stderr, output } = render(diagram, directory);
   assert.equal(status, 0, stdout + stderr);
   const html = fs.readFileSync(output, 'utf8');
@@ -677,7 +678,9 @@ test('same-side ports clear the marker glyph and the markers carry the stronger 
 // obstacle the legend measures are one rectangle. When the checks measured a
 // narrower box than the ink, a label could sit on a table edge with nothing
 // reported: this corridor is 60 units wide and the label's drawn mask is 65.8,
-// an overlap the old 8-unit measurement (58.0) did not see.
+// an overlap the old 8-unit measurement (58.0) did not see. Absolute positions
+// keep the corridor at 60 (a grid-owned layout would widen it for the label),
+// and a zero labelDx pins the label so the automatic placer leaves it there.
 test('relationship labels are drawn and checked with one measured box', () => {
   const diagram = {
     schema_version: 1,
@@ -685,14 +688,14 @@ test('relationship labels are drawn and checked with one measured box', () => {
     meta: { title: 'Label corridor', locale: 'en' },
     layout: { mode: 'grid', gapX: 60, gapY: 44 },
     entities: [
-      { id: 'left', label: 'left', row: 0, col: 0, attributes: [{ name: 'id', type: 'bigint', key: 'pk' }] },
-      { id: 'right', label: 'right', row: 0, col: 1, attributes: [{ name: 'id', type: 'bigint', key: 'pk' }, { name: 'left_id', type: 'bigint', key: 'fk', references: 'left.id' }] },
+      { id: 'left', label: 'left', pos: [32, 40], attributes: [{ name: 'id', type: 'bigint', key: 'pk' }] },
+      { id: 'right', label: 'right', pos: [332, 40], attributes: [{ name: 'id', type: 'bigint', key: 'pk' }, { name: 'left_id', type: 'bigint', key: 'fk', references: 'left.id' }] },
     ],
     relationships: [
-      { id: 'right_left', from: 'right', to: 'left', fromCardinality: 'many', toCardinality: 'one', label: 'settles by' },
+      { id: 'right_left', from: 'right', to: 'left', fromCardinality: 'many', toCardinality: 'one', label: 'settles by', labelDx: 0 },
     ],
   };
-  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'archify-er-label-box-'));
+  const directory = createScratchDirectory(path.join(os.tmpdir(), 'archify-er-label-box-'));
   const { status, stdout, stderr } = render(diagram, directory);
   assert.notEqual(status, 0, 'a label that sits on a table edge is not a pass');
   const message = stdout + stderr;
@@ -701,7 +704,7 @@ test('relationship labels are drawn and checked with one measured box', () => {
   // The same corridor with room for the drawn mask is accepted, and the mask the
   // renderer writes is the measured box.
   const roomy = clone(diagram);
-  roomy.layout.gapX = 88;
+  roomy.entities[1].pos = [360, 40];
   const accepted = render(roomy, directory);
   assert.equal(accepted.status, 0, accepted.stdout + accepted.stderr);
   const html = fs.readFileSync(accepted.output, 'utf8');
@@ -744,7 +747,7 @@ test('a side that cannot space its cardinality glyphs is a layout diagnostic', (
     entities: [hub, ...spokes],
     relationships,
   };
-  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'archify-er-side-capacity-'));
+  const directory = createScratchDirectory(path.join(os.tmpdir(), 'archify-er-side-capacity-'));
   const { status, stdout, stderr } = render(diagram, directory);
   assert.notEqual(status, 0, 'overlapping glyphs are not a pass');
   const message = stdout + stderr;
@@ -775,7 +778,7 @@ test('an automatic canvas is sized so the default legend is always in the conten
     ],
     relationships: [{ id: 'a_b', from: 'a', to: 'b', fromCardinality: 'many', toCardinality: 'one', fromOptional: true }],
   };
-  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'archify-er-legend-'));
+  const directory = createScratchDirectory(path.join(os.tmpdir(), 'archify-er-legend-'));
   const { status, stdout, stderr, output } = render(diagram, directory);
   assert.equal(status, 0, stdout + stderr);
   const html = fs.readFileSync(output, 'utf8');
@@ -787,7 +790,7 @@ test('an automatic canvas is sized so the default legend is always in the conten
 
   const kinds = [...html.matchAll(/<g data-legend-semantic-kind="([a-z]+)"/g)].map((match) => match[1]);
   assert.deepEqual(kinds.sort(), ['fk', 'many', 'one', 'optional', 'pk', 'uk'], 'every declared kind keeps its entry');
-  const boxes = [...html.matchAll(/<rect x="[\d.]+" y="([\d.]+)" width="[\d.]+" height="([\d.]+)" rx="5" class="c-database(?: er-table)?"/g)];
+  const boxes = [...html.matchAll(/<rect x="[\d.]+" y="([\d.]+)" width="[\d.]+" height="([\d.]+)" rx="[\d.]+" class="c-database(?: er-table)?"/g)];
   assert.ok(boxes.length >= 2, 'both tables are drawn');
   const contentBottom = Math.max(...boxes.map((match) => Number(match[1]) + Number(match[2])));
   const baselines = [...html.matchAll(/data-legend-baseline="([\d.]+)"/g)].map((match) => Number(match[1]));
@@ -842,7 +845,7 @@ test('an authored viewBox that cannot hold the legend fails with a capacity diag
     ],
     relationships: [{ id: 'a_b', from: 'a', to: 'b', fromCardinality: 'many', toCardinality: 'one' }],
   };
-  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'archify-er-legend-fixed-'));
+  const directory = createScratchDirectory(path.join(os.tmpdir(), 'archify-er-legend-fixed-'));
   const { status, stdout, stderr } = render(diagram, directory);
   assert.notEqual(status, 0, 'a fixed area that cannot hold the legend is not a pass');
   const message = stdout + stderr;
@@ -854,7 +857,7 @@ test('an authored viewBox that cannot hold the legend fails with a capacity diag
 // reader's own review said that is fine. Declaring the height as intrinsic is
 // what lets the Viewer scroll instead of shrinking the tables.
 test('an automatic canvas declares its height as intrinsic for the reader', () => {
-  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'archify-er-reader-fit-'));
+  const directory = createScratchDirectory(path.join(os.tmpdir(), 'archify-er-reader-fit-'));
   const automatic = render(cloneWithoutViews(example), directory);
   assert.equal(automatic.status, 0, automatic.stdout + automatic.stderr);
   const automaticHtml = fs.readFileSync(automatic.output, 'utf8');
@@ -900,7 +903,7 @@ test('the crow\u2019s foot opens toward the entity at both ends', () => {
       { id: 'ticket_note', from: 'ticket', to: 'note', fromCardinality: 'one', toCardinality: 'many', toOptional: true },
     ],
   };
-  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'archify-er-foot-'));
+  const directory = createScratchDirectory(path.join(os.tmpdir(), 'archify-er-foot-'));
   const { status, stdout, stderr, output } = render(diagram, directory);
   assert.equal(status, 0, stdout + stderr);
   const html = fs.readFileSync(output, 'utf8');
@@ -948,7 +951,7 @@ test('a bundled trunk is painted under the markers it passes', () => {
       { id: 'b_hub', from: 'child_b', to: 'hub', fromCardinality: 'many', toCardinality: 'many', toOptional: true },
     ],
   };
-  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'archify-er-trunk-order-'));
+  const directory = createScratchDirectory(path.join(os.tmpdir(), 'archify-er-trunk-order-'));
   const { status, stdout, stderr, output } = render(diagram, directory);
   assert.equal(status, 0, stdout + stderr);
   const html = fs.readFileSync(output, 'utf8');
@@ -974,7 +977,7 @@ test('the header draws the centered title alone and reports a title that cannot 
     attributes: [{ name: 'id', type: 'bigint', key: 'pk' }],
   }];
   diagram.relationships = [];
-  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'archify-er-header-'));
+  const directory = createScratchDirectory(path.join(os.tmpdir(), 'archify-er-header-'));
   const success = render(diagram, directory);
   assert.equal(success.status, 0, success.stderr);
   const html = fs.readFileSync(success.output, 'utf8');
@@ -997,7 +1000,7 @@ test('the header draws the centered title alone and reports a title that cannot 
     attributes: [{ name: 'id', type: 'bigint', key: 'pk' }],
   }];
   shortDiagram.relationships = [];
-  const shortDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'archify-er-header-short-'));
+  const shortDirectory = createScratchDirectory(path.join(os.tmpdir(), 'archify-er-header-short-'));
   const short = render(shortDiagram, shortDirectory);
   assert.equal(short.status, 0, short.stderr);
   const shortTitle = attrs(fs.readFileSync(short.output, 'utf8').match(/<text data-node-label=""[^>]*>sub<\/text>/)[0]);
@@ -1013,7 +1016,7 @@ test('the header draws the centered title alone and reports a title that cannot 
     attributes: [{ name: 'id', type: 'bigint', key: 'pk' }],
   }];
   wideDiagram.relationships = [];
-  const wideDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'archify-er-header-wide-'));
+  const wideDirectory = createScratchDirectory(path.join(os.tmpdir(), 'archify-er-header-wide-'));
   const wide = render(wideDiagram, wideDirectory);
   assert.equal(wide.status, 0, wide.stderr);
   const wideTitle = attrs(fs.readFileSync(wide.output, 'utf8').match(/<text data-node-label=""[^>]*>subscription_billing_cycle<\/text>/)[0]);
@@ -1024,7 +1027,7 @@ test('the header draws the centered title alone and reports a title that cannot 
   // The header is one string wide, so a title past the interval has no second
   // place to go: the render names it instead of shrinking it past readability.
   diagram.entities[0].label = 'customer_subscription_billing_cycle_archive';
-  const failureDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'archify-er-header-capacity-'));
+  const failureDirectory = createScratchDirectory(path.join(os.tmpdir(), 'archify-er-header-capacity-'));
   const failure = render(diagram, failureDirectory);
   assert.notEqual(failure.status, 0, 'an oversized title must never be drawn past the header');
   assert.match(failure.stderr + failure.stdout, /erd\/header-text-capacity/);
@@ -1046,7 +1049,7 @@ test('a domain that cannot be drawn as a band stops the render instead of losing
     table('c', 1, 0, 'core'), table('d', 1, 1, 'core'),
   ];
   solid.relationships = [];
-  const solidDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'archify-er-domain-block-'));
+  const solidDirectory = createScratchDirectory(path.join(os.tmpdir(), 'archify-er-domain-block-'));
   const solidRun = render(solid, solidDirectory);
   assert.equal(solidRun.status, 0, solidRun.stderr);
   assert.match(fs.readFileSync(solidRun.output, 'utf8'), /data-domain-band="core"/,
@@ -1057,7 +1060,7 @@ test('a domain that cannot be drawn as a band stops the render instead of losing
     const strip = clone(base);
     strip.entities = cells.map(([row, col], index) => table(`t${index}`, row, col, 'core'));
     strip.relationships = [];
-    const stripDirectory = fs.mkdtempSync(path.join(os.tmpdir(), `archify-er-domain-${name}-`));
+    const stripDirectory = createScratchDirectory(path.join(os.tmpdir(), `archify-er-domain-${name}-`));
     const stripRun = render(strip, stripDirectory);
     assert.equal(stripRun.status, 0, stripRun.stderr);
     assert.match(fs.readFileSync(stripRun.output, 'utf8'), /data-domain-band="core"/, `a ${name} is a band`);
@@ -1067,11 +1070,11 @@ test('a domain that cannot be drawn as a band stops the render instead of losing
   const ell = clone(base);
   ell.entities = [table('a', 0, 0, 'core'), table('b', 0, 1, 'core'), table('c', 1, 0, 'core')];
   ell.relationships = [];
-  const ellDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'archify-er-domain-ell-'));
+  const ellDirectory = createScratchDirectory(path.join(os.tmpdir(), 'archify-er-domain-ell-'));
   const ellRun = render(ell, ellDirectory);
   assert.notEqual(ellRun.status, 0, 'an L-shaped domain must not be banded');
   assert.match(ellRun.stderr + ellRun.stdout, /erd\/domain-not-drawn/);
-  assert.match(ellRun.stderr + ellRun.stdout, /"a", "b", "c" do not fill a solid block/);
+  assert.match(ellRun.stderr + ellRun.stdout, /"a", "b", "c" do not fill a solid rectangle/);
   assert.equal(fs.existsSync(ellRun.output), false, 'nothing is written when a domain cannot be named');
 
   // Absolute coordinates have no cells to group, so a tag cannot be drawn there.
@@ -1081,7 +1084,7 @@ test('a domain that cannot be drawn as a band stops the render instead of losing
     attributes: [{ name: 'id', type: 'bigint', key: 'pk' }],
   }];
   absolute.relationships = [];
-  const absoluteDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'archify-er-domain-pos-'));
+  const absoluteDirectory = createScratchDirectory(path.join(os.tmpdir(), 'archify-er-domain-pos-'));
   const absoluteRun = render(absolute, absoluteDirectory);
   assert.notEqual(absoluteRun.status, 0, 'a tagged table outside the grid must not render');
   assert.match(absoluteRun.stderr + absoluteRun.stdout, /have no grid cells, and a band is measured from them/);
@@ -1091,11 +1094,11 @@ test('a domain that cannot be drawn as a band stops the render instead of losing
   const shared = clone(base);
   shared.entities = [table('a', 0, 0, 'core'), table('b', 0, 0, 'core')];
   shared.relationships = [];
-  const sharedDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'archify-er-domain-shared-'));
+  const sharedDirectory = createScratchDirectory(path.join(os.tmpdir(), 'archify-er-domain-shared-'));
   const sharedRun = render(shared, sharedDirectory);
   assert.notEqual(sharedRun.status, 0, 'two tables in one cell must not render');
   assert.match(sharedRun.stderr + sharedRun.stdout, /share grid cell/);
-  assert.doesNotMatch(sharedRun.stderr + sharedRun.stdout, /do not fill a solid block/,
+  assert.doesNotMatch(sharedRun.stderr + sharedRun.stdout, /do not fill a solid rectangle/,
     'the domain check defers to the placement error instead of blaming the block');
 
   // A table with no tag groups nothing and stays placeable by coordinates.
@@ -1105,7 +1108,7 @@ test('a domain that cannot be drawn as a band stops the render instead of losing
     attributes: [{ name: 'id', type: 'bigint', key: 'pk' }],
   }];
   untagged.relationships = [];
-  const untaggedDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'archify-er-domain-untagged-'));
+  const untaggedDirectory = createScratchDirectory(path.join(os.tmpdir(), 'archify-er-domain-untagged-'));
   const untaggedRun = render(untagged, untaggedDirectory);
   assert.equal(untaggedRun.status, 0, untaggedRun.stderr);
 });
@@ -1125,7 +1128,7 @@ test('a domain band rejects intrusion into another tagged domain', () => {
       entity.row = orientation === 'vertical' ? index : 0;
       entity.col = orientation === 'horizontal' ? index : 0;
     });
-    const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'archify-er-domain-intrusion-'));
+    const directory = createScratchDirectory(path.join(os.tmpdir(), 'archify-er-domain-intrusion-'));
     const rejected = render(input, directory);
     assert.notEqual(rejected.status, 0, `${orientation}: tagged neighbours must not bypass membership checking`);
     assert.match(rejected.stderr + rejected.stdout, /erd\/domain-not-drawn/);
@@ -1133,8 +1136,32 @@ test('a domain band rejects intrusion into another tagged domain', () => {
     assert.equal(fs.existsSync(rejected.output), false);
     input.layout.gapX = 72;
     input.layout.gapY = 38;
-    const spacedDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'archify-er-domain-separated-'));
+    const spacedDirectory = createScratchDirectory(path.join(os.tmpdir(), 'archify-er-domain-separated-'));
     const spaced = render(input, spacedDirectory);
     assert.equal(spaced.status, 0, spaced.stderr);
   }
+});
+
+test('grid-placed entities without a layout block use the default grid', t => {
+  const directory = createScratchDirectory(path.join(os.tmpdir(), 'archify-erd-default-grid-'));
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
+  const diagram = cloneWithoutViews(example);
+  delete diagram.layout;
+  for (const relationship of diagram.relationships) delete relationship.label;
+  const result = render(diagram, directory);
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(entityBoxes(fs.readFileSync(result.output, 'utf8')).size, diagram.entities.length);
+});
+
+test('a self-relationship reports only its own unsupported-shape problem', t => {
+  const directory = createScratchDirectory(path.join(os.tmpdir(), 'archify-erd-self-'));
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
+  const diagram = cloneWithoutViews(example);
+  diagram.meta.quality_profile = 'showcase';
+  const entity = diagram.entities[0].id;
+  diagram.relationships.push({ id: 'self', from: entity, to: entity, label: 'parent', fromCardinality: 'many', toCardinality: 'one' });
+  const result = render(diagram, directory);
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /connects entity "[^"]+" to itself/);
+  assert.doesNotMatch(result.stderr, /relationships\[\d+\] id "self"/);
 });

@@ -1,4 +1,5 @@
 import { test } from 'node:test';
+import { createScratchDirectory } from './helpers/scratch-directory.mjs';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -15,7 +16,7 @@ const large = JSON.parse(fs.readFileSync(path.join(skillRoot, 'examples', 'archi
 const clone = (value) => JSON.parse(JSON.stringify(value));
 
 function run(diagram, extra = []) {
-  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'archify-timeline-'));
+  const directory = createScratchDirectory(path.join(os.tmpdir(), 'archify-timeline-'));
   const input = path.join(directory, 'candidate.timeline.json');
   const output = path.join(directory, 'candidate.html');
   fs.writeFileSync(input, JSON.stringify(diagram));
@@ -28,6 +29,34 @@ function layoutOf(diagram) {
 }
 const overlap = (a, b) => a.left < b.left + b.width && b.left < a.left + a.width && a.top < b.top + b.height && b.top < a.top + a.height;
 
+test('timeline: subsecond events retain their time in cards and accessible context', () => {
+  const diagram = clone(small);
+  diagram.meta.timezone = 'Asia/Kolkata';
+  diagram.events = [
+    { id: 'sent', title: 'Request sent', at: '2026-10-01T10:00:00.007Z', lane: 'release' },
+    { id: 'reply', title: 'Reply received', at: '2026-10-01T15:30:00.900+05:30', lane: 'release' },
+    { id: 'done', title: 'Finished', at: '2026-10-01T10:00:01Z', lane: 'release' },
+  ];
+  const result = run(diagram);
+  assert.equal(result.status, 0, result.stderr);
+  const html = fs.readFileSync(result.output, 'utf8');
+  for (const [id, time] of [['sent', '15:30:00.007'], ['reply', '15:30:00.900'], ['done', '15:30:01']]) {
+    const node = html.match(new RegExp(`<g [^>]*data-node-id="${id}"[^>]*>[\\s\\S]*?</g>`))?.[0];
+    assert.ok(node, id);
+    assert.ok(node.includes(`UTC+05:30`), node);
+    assert.ok(node.includes(`10-01 ${time} UTC+05:30`), node);
+    assert.ok(node.includes(`>${time}</text>`), node);
+  }
+  const axisLabels = [...html.matchAll(/<text [^>]*class="[^"]*\btl-tick\b[^"]*"[^>]*>([^<]*)<\/text>/g)].map(([, label]) => label);
+  assert.ok(axisLabels.includes('15:30:00.007'), axisLabels.join(', '));
+  const report = layoutOf(diagram);
+  assert.equal(report.events[1].t - report.events[0].t, 893);
+  assert.ok(report.events[1].x > report.events[0].x);
+  for (const card of report.events) for (const other of report.events) {
+    if (card.id < other.id) assert.ok(!overlap(card, other), `${card.id} overlaps ${other.id}`);
+  }
+});
+
 test('timeline: both examples render and pass the showcase artifact checks', () => {
   for (const diagram of [small, large]) {
     const result = run(diagram);
@@ -36,6 +65,16 @@ test('timeline: both examples render and pass the showcase artifact checks', () 
     assert.equal(receipt.ok, true, JSON.stringify(receipt.checks.filter((entry) => !entry.ok)));
     assert.equal(receipt.composition.summary.errors, 0);
   }
+});
+
+test('timeline: duplicate lane IDs fail before visual and accessible ownership diverge', () => {
+  const diagram = clone(small);
+  diagram.lanes.push({ ...diagram.lanes[0], label: 'Conflicting lane' });
+  const result = run(diagram);
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /timeline\/duplicate-lane-id/);
+  assert.match(result.stderr, /Give every lane a unique id/);
+  assert.equal(fs.existsSync(result.output), false);
 });
 
 test('timeline: position is linear in time on one shared axis across lanes', () => {
@@ -58,6 +97,19 @@ test('timeline: events are drawn in chronological order whatever the authored or
   const times = report.events.map((event) => event.t);
   assert.deepEqual(times, [...times].sort((x, y) => x - y));
   assert.ok(report.events.every((event, index, all) => !index || event.x >= all[index - 1].x));
+});
+
+test('timeline: historical years retain the actual display-zone UTC offset', () => {
+  for (const year of ['0000', '0001', '0099', '0100', '2026']) {
+    const diagram = clone(small);
+    diagram.meta.timezone = 'UTC';
+    diagram.events = [{ id: 'event', at: `${year}-01-01T00:00:00Z`, title: 'Historical event', lane: diagram.lanes[0].id }];
+    const result = run(diagram);
+    assert.equal(result.status, 0, result.stderr);
+    const html = fs.readFileSync(result.output, 'utf8');
+    assert.match(html, /UTC\+00:00/);
+    assert.doesNotMatch(html, /UTC\+\d{3,}:/);
+  }
 });
 
 test('timeline: offsets are honoured, so the same instant in two offsets aligns', () => {

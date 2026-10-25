@@ -22,7 +22,7 @@ test('Export preserves menu, clipboard, semantic cards and recording lifecycles'
   const input = path.join(scratch, 'motion.json');
   const file = path.join(scratch, 'motion.html');
   const source = JSON.parse(fs.readFileSync(path.join(skillRoot, 'examples/web-app.architecture.json'), 'utf8'));
-  source.meta.animation = 'trace';
+  delete source.meta.animation;
   source.meta.visual_preset = 'signal-flow';
   fs.writeFileSync(input, JSON.stringify(source));
   execFileSync(process.execPath, [path.join(skillRoot, 'renderers/architecture/render-architecture.mjs'), input, file]);
@@ -47,8 +47,8 @@ test('Export preserves menu, clipboard, semantic cards and recording lifecycles'
     console.error=(...args)=>exportConsole.push(args.map(String).join(' '));
     window.exportUrls=new Map();window.exportDownloads=[];window.exportTracks=[];window.exportCancelled=[];
     const create=URL.createObjectURL.bind(URL),revoke=URL.revokeObjectURL.bind(URL);
-    URL.createObjectURL=blob=>{const url=create(blob);exportUrls.set(url,{blob,revoked:false});return url;};
-    URL.revokeObjectURL=url=>{const item=exportUrls.get(url);if(item)item.revoked=true;revoke(url);};
+    URL.createObjectURL=blob=>{const url=create(blob);exportUrls.set(url,{blob,revoked:false,revocations:0});return url;};
+    URL.revokeObjectURL=url=>{const item=exportUrls.get(url);if(item){item.revoked=true;item.revocations++;}revoke(url);};
     const click=HTMLAnchorElement.prototype.click;
     HTMLAnchorElement.prototype.click=function(){if(this.download){exportDownloads.push({name:this.download,blob:exportUrls.get(this.href).blob,attached:this.isConnected});return;}return click.call(this);};
     const capture=HTMLCanvasElement.prototype.captureStream;
@@ -127,6 +127,22 @@ test('Export preserves menu, clipboard, semantic cards and recording lifecycles'
       assert.deepEqual(await run('Object.keys(Archify.exportMenu).sort()'), ['close','downloadReachShareCard','downloadRouteShareCard','isOpen','open','run','shareCard','syncReachShare','syncRouteShare'].sort());
       assert.deepEqual(await run('Object.keys(Archify.motion).sort()'), ['canRecord','recordWebm']);
       assert.deepEqual(await run(`[...document.querySelectorAll('#export-menu [data-format="jpeg"],#export-menu [data-format="webp"],#export-menu [data-format="webm"],#export-menu [data-action="copy"]')].map(e=>e.disabled)`), [true,true,true,true]);
+      const controls = await run(`(() => {
+        const visible = element => { const r = element.getBoundingClientRect(); return r.width > 0 && r.height > 0 && getComputedStyle(element).visibility !== 'hidden'; };
+        const facts = element => { const r = element.getBoundingClientRect(); return { id: element.id, width: r.width, height: r.height, name: (element.getAttribute('aria-label') || element.textContent).trim(), tabIndex: element.tabIndex }; };
+        return {
+          toolbar: [...document.querySelectorAll('#btn-theme, #btn-preset, #btn-present, #btn-export')].filter(visible).map(facts),
+          dock: [...document.querySelectorAll('.diagram-nav button')].filter(visible).map(facts),
+        };
+      })()`);
+      assert.equal(controls.toolbar.length, 4, 'primary controls remain visible');
+      assert.ok(controls.toolbar.every(control => control.height >= 44 && control.name && control.tabIndex >= 0), JSON.stringify(controls));
+      if (width <= 720) assert.ok(controls.dock.every(control => control.width >= 44 && control.height >= 44 && control.name && control.tabIndex >= 0), JSON.stringify(controls));
+      await run("document.getElementById('btn-theme').focus()");
+      await key('Tab', 'Tab', 9);
+      const nextControl = await run('document.activeElement.id');
+      assert.ok(nextControl !== 'btn-theme' && controls.toolbar.some(control => control.id === nextControl),
+        'native Tab reaches another named toolbar control without freezing their order');
       await run(`document.getElementById('btn-export').focus()`);
       await key('ArrowUp', 'ArrowUp', 38);
       const last = await run(`document.activeElement.dataset.format||document.activeElement.dataset.action`);
@@ -154,6 +170,8 @@ test('Export preserves menu, clipboard, semantic cards and recording lifecycles'
       assert.equal(await run('Archify.preset.isOpen()'), false);
       await run('Archify.semanticLens.open();Archify.exportMenu.open()');
       assert.equal(await run('Archify.semanticLens.isOpen()'), false);
+      const menu = await run(`(() => { const r = document.getElementById('export-menu').getBoundingClientRect(); return { left: r.left, right: r.right, top: r.top, bottom: r.bottom, width: innerWidth, height: innerHeight }; })()`);
+      assert.ok(menu.left >= -1 && menu.right <= menu.width + 1 && menu.top >= -1 && menu.bottom <= menu.height + 1, JSON.stringify(menu));
       const state = await record('menu-' + width);
       assert.equal(state.open, true);assert.equal(state.expanded, 'true');assert.deepEqual(state.console, []);
     }
@@ -170,6 +188,16 @@ test('Export preserves menu, clipboard, semantic cards and recording lifecycles'
         const shot = await send('Page.captureScreenshot', { format: 'png' });
         fs.writeFileSync(path.join(evidence, theme + '-menu.png'), Buffer.from(shot.data, 'base64'));
       }
+      await run('Archify.exportMenu.close(false); Archify.view.zoomOut()');
+      await run('Archify.layoutStability.whenStable()');
+      const indicator = await run(`(() => { const detail = document.querySelector('[data-view-detail]'), percent = document.querySelector('[data-view-percent]'); return { detailVisible: !detail.hidden, detail: detail.textContent.trim(), percent: percent.textContent, scale: Archify.view.state().scale }; })()`);
+      assert.equal(indicator.detailVisible, true);
+      assert.ok(indicator.detail && !indicator.detail.includes('%'), 'detail has its own label');
+      assert.equal(indicator.percent, Math.round(indicator.scale * 100) + '%');
+      assert.notEqual(indicator.percent, '100%');
+      await click('[data-view="reset"]');
+      await run('Archify.layoutStability.whenStable()');
+      assert.deepEqual(await run("({detailHidden: document.querySelector('[data-view-detail]').hidden, percent: document.querySelector('[data-view-percent]').textContent})"), { detailHidden: true, percent: '100%' });
     }
   });
 
@@ -284,7 +312,9 @@ test('Export preserves menu, clipboard, semantic cards and recording lifecycles'
           fs.writeFileSync(svgFile, svgText);
           const figure = await run(`(()=>{const v=document.querySelector('.diagram-container svg').viewBox.baseVal;const sub=(document.querySelector('.header .subtitle')||{}).textContent;const header=document.querySelector('.header h1')?32+(sub&&sub.trim()?24:0)+18:0;return [(v.width+104)*4,(v.height+104+header)*4];})()`);
           const rasterSizes = [];
-          for (const format of ['png', 'jpeg', 'webp']) {
+          // All modes exercise real raster sizing. Shared MIME/quality encoding
+          // branches additionally run on architecture in both themes.
+          for (const format of mode === 'architecture' ? ['png', 'jpeg', 'webp'] : ['png']) {
             await run(`Archify.exportMenu.run('${format}')`);
             const result = await run(`(async()=>{const blob=exportDownloads.at(-1).blob;const image=await createImageBitmap(blob);const dimensions=[image.width,image.height];image.close();return {dimensions,type:blob.type};})()`);
             assert.deepEqual(result.dimensions, figure, `${mode} ${theme} ${format}: native 4x framed raster`);
@@ -365,9 +395,150 @@ test('Export preserves menu, clipboard, semantic cards and recording lifecycles'
     await run('exportWait(()=>[...exportUrls.values()].every(u=>u.revoked))');
   });
 
-  await t.test('recording constructor/error/empty failures clean up and public run disables WebM', async () => {
-    for (const fault of ['constructor','error','empty']) {
+  // 只替换指定的浏览器故障边界；图片、画布、流和其余编码过程仍使用真实实现。
+  async function recordingFault(fault) {
+    await run(`window.webmOriginals={Image,MediaRecorder,capture:HTMLCanvasElement.prototype.captureStream,
+      context:HTMLCanvasElement.prototype.getContext,draw:CanvasRenderingContext2D.prototype.drawImage};
+      window.webmRecorders=[];window.webmLateEvents=0;window.webmDraws=0;
+      window.restoreWebmFault=()=>{window.Image=webmOriginals.Image;window.MediaRecorder=webmOriginals.MediaRecorder;
+        HTMLCanvasElement.prototype.captureStream=webmOriginals.capture;
+        HTMLCanvasElement.prototype.getContext=webmOriginals.context;
+        CanvasRenderingContext2D.prototype.drawImage=webmOriginals.draw;};
+      window.webmFault=${JSON.stringify(fault)};
+      window.webmFailure=new Error('recording boundary: '+webmFault);
+      if(webmFault==='image')window.Image=class {set src(value){queueMicrotask(()=>this.onerror&&this.onerror());}};
+      if(webmFault==='context-null')HTMLCanvasElement.prototype.getContext=()=>null;
+      if(webmFault==='context-throw')HTMLCanvasElement.prototype.getContext=()=>{throw webmFailure;};
+      if(webmFault==='capture')HTMLCanvasElement.prototype.captureStream=()=>{throw webmFailure;};
+      if(webmFault==='first-frame'||webmFault==='later-frame')CanvasRenderingContext2D.prototype.drawImage=function(...args){
+        if(++webmDraws>=(webmFault==='first-frame'?1:2))throw webmFailure;
+        return webmOriginals.draw.apply(this,args);
+      };
+      window.MediaRecorder=class extends webmOriginals.MediaRecorder {
+        constructor(...args){super(...args);webmRecorders.push(this);this.stopCalls=0;}
+        start(...args){
+          if(webmFault==='start')throw webmFailure;
+          const value=super.start(...args);
+          if(webmFault==='async-error'){
+            const lateData=this.ondataavailable,lateStop=this.onstop,lateError=this.onerror;
+            setTimeout(()=>{
+              this.dispatchEvent(new ErrorEvent('error',{error:webmFailure}));
+              // 模拟错误之后已经排队的回调，不能恢复成功状态或重复清理资源。
+              setTimeout(()=>{lateData({data:new Blob(['late'])});lateStop();lateError({error:new Error('late error')});webmLateEvents++;},20);
+            },20);
+          }
+          return value;
+        }
+        requestData(){if(webmFault==='flush')throw webmFailure;return super.requestData();}
+        stop(){this.stopCalls++;if(webmFault==='stop')throw webmFailure;return super.stop();}
+      };`);
+  }
+  async function recordingOutcome(expression = 'Archify.motion.recordWebm({duration:250,fps:10})') {
+    return run(`Promise.race([
+      ${expression}.then(blob=>({status:'resolved',bytes:blob.size}),error=>({status:'rejected',message:error.message})),
+      new Promise(resolve=>setTimeout(()=>resolve({status:'pending'}),2000))
+    ])`);
+  }
+
+  for (const fault of ['image','context-null','context-throw','capture','start','first-frame','later-frame','async-error','stop']) {
+    await t.test('recording settles and releases its resources after ' + fault, async () => {
       await load();
+      await recordingFault(fault);
+      const outcome = await recordingOutcome();
+      assert.equal(outcome.status,'rejected',JSON.stringify(outcome));
+      if (!['image','context-null'].includes(fault)) assert.equal(outcome.message,'recording boundary: '+fault);
+      if (fault === 'async-error') await run('exportWait(()=>webmLateEvents===1)');
+      const state=await record('webm-boundary-'+fault);
+      assert.deepEqual(state.downloads,[]);
+      assert.ok(state.urls.length>0);assert.ok(state.urls.every(u=>u.revoked));
+      assert.ok(state.tracks.every(s=>s==='ended'));
+      assert.deepEqual(await run('[...exportUrls.values()].map(u=>u.revocations)'),[1]);
+      if (fault === 'async-error') {
+        assert.deepEqual(await run('webmRecorders.map(r=>r.state)'),['inactive']);
+        const stops=await run('webmRecorders.map(r=>r.stopCalls)');
+        await run('new Promise(resolve=>setTimeout(resolve,400))');
+        assert.deepEqual(await run('webmRecorders.map(r=>r.stopCalls)'),stops,'完成后定时器不能再次停止录制');
+      }
+    });
+  }
+
+  await t.test('recording failures reach the menu receipt and a later same-page recording succeeds', async () => {
+    await load();
+    await recordingFault('capture');
+    const outcome=await recordingOutcome(`Archify.exportMenu.run('webm').then(()=>new Blob())`);
+    assert.equal(outcome.status,'resolved','菜单应处理失败并完成调用');
+    const failed=await record('webm-menu-boundary');
+    assert.equal(failed.receipt['data-last-export-error-format'],'webm');
+    assert.equal(failed.receipt['data-last-export-error'],'recording boundary: capture');
+    assert.equal(failed.receipt['data-last-export-format'],undefined);
+    assert.deepEqual(failed.downloads,[]);
+    assert.equal(await run(`document.querySelector('[data-format="webm"]').disabled`),true);
+    await run('restoreWebmFault()');
+    const retry=await recordingOutcome();
+    assert.equal(retry.status,'resolved');assert.ok(retry.bytes>0);
+    const retried=await record('webm-recovered');
+    assert.ok(retried.urls.every(u=>u.revoked));assert.ok(retried.tracks.every(s=>s==='ended'));
+    assert.deepEqual(await run('[...exportUrls.values()].map(u=>u.revocations)'),[1,1]);
+  });
+
+  await t.test('recording keeps flush best-effort and isolates overlapping calls', async () => {
+    await load();
+    await recordingFault('flush');
+    const flushed=await recordingOutcome();
+    assert.equal(flushed.status,'resolved');assert.ok(flushed.bytes>0);
+    assert.ok((await record('webm-flush')).urls.every(u=>u.revoked));
+    await run('restoreWebmFault()');
+    const parallel=await run(`(async()=>{
+      // 保留真实图片解码，确定性地让第二次调用先完成背景加载。
+      const NativeImage=Image,ready=[];let imageSequence=0;
+      window.Image=function(...args){
+        const image=new NativeImage(...args),index=imageSequence++;let onload;
+        Object.defineProperty(image,'onload',{get:()=>onload,set:value=>{onload=value;}});
+        image.addEventListener('load',()=>{
+          ready[index]=()=>onload&&onload.call(image);
+          if(ready[0]&&ready[1]){ready[1]();ready[0]();}
+        },{once:true});
+        return image;
+      };
+      // 用调用指定的帧率标识真实流，不能把编码器构造顺序当成调用顺序。
+      const capture=HTMLCanvasElement.prototype.captureStream,streamRates=new WeakMap();
+      HTMLCanvasElement.prototype.captureStream=function(fps){
+        const stream=capture.call(this,fps);streamRates.set(stream,fps);return stream;
+      };
+      const NativeRecorder=MediaRecorder,recorders=[],started=[];let overlappingStates;
+      window.MediaRecorder=class extends NativeRecorder {
+        constructor(stream,...args){super(stream,...args);this.rate=streamRates.get(stream);recorders.push(this);}
+        start(...args){
+          const result=super.start(...args);started.push(this.rate);
+          if(recorders.length===2&&recorders.every(recorder=>recorder.state==='recording')){
+            overlappingStates=recorders.map(recorder=>recorder.state);
+            queueMicrotask(()=>recorders.find(recorder=>recorder.rate===10).dispatchEvent(
+              new ErrorEvent('error',{error:new Error('first recording failed')})));
+          }
+          return result;
+        }
+      };
+      const observe=promise=>promise.then(blob=>({status:'resolved',bytes:blob.size}),error=>({status:'rejected',message:error.message}));
+      try{
+        const outcomes=await Promise.all([observe(Archify.motion.recordWebm({duration:250,fps:10})),observe(Archify.motion.recordWebm({duration:500,fps:20}))]);
+        return {outcomes,started,overlappingStates};
+      }finally{window.Image=NativeImage;window.MediaRecorder=NativeRecorder;HTMLCanvasElement.prototype.captureStream=capture;}
+    })()`);
+    assert.deepEqual(parallel.started,[20,10],'第二次调用必须先启动编码器');
+    assert.deepEqual(parallel.overlappingStates,['recording','recording'],'注入错误时两次录制必须都在进行');
+    assert.equal(parallel.outcomes[0].status,'rejected');assert.equal(parallel.outcomes[0].message,'first recording failed');
+    assert.equal(parallel.outcomes[1].status,'resolved');assert.ok(parallel.outcomes[1].bytes>0);
+    const state=await record('webm-parallel');
+    assert.ok(state.tracks.every(s=>s==='ended'));assert.ok(state.urls.every(u=>u.revoked));
+    assert.deepEqual(await run('[...exportUrls.values()].map(u=>u.revocations)'),[1,1,1]);
+  });
+
+  await t.test('recording constructor/error/empty failures clean up and public run disables WebM', async () => {
+    await load();
+    let previousTracks = 0;
+    // Consecutive failures must release their own resources without a page
+    // reload doing the cleanup for them. Keep the unsupported startup separate.
+    for (const fault of ['constructor','error','empty']) {
       await run(`window.MediaRecorder=class {
         static isTypeSupported(){return true;}
         constructor(){if(${JSON.stringify(fault)}==='constructor')throw new Error('recorder constructor');this.state='inactive';this.mimeType='video/webm';}
@@ -375,7 +546,11 @@ test('Export preserves menu, clipboard, semantic cards and recording lifecycles'
         requestData(){} stop(){this.state='inactive';this.onstop();}
       };`);
       assert.equal(await run('Archify.motion.recordWebm({duration:250,fps:10}).then(()=>false,()=>true)'),true);
-      const state=await record('webm-'+fault);assert.ok(state.urls.every(u=>u.revoked));assert.ok(state.tracks.length>0);assert.ok(state.tracks.every(s=>s==='ended'));
+      const state=await record('webm-'+fault);
+      assert.ok(state.urls.every(u=>u.revoked));
+      assert.ok(state.tracks.length>previousTracks, `${fault}: the attempt must acquire its own stream`);
+      assert.ok(state.tracks.every(s=>s==='ended'));
+      previousTracks = state.tracks.length;
     }
     await load({extra:'&fault=unsupported'});
     await run(`Archify.exportMenu.run('webm')`);

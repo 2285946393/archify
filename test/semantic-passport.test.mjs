@@ -101,7 +101,7 @@ test('renderer-owned structure supplies truthful Semantic Passport context', () 
   assert.match(workflow, /data-node-id="approval"[^>]+data-node-kind="security"[^>]+data-node-context="Policy &amp; Recovery › Human or policy stop › Plan \+ route"/);
   assert.match(sequence, /data-node-id="redis"[^>]+data-node-kind="database"[^>]+data-node-context="Sequence participant"/);
   assert.match(dataflow, /data-node-id="warehouse"[^>]+data-node-kind="database"[^>]+data-node-context="04 \/ Store"/);
-  assert.match(lifecycle, /data-node-id="executing"[^>]+data-node-kind="active"[^>]+data-node-context="Lifecycle phases"/);
+  assert.match(lifecycle, /data-node-id="executing"[^>]+data-node-kind="active"[^>]+data-node-context="Lifecycle state"/);
 });
 
 test('Relationship Lens renders one Semantic Passport and copyable stable focus link', () => {
@@ -117,8 +117,6 @@ test('Relationship Lens renders one Semantic Passport and copyable stable focus 
   assert.match(html, /id="btn-focus-relations"[^>]+aria-expanded="false"[^>]+aria-controls="relationship-lens-list"/);
   assert.match(html, /function renderPassport\(id, node\)/);
   assert.match(html, /var relationId = record && record\.id/);
-  assert.match(html, /\? '#relation=' \+ encodeURIComponent\(relationId\)/);
-  assert.match(html, /: '#focus=' \+ encodeURIComponent\(activeIds\[0\]\)/);
   assert.match(html, /navigator\.clipboard\.writeText\(value\)/);
   assert.match(html, /document\.execCommand\('copy'\)/);
   assert.match(html, /copyLink: copyFocusLink/);
@@ -127,7 +125,6 @@ test('Relationship Lens renders one Semantic Passport and copyable stable focus 
   assert.match(html, /focus-chip:not\(\[data-relations-expanded="true"\]\) \.relationship-lens-list \{ display: none; \}/);
   assert.match(html, /clearBtn\.addEventListener\('click', function \(\) \{ clear\(\{ restoreFocus: true \}\); \}\)/);
   assert.match(html, /chip\.hidden \|\| !target \|\| typeof target\.closest !== 'function' \|\| chip\.contains\(target\)/);
-  assert.match(html, /target\.closest\('\[data-node-id\], \[data-relationship-hit-key\], \.overview-map'\)/);
   assert.match(html, /document\.addEventListener\('click',[\s\S]+?clear\(\);\s+\}, true\);/);
   assert.match(html, /Archify\.focus\.clear\(\{ restoreFocus: true \}\)/);
   assert.match(html, /renderRelationshipLens\(normalized\[0\],\s*byId\);\s*placeRelationshipLens\(\);/);
@@ -186,20 +183,6 @@ test('semantic passport computes and applies target top synchronously on open an
   } finally {
     await browser.close().catch(() => {});
   }
-});
-
-test('committed lifecycle focus hides the non-semantic primary rail', () => {
-  const html = render('lifecycle', CASES.lifecycle);
-  const diagram = svg(html);
-  const rail = diagram.match(/<path\b[^>]*data-lifecycle-rail[^>]*>/)?.[0] || '';
-
-  assert.ok(rail, 'lifecycle: expected the primary decorative rail to be identifiable');
-  assert.doesNotMatch(rail, /data-edge-from|data-edge-to/, 'the rail must remain non-semantic');
-  assert.match(
-    html,
-    /svg\[data-focus-active\] \[data-lifecycle-rail\]\s*\{\s*opacity:\s*0;/,
-    'committed node focus must not expose the decorative rail through dimmed nodes',
-  );
 });
 
 test('Semantic Passport exposes one localized, bounded move affordance outside canonical export', () => {

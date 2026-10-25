@@ -1,4 +1,5 @@
 import { test } from 'node:test';
+import { createScratchDirectory } from './helpers/scratch-directory.mjs';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -19,7 +20,7 @@ const large = JSON.parse(fs.readFileSync(path.join(skillRoot, 'examples', 'payme
 const clone = (value) => JSON.parse(JSON.stringify(value));
 
 function render(diagram) {
-  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'archify-class-'));
+  const directory = createScratchDirectory(path.join(os.tmpdir(), 'archify-class-'));
   const input = path.join(directory, 'candidate.class.json');
   const output = path.join(directory, 'candidate.html');
   fs.writeFileSync(input, JSON.stringify(diagram));
@@ -40,7 +41,7 @@ function relationshipPaths(svg) {
 
 function typeBoxes(svg) {
   const boxes = new Map();
-  for (const match of svg.matchAll(/data-node-id="([a-z_]+)"[\s\S]{0,600}?<rect x="([\d.]+)" y="([\d.]+)" width="([\d.]+)" height="([\d.]+)" rx="6" class="c-[a-z]+ cl-type"/g)) {
+  for (const match of svg.matchAll(/data-node-id="([a-z_]+)"[\s\S]{0,600}?<rect x="([\d.]+)" y="([\d.]+)" width="([\d.]+)" height="([\d.]+)" rx="[\d.]+" class="c-[a-z]+ cl-type"/g)) {
     boxes.set(match[1], { x: +match[2], y: +match[3], width: +match[4], height: +match[5] });
   }
   return boxes;
@@ -183,9 +184,15 @@ test('class: interfaces accept instance property contracts and static constants'
   ];
   const { status, stderr, svg } = render(diagram);
   assert.equal(status, 0, stderr);
-  const text = svg.replace(/<[^>]+>/g, '');
-  assert.match(text, /name: string/);
-  assert.match(text, /VERSION: string/);
+  const texts = [...svg.matchAll(/<text\b[^>]*>[\s\S]*?<\/text>/g)].map(match => match[0]);
+  for (const name of ['name', 'VERSION']) {
+    const index = texts.findIndex(tag => tag.includes('data-class-member="attributes"') && tag.replace(/<[^>]+>/g, '') === name);
+    assert.ok(index >= 0, `${name} retains its property name`);
+    const annotation = texts[index + 1];
+    assert.match(annotation, /class="[^"]*cl-type-ref[^"]*"/);
+    assert.equal(annotation.replace(/<[^>]+>/g, ''), 'string');
+    assert.equal(attrs(annotation).y, attrs(texts[index]).y, 'the type stays on the same property row');
+  }
 });
 
 test('class: duplicate interface properties remain invalid', () => {
