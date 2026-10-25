@@ -1566,6 +1566,51 @@ await import(${JSON.stringify(pathToFileURL(cli).href)});
   assert.deepEqual(fs.readFileSync(outputBackup.path), priorArtifact);
 });
 
+test('cli: uncertain delivery lock owners preserve every shared path', () => {
+  const input = path.join(skillRoot, 'examples/agent-tool-call.workflow.json');
+  for (const code of ['EPERM', 'EACCES', 'ESRCH']) {
+    const root = path.join(tmp, `uncertain-lock-owner-${code}`);
+    fs.mkdirSync(root);
+    const out = path.join(root, 'artifact.html');
+    const lockPath = deliveryLockPath(out);
+    const stage = path.join(root, '.archify-delivery-existing-attempt');
+    fs.mkdirSync(stage);
+    const files = new Map([
+      [out, '<!doctype html><title>existing artifact</title>\n'],
+      [deliveryProvenancePath(out), 'existing provenance\n'],
+      [deliveryPendingPath(out), 'existing pending journal\n'],
+      [lockPath, `${JSON.stringify({
+        schemaVersion: 1,
+        receiptId: '11111111-1111-4111-8111-111111111111',
+        pid: 999_999_999,
+      })}\n`],
+      [path.join(stage, 'candidate.html'), 'existing staged candidate\n'],
+    ]);
+    for (const [file, content] of files) fs.writeFileSync(file, content);
+    const entries = fs.readdirSync(root).sort();
+    const wrapper = path.join(tmp, `uncertain-lock-owner-${code}.mjs`);
+    fs.writeFileSync(wrapper, `
+const kill = process.kill;
+process.kill = (pid, signal) => {
+  if (pid === 999_999_999 && signal === 0) {
+    throw Object.assign(new Error('injected owner probe failure'), { code: ${JSON.stringify(code)} });
+  }
+  return kill(pid, signal);
+};
+process.argv = [process.execPath, ${JSON.stringify(cli)}, 'deliver', 'workflow', ${JSON.stringify(input)}, ${JSON.stringify(out)}, '--json'];
+await import(${JSON.stringify(pathToFileURL(cli).href)});
+`);
+    const result = spawnSync(process.execPath, [wrapper], { cwd: skillRoot, encoding: 'utf8' });
+    assert.equal(result.status, 1, `${code}: ${result.stderr || result.stdout}`);
+    const diagnostic = JSON.parse(result.stdout).diagnostics[0];
+    assert.equal(diagnostic.code, code === 'ESRCH' ? 'delivery/lock-stale' : 'delivery/concurrent-attempt');
+    assert.equal(diagnostic.subject.lock, lockPath);
+    for (const [file, content] of files) assert.equal(fs.readFileSync(file, 'utf8'), content, `${code}: ${file}`);
+    assert.deepEqual(fs.readdirSync(root).sort(), entries, `${code}: no staging or sidecar additions`);
+    assert.deepEqual(fs.readdirSync(stage), ['candidate.html']);
+  }
+});
+
 test('cli: portable delivery lock: a process exit requires explicit stale-lock recovery before rerun', () => {
   const initialInput = path.join(skillRoot, 'examples/agent-tool-call.workflow.json');
   const replacementInput = path.join(skillRoot, 'examples/incident-response.workflow.json');
