@@ -16187,6 +16187,8 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       var autoScrollUntil = 0;
       var originalFlowHeight = container.style.getPropertyValue(&#39;height&#39;);
       var originalFlowHeightPriority = container.style.getPropertyPriority(&#39;height&#39;);
+      var originalFlowAlignment = container.style.getPropertyValue(&#39;align-items&#39;);
+      var originalFlowAlignmentPriority = container.style.getPropertyPriority(&#39;align-items&#39;);
       var compactPageFlow = false;
 
       var viewBox = svg.viewBox &amp;&amp; svg.viewBox.baseVal;
@@ -16335,10 +16337,16 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
             .reduce(function (total, key) { return total + (parseFloat(style[key]) || 0); }, 0);
           var flowHeight = Math.ceil(height * camera.scale + Math.max(0, camera.y) + chrome) + &#39;px&#39;;
           if (container.style.getPropertyValue(&#39;height&#39;) !== flowHeight) container.style.setProperty(&#39;height&#39;, flowHeight);
+          // The SVG keeps its unscaled layout box while the container is
+          // compacted. Centering that box would push the drawing above the
+          // frame, so pin its top until the ordinary flow is restored.
+          if (container.style.getPropertyValue(&#39;align-items&#39;) !== &#39;flex-start&#39;) container.style.setProperty(&#39;align-items&#39;, &#39;flex-start&#39;);
           compactPageFlow = true;
         } else if (compactPageFlow) {
           if (originalFlowHeight) container.style.setProperty(&#39;height&#39;, originalFlowHeight, originalFlowHeightPriority);
           else container.style.removeProperty(&#39;height&#39;);
+          if (originalFlowAlignment) container.style.setProperty(&#39;align-items&#39;, originalFlowAlignment, originalFlowAlignmentPriority);
+          else container.style.removeProperty(&#39;align-items&#39;);
           compactPageFlow = false;
         }
       }
@@ -31421,6 +31429,8 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       var autoScrollUntil = 0;
       var originalFlowHeight = container.style.getPropertyValue(&#39;height&#39;);
       var originalFlowHeightPriority = container.style.getPropertyPriority(&#39;height&#39;);
+      var originalFlowAlignment = container.style.getPropertyValue(&#39;align-items&#39;);
+      var originalFlowAlignmentPriority = container.style.getPropertyPriority(&#39;align-items&#39;);
       var compactPageFlow = false;
 
       var viewBox = svg.viewBox &amp;&amp; svg.viewBox.baseVal;
@@ -31569,10 +31579,16 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
             .reduce(function (total, key) { return total + (parseFloat(style[key]) || 0); }, 0);
           var flowHeight = Math.ceil(height * camera.scale + Math.max(0, camera.y) + chrome) + &#39;px&#39;;
           if (container.style.getPropertyValue(&#39;height&#39;) !== flowHeight) container.style.setProperty(&#39;height&#39;, flowHeight);
+          // The SVG keeps its unscaled layout box while the container is
+          // compacted. Centering that box would push the drawing above the
+          // frame, so pin its top until the ordinary flow is restored.
+          if (container.style.getPropertyValue(&#39;align-items&#39;) !== &#39;flex-start&#39;) container.style.setProperty(&#39;align-items&#39;, &#39;flex-start&#39;);
           compactPageFlow = true;
         } else if (compactPageFlow) {
           if (originalFlowHeight) container.style.setProperty(&#39;height&#39;, originalFlowHeight, originalFlowHeightPriority);
           else container.style.removeProperty(&#39;height&#39;);
+          if (originalFlowAlignment) container.style.setProperty(&#39;align-items&#39;, originalFlowAlignment, originalFlowAlignmentPriority);
+          else container.style.removeProperty(&#39;align-items&#39;);
           compactPageFlow = false;
         }
       }
