@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="generator" content="archify 3.1.1-dev.1">
+  <meta name="generator" content="archify 3.2.1-dev.1">
   <meta name="archify-reader-contract" content="declared-wide-v1">
   <title>[PROJECT NAME] Architecture Diagram</title>
   <script>
@@ -236,6 +236,8 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
 
       --frontend-fill: rgba(34, 211, 238, 0.15);
       --frontend-stroke: #0891b2;
+      /* #1040: darker accent for small bold reader text; the diagram stroke above is untouched. */
+      --reader-accent: #077f9c;
       --backend-fill: rgba(52, 211, 153, 0.18);
       --backend-stroke: #059669;
       --database-fill: rgba(167, 139, 250, 0.2);
@@ -304,10 +306,12 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       --text: #102638;
       --text-muted: #587287;
       --text-dim: #8aa2b4;
-      --text-faint: #668397;
+      --text-faint: #5d778a; /* #1040: was #668397 at 3.99:1 on reader surfaces */
       --mask: #ffffff;
       --frontend-fill: rgba(6, 182, 212, 0.09);
       --frontend-stroke: #0789a1;
+      /* #1040: darker accent for small bold reader text; the diagram stroke above is untouched. */
+      --reader-accent: #067e95;
       --backend-fill: rgba(5, 150, 105, 0.09);
       --backend-stroke: #087f69;
       --database-fill: rgba(124, 58, 237, 0.09);
@@ -375,7 +379,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       --text: #123344;
       --text-muted: #4e7486;
       --text-dim: #86a6b4;
-      --text-faint: #668c9d;
+      --text-faint: #577786; /* #1040: was #668c9d at 3.54:1 on reader surfaces */
       --mask: #f9fdff;
       --frontend-fill: rgba(8, 145, 178, 0.08);
       --frontend-stroke: #087f9c;
@@ -452,10 +456,12 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       --text: #242018;
       --text-muted: #6f6658;
       --text-dim: #a09788;
-      --text-faint: #817767;
+      --text-faint: #796f60; /* #1040: was #817767 at 4.15:1 on reader surfaces */
       --mask: #fbf8f1;
       --frontend-fill: rgba(31, 117, 126, 0.09);
       --frontend-stroke: #287e84;
+      /* #1040: darker accent for small bold reader text; the diagram stroke above is untouched. */
+      --reader-accent: #267a80;
       --backend-fill: rgba(42, 119, 75, 0.09);
       --backend-stroke: #397b53;
       --database-fill: rgba(105, 75, 130, 0.09);
@@ -2529,6 +2535,18 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       color: var(--text-faint);
       font-size: 0.5625rem;
     }
+    /* #1040: small bold reader text in the semantic accent color (Passport
+       direction chip, Finder result count) falls below the 4.5:1 normal-text
+       floor in some light themes. Resolve a darker --reader-accent where the
+       preset defines one; the diagram's --frontend-stroke itself is untouched,
+       as are dark themes and presets that already pass. Zero counts stay faint
+       on purpose, so they are excluded from the darker rule. Route-target
+       finders keep their --security-stroke status color, so they are excluded
+       too. */
+    html[data-theme="light"] .semantic-passport-meta [data-passport="kind"],
+    html[data-theme="light"] .node-finder:not([data-context="route-target"]) .node-finder-result em:not([data-zero]) {
+      color: var(--reader-accent, var(--frontend-stroke));
+    }
 
     .cards {
       display: grid;
@@ -2736,19 +2754,31 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     }
     html[data-reader-rail="bottom"] .node-outline-head { padding: 1rem 2.5rem 0.375rem 0.25rem; }
     html[data-reader-rail="bottom"] .node-outline-list {
-      columns: 15rem;
-      column-gap: 1.75rem;
+      display: grid;
+      gap: 0.5rem;
       padding: 0;
       overflow: visible;
       -webkit-mask-image: none;
       mask-image: none;
     }
-    /* Named groups stay whole; a single unnamed group may split across columns,
-       where a continuous spine would read as a broken line. */
     html[data-reader-rail="bottom"] .node-outline-group + .node-outline-group { margin-top: 0; }
-    html[data-reader-rail="bottom"] .node-outline-group:has(> .node-outline-heading) { break-inside: avoid; padding-bottom: 0.25rem; }
-    html[data-reader-rail="bottom"] .node-outline-group:not(:has(> .node-outline-heading)) > ul::before { display: none; }
-    html[data-reader-rail="bottom"] .node-outline-group li { break-inside: avoid; }
+    html[data-reader-rail="bottom"] .node-outline-group:has(> .node-outline-heading) { padding-bottom: 0.25rem; }
+    html[data-reader-rail="bottom"] .node-outline-group > ul {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.25rem 0.5rem;
+    }
+    html[data-reader-rail="bottom"] .node-outline-group > ul::before { display: none; }
+    html[data-reader-rail="bottom"] .node-outline-group li {
+      flex: 0 1 auto;
+      min-width: min(100%, 12rem);
+      max-width: min(100%, 32rem);
+    }
+    html[data-reader-rail="bottom"] .node-outline-heading {
+      justify-content: flex-start;
+      gap: 0.5rem;
+    }
+    html[data-reader-rail="bottom"] .node-outline-heading > span { overflow-wrap: anywhere; }
     .rail-controls { display: none; }
     html:is([data-reader-rail="true"], [data-reader-rail="overlay"], [data-reader-rail="bottom"]) .rail-controls {
       display: flex;
@@ -2964,6 +2994,37 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     .node-outline-item:hover small,
     .node-outline-item[data-previewing] small,
     .node-outline-item[aria-current="true"] small { color: var(--text-muted); }
+
+    /* The desktop bottom rail is an index: compact rows keep related nodes
+       together while allowing full names and descriptions to wrap naturally. */
+    html[data-reader-rail="bottom"] .node-outline-item {
+      grid-template-columns: 0.625rem minmax(0, 1fr) 0.75rem;
+      align-items: first baseline;
+      column-gap: 0.375rem;
+      min-height: 0;
+      padding-block: 0.375rem;
+    }
+    html[data-reader-rail="bottom"] .node-outline-item strong,
+    html[data-reader-rail="bottom"] .node-outline-item small {
+      overflow: visible;
+      text-overflow: clip;
+      white-space: normal;
+      overflow-wrap: anywhere;
+    }
+    html[data-reader-rail="bottom"] .node-outline-item strong {
+      grid-column: 2;
+      grid-row: 1;
+    }
+    html[data-reader-rail="bottom"] .node-outline-item small {
+      grid-column: 2;
+      grid-row: 2;
+      text-align: left;
+    }
+    html[data-reader-rail="bottom"] .node-outline-item::after {
+      grid-column: 3;
+      grid-row: 1;
+      align-self: center;
+    }
 
     .card-header {
       display: flex;
@@ -5625,6 +5686,34 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       });
     }
 
+    (function () {
+      function attachToolbarNavigation(toolbar, selector) {
+        if (!toolbar) return;
+        toolbar.addEventListener('keydown', function (event) {
+          if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+          if (event.ctrlKey || event.altKey || event.metaKey || event.shiftKey) return;
+          var controls = Array.from(toolbar.querySelectorAll(selector)).filter(function (control) {
+            return !control.disabled && !control.hidden && control.getClientRects().length;
+          });
+          var current = controls.indexOf(event.target.closest('button'));
+          if (current < 0) return;
+          var next = event.key === 'Home' ? 0
+            : event.key === 'End' ? controls.length - 1
+              : (current + (event.key === 'ArrowRight' ? 1 : -1) + controls.length) % controls.length;
+          if (next === current) return;
+          event.preventDefault();
+          controls[next].focus();
+        });
+      }
+
+      attachToolbarNavigation(
+        document.querySelector('.toolbar'),
+        ':scope > .toolbar-group > button, :scope > .toolbar-group > .preset-wrap > #btn-preset, :scope > .export-wrap > #btn-export'
+      );
+      attachToolbarNavigation(document.querySelector('.diagram-nav'), ':scope > button');
+      attachToolbarNavigation(document.querySelector('.rail-controls'), ':scope > button');
+    })();
+
     /* ============================================================
        Visual style try-on — one topology, four bundled presets.
        The reader's choice is intentionally session-only: it updates the
@@ -5701,6 +5790,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         else open(false);
       });
       btn.addEventListener('keydown', function (e) {
+        if (e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return;
         if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
           e.preventDefault();
           if (!isOpen()) open(e.key === 'ArrowUp');
@@ -5717,6 +5807,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       menu.addEventListener('keydown', function (e) {
         if (e.key === 'Escape') { e.preventDefault(); close(true); return; }
         if (e.key === 'Tab') { close(false); return; }
+        if (e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return;
         var available = options();
         var active = available.indexOf(document.activeElement);
         switch (e.key) {
@@ -7140,6 +7231,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       });
       // APG menu-button pattern: ArrowDown/ArrowUp on the trigger opens the menu.
       btn.addEventListener('keydown', function (e) {
+        if (e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return;
         if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
           e.preventDefault();
           if (!isOpen()) open(e.key === 'ArrowUp');
@@ -7155,6 +7247,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       menu.addEventListener('keydown', function (e) {
         if (e.key === 'Escape') { e.preventDefault(); close(true); return; }
         if (e.key === 'Tab')    { close(false); return; }
+        if (e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return;
 
         var available = items().filter(function (i) { return !i.hidden && !i.disabled; });
         var current = available.indexOf(document.activeElement);
@@ -7405,6 +7498,21 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       var btn = document.getElementById('btn-motion');
       var label = document.getElementById('motion-label');
       var motionQuery = window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : null;
+      var rendering = html.hasAttribute('data-motion-render');
+      if (rendering) {
+        // Render frames seek native animations, including styles from earlier HTML.
+        function prepareRules(rules) {
+          Array.prototype.forEach.call(rules, function (rule) {
+            if (rule.media && rule.media.mediaText === '(prefers-reduced-motion: reduce)') rule.media.mediaText = 'not all';
+            if (rule.cssRules) prepareRules(rule.cssRules);
+          });
+        }
+        Array.prototype.forEach.call(document.styleSheets, function (sheet) {
+          var rules;
+          try { rules = sheet.cssRules; } catch (_) { return; }
+          prepareRules(rules);
+        });
+      }
       var capable = !!(svg && svg.getAttribute('data-animation') === 'trace');
       var readerPaused = false;
       var suspensions = Object.create(null);
@@ -7917,7 +8025,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         } catch (_) {}
       }
       function reducedMotion() {
-        return !!(motionQuery && motionQuery.matches);
+        return !rendering && !!(motionQuery && motionQuery.matches);
       }
       function hasSuspension() {
         return Object.keys(suspensions).length > 0;
@@ -8028,7 +8136,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         };
       }
       function syncVisibility() {
-        if (document.hidden) {
+        if (document.hidden && !rendering) {
           suspensions.visibility = true;
           html.setAttribute('data-document-hidden', 'true');
         } else {
@@ -8056,6 +8164,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           release: function () { return false; },
           suspend: function () { return function () { return false; }; },
           isPaused: function () { return true; },
+          reducedMotion: reducedMotion,
           owner: function () { return ''; }
         };
       }
@@ -8103,9 +8212,11 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         release: release,
         suspend: suspend,
         isPaused: effectivePaused,
+        reducedMotion: reducedMotion,
         owner: function () { return owner; }
       };
     })();
+
 
     /* Verified repository evidence is emitted only after the renderer checks
        the authored GitHub revision, source blobs, and optional line ranges
@@ -9196,6 +9307,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           inspectRelationship(target.getAttribute('data-relationship-key'));
         });
         relationshipHitOverlay.addEventListener('keydown', function (event) {
+          if (event.isComposing || event.keyCode === 229) return;
           var target = event.target.closest('[data-relationship-hit-key]');
           if (!target) return;
           if (event.key === 'Escape' && pinnedRelationshipKey) {
@@ -9782,6 +9894,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         syncRelationshipPreview();
       });
       relationshipList.addEventListener('keydown', function (event) {
+        if (event.ctrlKey || event.altKey || event.metaKey || event.shiftKey) return;
         if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp' && event.key !== 'Home' && event.key !== 'End') return;
         var buttons = Array.prototype.slice.call(relationshipList.querySelectorAll('[data-relationship-target]'));
         if (!buttons.length) return;
@@ -10621,6 +10734,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         chooseRail(RAIL_PLACEMENT_KEY, toBottom ? 'bottom' : 'right');
       });
       document.addEventListener('keydown', function (event) {
+        if (event.isComposing || event.keyCode === 229) return;
         if (event.key === 'Escape' && html.getAttribute('data-reader-rail') === 'overlay') collapseRail();
       });
       document.addEventListener('pointerdown', function (event) {
@@ -12211,6 +12325,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         if (node) focusNode(node.getAttribute('data-radar-node-id'));
       });
       surface.addEventListener('keydown', function (event) {
+        if (event.isComposing || event.keyCode === 229) return;
         if (event.key === 'Escape') {
           event.preventDefault();
           event.stopPropagation();
@@ -12239,6 +12354,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         sync();
       });
       document.addEventListener('keydown', function (event) {
+        if (event.isComposing || event.keyCode === 229) return;
         if (!panelDrag || event.key !== 'Escape') return;
         finishPanelDrag({
           pointerId: panelDrag.pointerId,
@@ -12276,6 +12392,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         count: function () { return nodes.length; }
       };
     })();
+
 
     /* ============================================================
        Presentation Stage — a shareable, viewport-filling live view.
@@ -12570,6 +12687,8 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       closeBtn.addEventListener('click', function () { close(); });
       input.addEventListener('input', function () { render(input.value); });
       input.addEventListener('keydown', function (event) {
+        if (event.isComposing || event.keyCode === 229) return;
+        if (event.ctrlKey || event.altKey || event.metaKey || event.shiftKey) return;
         var buttons = resultButtons();
         if (event.key === 'ArrowDown' && buttons.length) {
           event.preventDefault();
@@ -12580,6 +12699,8 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         }
       });
       results.addEventListener('keydown', function (event) {
+        if (event.isComposing || event.keyCode === 229) return;
+        if (event.ctrlKey || event.altKey || event.metaKey || event.shiftKey) return;
         var buttons = resultButtons();
         var index = buttons.indexOf(document.activeElement);
         if (index < 0 || !buttons.length) return;
@@ -12594,6 +12715,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         }
       });
       panel.addEventListener('keydown', function (event) {
+        if (event.isComposing || event.keyCode === 229) return;
         if (event.key !== 'Escape') return;
         event.preventDefault();
         event.stopPropagation();
@@ -12614,6 +12736,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         count: items.length
       };
     })();
+
 
     /* ============================================================
        Node Outline — a rail index of the semantic nodes, grouped by their
@@ -13719,6 +13842,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         if (journeyPlaying && event.target.closest('[data-route-journey-index]')) pauseJourney({ preserveElapsed: true });
       });
       path.addEventListener('keydown', function (event) {
+        if (event.ctrlKey || event.altKey || event.metaKey || event.shiftKey) return;
         var button = event.target.closest('[data-route-journey-index]');
         if (!button) return;
         var index = Number(button.getAttribute('data-route-journey-index'));
@@ -14394,6 +14518,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         select(button.getAttribute('data-kind'));
       });
       kindsRoot.addEventListener('keydown', function (event) {
+        if (event.ctrlKey || event.altKey || event.metaKey || event.shiftKey) return;
         var buttons = Array.prototype.slice.call(kindsRoot.querySelectorAll('button:not(:disabled)'));
         var index = buttons.indexOf(document.activeElement);
         var next = null;
@@ -14404,6 +14529,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         if (next !== null) { event.preventDefault(); buttons[next].focus(); }
       });
       panel.addEventListener('keydown', function (event) {
+        if (event.isComposing || event.keyCode === 229) return;
         if (event.key !== 'Escape') return;
         event.preventDefault();
         event.stopPropagation();
@@ -14565,6 +14691,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         execute(button.getAttribute('data-guide-action'));
       });
       panel.addEventListener('keydown', function (event) {
+        if (event.isComposing || event.keyCode === 229) return;
         if (event.key === 'Escape' || event.key === '?') {
           event.preventDefault();
           event.stopPropagation();
@@ -14631,6 +14758,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
        ============================================================ */
     document.addEventListener('keydown', function (e) {
       if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (e.shiftKey && (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Home' || e.key === 'End')) return;
       if (e.defaultPrevented) return;
       var t = e.target;
       if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
