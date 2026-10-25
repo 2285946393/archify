@@ -1386,6 +1386,34 @@ test('finalize narrows only the source end_line and completes every gate once on
   assert.deepEqual(finalized.receipt.specification, { path: input, ...artifactIdentity(fs.readFileSync(input)) });
 });
 
+test('finalize preserves noncanonical source candidates byte for byte without retrying', async t => {
+  const canonical = rangeDraft();
+  const withRevision = revision => `${JSON.stringify({ ...JSON.parse(canonical), meta: { revision } }, null, 2)}\n`;
+  const variants = [
+    ['compact', JSON.stringify(JSON.parse(canonical))],
+    ['CRLF', canonical.replaceAll('\n', '\r\n')],
+    ['BOM', `\uFEFF${canonical}`],
+    ['precision-sensitive integer', withRevision(9007199254740992).replace('9007199254740992', '9007199254740993')],
+    ['exponent spelling', withRevision(1000).replace('1000', '1e3')],
+  ];
+  for (const [format, original] of variants) {
+    const directory = workspace(t);
+    const input = path.join(directory, 'candidate.json');
+    const output = path.join(directory, 'diagram.html');
+    fs.writeFileSync(input, original);
+    let deliveries = 0;
+    const finalized = await runFinalize({ cliPath: '/fake/archify.mjs', type: 'architecture', input, output,
+      runCommand: () => {
+        deliveries++;
+        return result({ ok: false, command: 'deliver', stage: 'input', diagnostics: [rangeDiagnostic()] }, 1);
+      } });
+    assert.equal(finalized.exitCode, 1, format);
+    assert.equal(deliveries, 1, format);
+    assert.equal(finalized.summary.autoRepair, undefined, format);
+    assert.deepEqual(fs.readFileSync(input), Buffer.from(original), format);
+  }
+});
+
 test('finalize leaves invalid, empty, missing, mismatched and mixed source diagnostics for the author', async t => {
   const good = rangeDiagnostic();
   const cases = [

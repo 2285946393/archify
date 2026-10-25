@@ -827,12 +827,16 @@ function repairSourceRanges(candidatePath, diagnostics, specification, expected)
     if (!bytes.equals(expected.bytes) || !identitiesMatch(specification,
       { sha256: sha256(bytes), bytes: bytes.byteLength })) return null;
     const candidate = JSON.parse(bytes.toString('utf8').replace(/^\uFEFF/, ''));
+    // Serialization must change only the end_line tokens, including preserving
+    // original number spellings and precision, whitespace, and encoding.
+    if (!bytes.equals(Buffer.from(`${JSON.stringify(candidate, null, 2)}\n`))) return null;
     const sourceRanges = [];
     for (const diagnostic of diagnostics) {
       const source = pointerTarget(candidate, diagnostic.subject?.path);
       const { line, endLine, lineCount, sourcePath } = diagnostic.evidence;
-      if (!source || source.line !== line || source.end_line !== endLine
-        || source.path !== sourcePath) return null;
+      if (!source || source.line !== line || source.end_line !== endLine) return null;
+      // path-contract-allow: git-path -- Both values name the same repository-relative citation token.
+      if (source.path !== sourcePath) return null;
       source.end_line = lineCount;
       sourceRanges.push({ path: diagnostic.subject.path, endLine: [endLine, lineCount] });
     }

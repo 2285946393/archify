@@ -8,8 +8,12 @@ When every diagnostic from the first embedded validation is
 `repository-evidence/line-out-of-range`, `finalize` may narrow an existing
 citation's `end_line` to the last line of its pinned file and retry the complete
 gates once. The start line must already exist in that nonempty file; the source
-path, revision, start, and all other authored content stay unchanged. Missing
-files, invalid starts, and mixed failures require author repair. This only bounds
+path, revision, start, and all other authored content stay unchanged. Automatic
+repair requires the original bytes to match `JSON.stringify(parsed, null, 2)`
+plus one LF exactly. Other formatting, a BOM, CRLF, or number spellings that
+would change on parsing and serialization require author repair, so reserialization
+cannot change unrelated bytes or numeric precision. Missing files, invalid starts,
+and mixed failures also require author repair. This only bounds
 the cited range; it does not establish or correct the cited fact. `autoRepair`
 records the changed ranges and original/repaired hashes in both receipts. A
 passing retry keeps the repaired candidate. Any later failure or exception
