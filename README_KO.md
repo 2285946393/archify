@@ -22,7 +22,7 @@
 
 <p align="center">
   <a href="https://github.com/tt-a1i/archify/stargazers"><img src="https://img.shields.io/github/stars/tt-a1i/archify?style=flat-square&amp;color=E5B650&amp;logo=github&amp;label=Stars" alt="GitHub stars" /></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-22c55e?style=flat-square" alt="MIT License" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-22c55e?style=flat-square" alt="Apache License 2.0" /></a>
   <a href="archify/SKILL.md"><img src="https://img.shields.io/badge/Agent-Skill-7C3AED?style=flat-square" alt="Agent Skill" /></a>
 </p>
 
@@ -219,7 +219,9 @@ node bin/archify.mjs validate workflow examples/agent-tool-call.workflow.json --
 
 ## 라이선스
 
-[MIT](LICENSE) — 자유롭게 사용, 수정, 배포할 수 있습니다.
+[Apache-2.0](LICENSE) — 자유롭게 사용, 수정, 배포할 수 있습니다.
+
+기존 MIT 허가는 계속 유효합니다. [NOTICE](NOTICE)와 [LICENSE-MIT](LICENSE-MIT)를 참조하세요. 타사 구성 요소는 각자의 라이선스를 유지합니다. 소프트웨어 라이선스는 사용자가 작성한 콘텐츠의 소유권을 변경하거나 Archify 상표의 일반적인 사용 권한을 부여하지 않습니다.
 
 ## 기여하기
 
