@@ -5779,7 +5779,7 @@ function compileWithRouteOrderFeedback(options) {
     }).sort((left, right) => stableCompare(left.id, right.id)).slice(0, 4);
     for (const node of forks) {
       try {
-        const candidate = compileWorkflowInternal({ ...options,
+        const candidate = compileWorkflowInternal({ ...options, discoverFixes: false,
           layoutFeedback: { ...options.layoutFeedback, reverseSourcePorts: node.id } });
         if (candidate.ok) return candidate;
       } catch (error) {
