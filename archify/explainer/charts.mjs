@@ -8,7 +8,7 @@ import venn from './vendor/pele/diagrams/venn.js';
 
 register(pie, xychart, quadrantChart, sankey, radar, venn);
 
-const NATIVE = { flowchart: 'workflow or architecture', sequence: 'sequence', class: 'class', er: 'erd', state: 'lifecycle', timeline: 'timeline', gantt: 'timeline or waterfall', mindmap: 'tree', treeview: 'tree' };
+const NATIVE = { flowchart: 'workflow or architecture', sequence: 'sequence', class: 'class', er: 'erd', state: 'lifecycle', timeline: 'timeline', gantt: 'timeline or waterfall', mindmap: 'tree', treeView: 'tree' };
 
 // A pie legend reads "Label · value (share%)" rather than Pele's "Label [value]". The labels are
 // rewritten before rendering so the legend is laid out for their real width.
