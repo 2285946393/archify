@@ -3,7 +3,7 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import test from 'node:test';
 
 const cli = fileURLToPath(new URL('../archify/bin/archify.mjs', import.meta.url));
@@ -119,4 +119,60 @@ test('opt-in finalize browser evidence cannot replace declared chart data', t =>
   assert.notEqual(result.status, 0);
   assert.equal(fs.readFileSync(path.join(f.dir, 'page.browser-check.json'), 'utf8'), f.bytes);
   assert.equal(fs.existsSync(path.join(f.dir, 'page.html')), false);
+});
+
+test('a rejected prepared patch input never publishes over its original dependency', t => {
+  const f = fixture(t, 'page.delivery.json');
+  const input = path.join(f.dir, 'draft.json');
+  const draft = JSON.parse(fs.readFileSync(input, 'utf8'));
+  draft.panels[0].blocks = [{ id: 'text', type: 'prose', text: 'This panel may change.' }];
+  fs.writeFileSync(input, JSON.stringify(draft));
+  const original = path.join(f.dir, 'original.html');
+  const delivered = spawnSync(process.execPath, [cli, 'deliver', 'explainer', input, original, '--json'], {
+    cwd: f.dir, encoding: 'utf8', env: { ...process.env, ARCHIFY_UPDATE_CHECK_DISABLED: '1' },
+  });
+  assert.equal(delivered.status, 0, delivered.stdout + delivered.stderr);
+  const originalBytes = fs.readFileSync(original);
+  const output = path.join(f.dir, 'page.html');
+  fs.writeFileSync(output, 'previous HTML');
+  const replacement = path.join(f.dir, 'replacement.json');
+  fs.writeFileSync(replacement, JSON.stringify({ id: 'data', title: 'Which values differ?', blocks: [
+    { id: 'measurements', type: 'chart', data: { path: 'page.delivery.json', kind: 'bar', x: 'name', y: ['value'] } },
+  ] }));
+  const changed = '[{"name":"North","value":"changed"}]';
+  const dependency = path.join(f.dir, 'page.delivery.json');
+  const wrapper = path.join(f.dir, 'patch-wrapper.mjs');
+  fs.writeFileSync(wrapper, `import fs from 'node:fs'; import cp from 'node:child_process'; import {syncBuiltinESMExports} from 'node:module';
+const spawn = cp.spawnSync;
+cp.spawnSync = (command, args, options) => {
+  if (args.includes('deliver') && args.includes('explainer')) fs.writeFileSync(${JSON.stringify(dependency)}, ${JSON.stringify(changed)});
+  return spawn(command, args, options);
+};
+syncBuiltinESMExports();
+process.argv = [process.execPath, ${JSON.stringify(cli)}, 'patch', 'explainer', ${JSON.stringify(original)}, 'data', ${JSON.stringify(replacement)}, ${JSON.stringify(output)}, '--json'];
+await import(${JSON.stringify(pathToFileURL(cli).href)});`);
+  const result = spawnSync(process.execPath, [wrapper], { cwd: f.dir, encoding: 'utf8', timeout: 30_000,
+    env: { ...process.env, ARCHIFY_UPDATE_CHECK_DISABLED: '1' } });
+  assert.notEqual(result.status, 0);
+  const receipt = JSON.parse(result.stdout);
+  assert.ok(receipt.diagnostics.some(entry => entry.code === 'explainer/dependency-changed'));
+  assert.equal(fs.readFileSync(dependency, 'utf8'), changed, result.stdout + result.stderr);
+  assert.equal(fs.readFileSync(output, 'utf8'), 'previous HTML');
+  assert.deepEqual(fs.readFileSync(original), originalBytes);
+});
+
+test('an invalid prepared bundle preserves existing evidence and its typed error', t => {
+  const f = fixture(t, 'values.json');
+  const prepared = path.join(f.dir, 'invalid-prepared.json');
+  fs.writeFileSync(prepared, '{ invalid JSON');
+  fs.writeFileSync(path.join(f.dir, 'page.html'), 'previous HTML');
+  fs.writeFileSync(path.join(f.dir, 'page.delivery.json'), 'previous evidence');
+  const result = spawnSync(process.execPath, [cli, 'deliver', 'explainer', 'draft.json', 'page.html', '--json'], {
+    cwd: f.dir, encoding: 'utf8', env: { ...process.env, ARCHIFY_UPDATE_CHECK_DISABLED: '1', ARCHIFY_EXPLAINER_PREPARED: prepared },
+  });
+  assert.notEqual(result.status, 0);
+  assert.ok(JSON.parse(result.stdout).diagnostics.some(entry => entry.code === 'explainer/prepared-invalid'));
+  assert.equal(fs.readFileSync(path.join(f.dir, 'page.delivery.json'), 'utf8'), 'previous evidence');
+  assert.equal(fs.readFileSync(path.join(f.dir, 'page.html'), 'utf8'), 'previous HTML');
+  assert.equal(fs.readFileSync(path.join(f.dir, 'values.json'), 'utf8'), f.bytes);
 });

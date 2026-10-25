@@ -4515,6 +4515,9 @@ async function commandDeliver(args) {
       diagram = explainerBundle.document;
     } else diagram = JSON.parse(specification.toString('utf8'));
   } catch (error) {
+    // A rejected prepared bundle may name original resources outside this
+    // execution-only draft. Do not trust its paths or publish failure evidence.
+    if (type === 'explainer' && process.env.ARCHIFY_EXPLAINER_PREPARED) protectedInputs = null;
     const repair = inputDiagnostic(error, inputPath);
     await reportDeliveryFailure({
       json,
