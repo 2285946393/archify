@@ -1706,6 +1706,121 @@ html[data-preset="blueprint"] .focus-chip { border-radius: 0.3rem; }
 .semantic-passport-meta [hidden] { display: none; }
 html[data-preset="blueprint"] .semantic-passport-meta span,
 html[data-preset="blueprint"] .semantic-passport-meta code { border-radius: 0.1rem; }
+/* 跨图下钻：Passport 列出全部子图；首项即 Ctrl/双击默认目标 */
+.semantic-passport-drilldowns {
+  display: grid;
+  gap: 0.28rem;
+  margin-top: 0.52rem;
+  padding-top: 0.48rem;
+  border-top: 1px solid color-mix(in srgb, var(--toolbar-border) 76%, transparent);
+}
+.semantic-passport-drilldowns[hidden] { display: none; }
+.semantic-passport-drilldowns-label {
+  color: var(--text-faint);
+  font-size: 0.5rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.semantic-passport-drilldowns-list {
+  display: grid;
+  gap: 0.22rem;
+}
+.semantic-passport-drilldown {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  min-height: 2rem;
+  padding: 0.32rem 0.5rem;
+  border: 1px solid color-mix(in srgb, var(--toolbar-border) 86%, transparent);
+  border-radius: 0.35rem;
+  background: color-mix(in srgb, var(--panel) 70%, transparent);
+  color: var(--text-muted);
+  text-decoration: none;
+  font-size: 0.6875rem;
+  font-weight: 600;
+}
+.semantic-passport-drilldown:hover,
+.semantic-passport-drilldown:focus-visible {
+  color: var(--backend-stroke);
+  border-color: color-mix(in srgb, var(--backend-stroke) 42%, var(--toolbar-border));
+}
+.semantic-passport-drilldown:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--backend-stroke) 55%, transparent);
+  outline-offset: 1px;
+}
+.semantic-passport-drilldown small {
+  color: var(--text-faint);
+  font-size: 0.5625rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.semantic-passport-drilldowns-hint {
+  color: var(--text-faint);
+  font-size: 0.5625rem;
+  line-height: 1.35;
+}
+/* 返回上一级：放在页眉显眼位置，不进 Passport */
+.parent-back-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  margin: 0 0 0.85rem;
+}
+.parent-back-bar[hidden] { display: none !important; }
+.parent-back-bar button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-height: 2.35rem;
+  padding: 0.4rem 0.9rem 0.4rem 0.7rem;
+  border: 1px solid color-mix(in srgb, var(--backend-stroke) 48%, var(--toolbar-border));
+  border-radius: 0.55rem;
+  background: color-mix(in srgb, var(--backend-stroke) 14%, var(--panel));
+  color: var(--backend-stroke);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--backend-stroke) 12%, transparent);
+}
+.parent-back-bar button:hover,
+.parent-back-bar button:focus-visible {
+  background: color-mix(in srgb, var(--backend-stroke) 22%, var(--panel));
+  border-color: color-mix(in srgb, var(--backend-stroke) 68%, var(--toolbar-border));
+  color: var(--text);
+}
+.parent-back-bar button:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--backend-stroke) 55%, transparent);
+  outline-offset: 2px;
+}
+.parent-back-bar button .parent-back-arrow {
+  font-size: 1rem;
+  line-height: 1;
+  opacity: 0.92;
+}
+html[data-preset="blueprint"] .parent-back-bar button { border-radius: 0.15rem; }
+svg [data-node-id][data-node-drilldowns] { cursor: pointer; }
+/* 单目标下钻：原生 SVG <a> 不画下划线；角标必须跟 SVG 一起导出 */
+svg a.archify-drilldown-link {
+  text-decoration: none;
+  color: inherit;
+  cursor: pointer;
+}
+svg .archify-drilldown-mark-disc {
+  fill: color-mix(in srgb, var(--backend-stroke) 88%, var(--panel));
+  stroke: color-mix(in srgb, var(--backend-stroke) 55%, var(--toolbar-border));
+  stroke-width: 1;
+}
+svg .archify-drilldown-mark-arrow {
+  stroke: var(--panel);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
 .semantic-passport-evidence {
   margin-top: 0.52rem;
   padding: 0.5rem;

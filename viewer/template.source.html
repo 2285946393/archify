@@ -274,6 +274,12 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
   <div class="container">
     <!-- Header -->
     <div class="header">
+      <div class="parent-back-bar no-print" id="parent-back-bar" hidden>
+        <button id="btn-parent-back" type="button" aria-label="{{i18n:viewer.passport.back.aria}}" title="{{i18n:viewer.nav.back.title}}">
+          <span class="parent-back-arrow" aria-hidden="true">&#8592;</span>
+          <span>{{i18n:viewer.passport.back}}</span>
+        </button>
+      </div>
       <div class="header-row"
            data-preset-badge-signal-flow="{{i18n:viewer.preset.badge.signalFlow}}"
            data-preset-badge-blueprint="{{i18n:viewer.preset.badge.blueprint}}"
@@ -515,6 +521,11 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
                 <a class="semantic-passport-repository" id="focus-repository" target="_blank" rel="noopener noreferrer" referrerpolicy="no-referrer"></a>
               </div>
               <div class="semantic-passport-evidence-links" id="focus-evidence-links"></div>
+            </div>
+            <div class="semantic-passport-drilldowns" id="focus-drilldowns" hidden>
+              <span class="semantic-passport-drilldowns-label">{{i18n:viewer.passport.drilldowns}}</span>
+              <div class="semantic-passport-drilldowns-list" id="focus-drilldowns-list" role="group" aria-label="{{i18n:viewer.passport.drilldowns.list}}"></div>
+              <small class="semantic-passport-drilldowns-hint">{{i18n:viewer.passport.drilldowns.hint}}</small>
             </div>
             <span class="relationship-lens-summary" id="focus-summary" aria-live="polite"></span>
             <div class="semantic-passport-reach" id="focus-reach" hidden>

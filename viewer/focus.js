@@ -34,6 +34,10 @@
       var explanationBaseHeight = 0;
       var relationsBtn = document.getElementById('btn-focus-relations');
       var clearBtn = document.getElementById('btn-focus-clear');
+      var parentBackBar = document.getElementById('parent-back-bar');
+      var parentBackBtn = document.getElementById('btn-parent-back');
+      var drilldownsSection = document.getElementById('focus-drilldowns');
+      var drilldownsList = document.getElementById('focus-drilldowns-list');
       var moveBtn = document.getElementById('btn-focus-move');
       var activeIds = [];
       var hoveredRelationship = null;
@@ -441,8 +445,154 @@
         setPassportValue(document.getElementById('focus-brand'), node.getAttribute('data-node-brand'));
         semanticId.textContent = id;
         semanticId.hidden = false;
+        renderDrilldowns(node);
         renderSourceEvidence(id);
       }
+      /**
+       * 仅允许同目录文件名.html（可选 ?query / #fragment）。
+       * 与 schema relativeHtmlHref / isSiblingHtmlHref 对齐：拒绝协议、/、..，防跳出产物目录。
+       */
+      function isSafeRelativeHtmlHref(value) {
+        if (typeof value !== 'string') return false;
+        var href = value.trim();
+        if (!href || href.length > 512) return false;
+        return /^[A-Za-z0-9][A-Za-z0-9._-]*\.html(?:\?[A-Za-z0-9._~/=&%+!?$-]*)?(?:#[A-Za-z0-9._~/=&%+!?$-]*)?$/.test(href);
+      }
+      function currentPageHref() {
+        var parts = (location.pathname || '').split('/');
+        var filename = parts[parts.length - 1] || '';
+        return withReaderContext(filename);
+      }
+      /**
+       * 跳子图时带上 ?from=当前页，子图无 meta.parentHref 时仍可返回。
+       */
+      function withReaderContext(targetHref) {
+        if (!isSafeRelativeHtmlHref(targetHref)) return null;
+        var hashIndex = targetHref.indexOf('#');
+        var hash = hashIndex >= 0 ? targetHref.slice(hashIndex) : '';
+        var target = hashIndex >= 0 ? targetHref.slice(0, hashIndex) : targetHref;
+        var queryIndex = target.indexOf('?');
+        var filename = queryIndex >= 0 ? target.slice(0, queryIndex) : target;
+        var params = new URLSearchParams(queryIndex >= 0 ? target.slice(queryIndex + 1) : '');
+        var current = new URLSearchParams(location.search);
+        ['theme', 'embed', 'present'].forEach(function (key) {
+          if (!params.has(key) && current.has(key)) params.set(key, current.get(key));
+        });
+        var query = params.toString();
+        return filename + (query ? '?' + query : '') + hash;
+      }
+      function hrefWithFrom(targetHref) {
+        var next = withReaderContext(targetHref);
+        if (!next) return null;
+        var from = currentPageHref();
+        if (!from || !isSafeRelativeHtmlHref(from)) return next;
+        var hashIndex = next.indexOf('#');
+        var hash = hashIndex >= 0 ? next.slice(hashIndex) : '';
+        var target = hashIndex >= 0 ? next.slice(0, hashIndex) : next;
+        var queryIndex = target.indexOf('?');
+        var filename = queryIndex >= 0 ? target.slice(0, queryIndex) : target;
+        var params = new URLSearchParams(queryIndex >= 0 ? target.slice(queryIndex + 1) : '');
+        params.set('from', from);
+        return filename + '?' + params.toString() + hash;
+      }
+      function resolveParentHref() {
+        try {
+          var from = new URLSearchParams(location.search).get('from');
+          if (from && isSafeRelativeHtmlHref(from)) return from.trim();
+        } catch (_) {}
+        var authored = svg.getAttribute('data-parent-href');
+        if (authored && isSafeRelativeHtmlHref(authored)) return authored.trim();
+        return null;
+      }
+      function navigateToRelativeHtml(href) {
+        var next = hrefWithFrom(href);
+        if (!next) return false;
+        location.assign(next);
+        return true;
+      }
+      function navigateToParent() {
+        var parent = resolveParentHref();
+        if (!parent) return false;
+        location.assign(withReaderContext(parent));
+        return true;
+      }
+      function syncParentBackControls() {
+        var parent = resolveParentHref();
+        if (parentBackBar) parentBackBar.hidden = !parent;
+        if (parentBackBtn) {
+          if (parent) parentBackBtn.setAttribute('data-parent-href', parent);
+          else parentBackBtn.removeAttribute('data-parent-href');
+        }
+      }
+      /**
+       * 渲染时 <a href> 是裸文件名；打开页后再补 ?from=，子图无 parentHref 也能回。
+       * 只改 data-archify-drilldown，不动 Passport / 证据链接。
+       */
+      function rewriteDrilldownAnchors() {
+        Array.prototype.forEach.call(svg.querySelectorAll('a[data-archify-drilldown]'), function (anchor) {
+          var authored = anchor.getAttribute('href');
+          anchor.setAttribute('data-archify-authored-href', authored);
+          var next = hrefWithFrom(authored);
+          if (next) anchor.setAttribute('href', next);
+        });
+      }
+      function parseNodeDrilldowns(node) {
+        if (!node) return [];
+        var raw = node.getAttribute('data-node-drilldowns');
+        if (!raw) return [];
+        try {
+          var list = JSON.parse(raw);
+          if (!Array.isArray(list)) return [];
+          return list.filter(function (entry) {
+            return entry
+              && typeof entry === 'object'
+              && isSafeRelativeHtmlHref(entry.href)
+              && entry.label
+              && String(entry.label).trim();
+          }).map(function (entry) {
+            return {
+              href: String(entry.href).trim(),
+              label: String(entry.label).trim(),
+              diagram_type: entry.diagram_type ? String(entry.diagram_type).trim() : ''
+            };
+          });
+        } catch (_) {
+          return [];
+        }
+      }
+      function openPrimaryDrilldown(node) {
+        var targets = parseNodeDrilldowns(node);
+        if (!targets.length) return false;
+        return navigateToRelativeHtml(targets[0].href);
+      }
+
+      function renderDrilldowns(node) {
+        if (!drilldownsSection || !drilldownsList) return;
+        drilldownsList.textContent = '';
+        var targets = parseNodeDrilldowns(node);
+        if (!targets.length) {
+          drilldownsSection.hidden = true;
+          return;
+        }
+        targets.forEach(function (target, index) {
+          var link = document.createElement('a');
+          link.className = 'semantic-passport-drilldown';
+          link.href = hrefWithFrom(target.href) || target.href;
+          link.setAttribute('data-drilldown-index', String(index));
+          link.setAttribute('aria-label', viewerText('viewer.passport.drilldowns.open', { label: target.label }));
+          var title = document.createElement('span');
+          title.textContent = target.label;
+          link.appendChild(title);
+          if (target.diagram_type) {
+            var type = document.createElement('small');
+            type.textContent = target.diagram_type;
+            link.appendChild(type);
+          }
+          drilldownsList.appendChild(link);
+        });
+        drilldownsSection.hidden = false;
+      }
+
       function relationshipsFor(id, byId) {
         var seen = {};
         var relationships = [];
@@ -1478,6 +1628,18 @@
         if (container.getAttribute('data-just-panned') === 'true') return;
         var node = event.target.closest('[data-node-id]');
         if (node) {
+          // Ctrl/Cmd+单击：跳过 focus，直接打开 Passport 列表第一项子图
+          if ((event.ctrlKey || event.metaKey) && openPrimaryDrilldown(node)) {
+            event.preventDefault();
+            return;
+          }
+          // Alt+单击：即使节点包了原生 <a> 也不跳，只 focus（审稿：探路仍要能选中）
+          if (event.altKey) {
+            event.preventDefault();
+          } else if (event.target.closest('a[data-archify-drilldown]')) {
+            // 单目标：交给浏览器跟 <a>，不再 set(id) 以免抢导航
+            return;
+          }
           var id = node.getAttribute('data-node-id');
           set(id);
           if (activeIds.indexOf(id) !== -1 && Archify.view && typeof Archify.view.reveal === 'function') {
@@ -1486,6 +1648,16 @@
         }
         else if (activeIds.length) clear();
       });
+      // 双击同样默认打开排在最上面的子图（与 Ctrl+单击一致）
+      svg.addEventListener('dblclick', function (event) {
+        if (container.getAttribute('data-just-panned') === 'true') return;
+        var node = event.target.closest('[data-node-id]');
+        if (!node) return;
+        if (openPrimaryDrilldown(node)) {
+          event.preventDefault();
+        }
+      });
+
       svg.addEventListener('keydown', function (event) {
         var node = event.target.closest('[data-node-id]');
         if (!node || (event.key !== 'Enter' && event.key !== ' ')) return;
@@ -1509,172 +1681,6 @@
       moveBtn.addEventListener('keydown', moveLensWithKeyboard);
       clearBtn.addEventListener('click', function () { clear({ restoreFocus: true }); });
       copyBtn.addEventListener('click', copyFocusLink);
-      if (explainBtn) explainBtn.addEventListener('click', function (event) { event.stopPropagation(); toggleExplanation(); });
-      if (explanationBack) {
-        explanationBack.addEventListener('click', function (event) { event.stopPropagation(); closeExplanation(); });
-      }
-      upstreamBtn.addEventListener('click', function () { applyReachability('upstream'); });
-      downstreamBtn.addEventListener('click', function () { applyReachability('downstream'); });
-      relationsBtn.addEventListener('click', function () {
-        var expanded = chip.getAttribute('data-relations-expanded') === 'true';
-        if (expanded) chip.removeAttribute('data-relations-expanded');
-        else chip.setAttribute('data-relations-expanded', 'true');
-        relationsBtn.setAttribute('aria-expanded', expanded ? 'false' : 'true');
-        relationsBtn.setAttribute('aria-label', viewerText(expanded
-          ? 'viewer.passport.relations.show'
-          : 'viewer.passport.relations.hide'));
-        placeRelationshipLens();
-      });
-      relationshipList.addEventListener('click', function (event) {
-        var button = event.target.closest('[data-relationship-target]');
-        if (!button) return;
-        var id = button.getAttribute('data-relationship-target');
-        set(id, { toggle: false });
-        if (Archify.view && typeof Archify.view.reveal === 'function') {
-          Archify.view.reveal([id], { includeNeighbors: true, reason: 'relationship' });
-        }
-        var node = svg.querySelector('[data-node-id="' + id + '"]');
-        if (node) {
-          try { node.focus({ preventScroll: true }); } catch (_) { try { node.focus(); } catch (_) {} }
-        }
-      });
-      relationshipList.addEventListener('pointerover', function (event) {
-        if (event.pointerType === 'touch') return;
-        if (finePointerQuery && !finePointerQuery.matches) return;
-        var button = event.target.closest('[data-relationship-key]');
-        if (!button || !relationshipList.contains(button)) return;
-        if (event.relatedTarget && button.contains(event.relatedTarget)) return;
-        hoveredRelationship = button;
-        syncRelationshipPreview();
-      });
-      relationshipList.addEventListener('pointerout', function (event) {
-        var button = event.target.closest('[data-relationship-key]');
-        if (!button || (event.relatedTarget && button.contains(event.relatedTarget))) return;
-        if (hoveredRelationship === button) hoveredRelationship = null;
-        syncRelationshipPreview();
-      });
-      relationshipList.addEventListener('focusin', function (event) {
-        var button = event.target.closest('[data-relationship-key]');
-        if (!button) return;
-        focusedRelationship = button;
-        syncRelationshipPreview();
-      });
-      relationshipList.addEventListener('focusout', function (event) {
-        var button = event.target.closest('[data-relationship-key]');
-        if (!button || (event.relatedTarget && button.contains(event.relatedTarget))) return;
-        if (focusedRelationship === button) focusedRelationship = null;
-        syncRelationshipPreview();
-      });
-      relationshipList.addEventListener('keydown', function (event) {
-        if (event.ctrlKey || event.altKey || event.metaKey || event.shiftKey) return;
-        if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp' && event.key !== 'Home' && event.key !== 'End') return;
-        var buttons = Array.prototype.slice.call(relationshipList.querySelectorAll('[data-relationship-target]'));
-        if (!buttons.length) return;
-        var index = buttons.indexOf(document.activeElement);
-        if (event.key === 'Home') index = 0;
-        else if (event.key === 'End') index = buttons.length - 1;
-        else if (event.key === 'ArrowDown') index = Math.min(buttons.length - 1, Math.max(0, index + 1));
-        else index = Math.max(0, index < 0 ? 0 : index - 1);
-        event.preventDefault();
-        buttons[index].focus();
-      });
-      document.addEventListener('pointerdown', function () {
-        lensDragClickPointer = null;
-      }, true);
-      document.addEventListener('click', function (event) {
-        // Losing capture (for example when a resize hides the handle) can
-        // retarget this drag's final click to the page. It is not dismissal.
-        // A new pointerdown releases the guard; keyboard clicks remain live.
-        if (lensDragClickPointer != null && event.detail > 0 &&
-            (event.pointerId == null || event.pointerId === lensDragClickPointer)) {
-          lensDragClickPointer = null;
-          event.preventDefault();
-          event.stopPropagation();
-          return;
-        }
-        var target = event.target;
-        if (chip.hidden || !target || typeof target.closest !== 'function' || chip.contains(target)) return;
-        if (container.getAttribute('data-just-panned') === 'true') return;
-        // Export consumes the active semantic snapshot; its controls are not
-        // an outside selection. Genuine outside activation still clears it.
-        if (target.closest('[data-node-id], [data-relationship-hit-key], .overview-map, #btn-export, #export-menu')) return;
-        clear();
-      }, true);
-      window.addEventListener('scroll', requestLensPlacement, { passive: true });
-      window.addEventListener('resize', requestLensPlacement);
-      container.addEventListener('scroll', requestLensPlacement, { passive: true });
-      // Reader and Chrome may finish resizing the stage after window resize.
-      // The absolute Passport does not resize its container when reclamped.
-      if (typeof ResizeObserver === 'function') {
-        new ResizeObserver(function () {
-          if (!chip.hidden) requestLensPlacement();
-        }).observe(container);
-      }
-      document.addEventListener('visibilitychange', function () {
-        if (document.hidden) removeRelationshipPulse();
-      });
-      function syncRelationshipMotionPreference(event) {
-        if (event.matches) removeRelationshipPulse();
-      }
-      if (reducedMotionQuery) {
-        if (typeof reducedMotionQuery.addEventListener === 'function') {
-          reducedMotionQuery.addEventListener('change', syncRelationshipMotionPreference);
-        } else if (typeof reducedMotionQuery.addListener === 'function') {
-          reducedMotionQuery.addListener(syncRelationshipMotionPreference);
-        }
-      }
-
-      installRelationshipHitTargets();
-
-      function syncFocusFromHash() {
-        try {
-          var params = new URLSearchParams(location.hash.replace(/^#/, ''));
-          var relation = params.get('relation');
-          var initial = params.get('focus');
-          var reach = params.get('reach');
-          if (relation) {
-            if (html.getAttribute('data-embed') === 'true' ||
-                !inspectRelationshipById(relation, { updateUrl: false, toggle: false })) clear({ updateUrl: false });
-          }
-          else if (initial) {
-            if (set(initial, { updateUrl: false, toggle: false }) &&
-                (reach === 'upstream' || reach === 'downstream')) {
-              applyReachability(reach, { updateUrl: false, toggle: false, reveal: false });
-            }
-          }
-          else clear({ updateUrl: false });
-        } catch (_) {}
-      }
-
-      window.addEventListener('hashchange', syncFocusFromHash);
-      syncFocusFromHash();
-
-      return {
-        set: set,
-        setMany: setMany,
-        clear: clear,
-        copyLink: copyFocusLink,
-        explain: toggleExplanation,
-        explaining: function () { return chip.getAttribute('data-explaining') === 'true'; },
-        reach: applyReachability,
-        clearReach: clearReachability,
-        reachabilitySnapshot: reachabilitySnapshot,
-        inspectRelationship: inspectRelationship,
-        inspectRelationshipById: inspectRelationshipById,
-        reposition: placeRelationshipLens,
-        relationship: function () {
-          var record = pinnedRelationshipRecord();
-          return record ? { id: record.id || null, key: record.key, from: record.from, to: record.to, label: record.label } : null;
-        },
-        reachability: function () {
-          return activeReachability ? {
-            direction: activeReachability.direction,
-            originId: activeReachability.originId,
-            nodeIds: activeReachability.nodeIds.slice(),
-            edgeKeys: activeReachability.edgeKeys.slice(),
-            maxDepth: activeReachability.maxDepth
-          } : null;
-        },
-        active: function () { return activeIds.length === 0 ? null : (activeIds.length === 1 ? activeIds[0] : activeIds.slice()); }
-      };
-    })();
+      if (parentBackBtn) parentBackBtn.addEventListener('click', navigateToParent);
+      rewriteDrilldownAnchors();
+      syncParentBackControls();
