@@ -73,8 +73,8 @@ A failure status is not a silent pass. The caller fails the operation,
 never silently proceeds.
 
 The `quarantineRemoveRegularFileBinding` function moves an owned file
-into a private directory (`archify-remove-*`) before deleting it, so the
-deletion is recoverable if the system crashes mid-unlink. The return
+into a private directory (`.archify-remove-*`) before deleting it. Failed
+cleanup can retain a recovery path for the caller to report. The return
 status covers the full outcome space:
 
 - `status: 'removed'` — the entry was successfully moved into quarantine
@@ -133,13 +133,17 @@ the inode from the path-stat, the capture returns
 
 ## Why the quarantine for removal
 
-`fs.unlinkSync` is atomic on POSIX but not on every networked filesystem.
-SMB clients can return success before the server has fully released the
-entry. The quarantine directory (named `archify-remove-<random>`) holds
-the file briefly before unlinking it; if the server reports the unlink
-failed after the local ack, the file remains in the quarantine with the
-quarantine directory preserved, and a later recovery tool can either retry
-the unlink or restore it. The protocol is:
+The removal path moves the captured entry into a private directory, verifies
+its binding there, and then unlinks it. If the moved entry belongs to another
+claimant, the code restores that entry instead of deleting it. A failed move,
+restore, or unlink is reported to the caller, including retained recovery
+paths when cleanup cannot finish.
+
+The empty-directory cleanup has a separate bounded retry for `ENOTEMPTY`:
+SMB can acknowledge unlink before a following directory removal sees the
+entry disappear. That retry never recursively removes a nonempty directory.
+This is failure reporting and claimant preservation, not a guarantee of
+recovering arbitrary interrupted removals after a crash. The protocol is:
 
 ```text
 captureRegularFileBinding(path)
@@ -162,8 +166,10 @@ leave it in place and surface it to the operator.
 
 The atomic-output layer fails closed by default:
 
-- A target whose `nlink > 1` is rejected (`hardlinked`) — we cannot
-  uniquely own a multi-link file, so any unlink would surprise a sibling.
+- A default target binding expects one link and rejects `nlink > 1`
+  (`hardlinked`). Controlled publication/backup steps explicitly request
+  `expectedLinks: 2` while verifying their temporary aliases, then verify the
+  intended one-link state after cleanup.
 - A target whose identity is `0n` (e.g. on a Windows FAT filesystem that
   does not surface inodes) is rejected (`identity-unavailable`).
 - A target that changes inode, device, mode, size, or content between
@@ -177,8 +183,8 @@ diagnostic. No caller path is allowed to treat a rejection as success.
 ## What this is NOT
 
 - This is **not** a transactional database. It does not roll back partial
-  side effects on remote systems; it only guarantees the local filesystem
-  state is consistent.
+  side effects on remote systems or make a multi-file operation transactional.
+  It verifies individual file bindings and reports retained recovery paths.
 - This is **not** a concurrency lock. The delivery lock in
   `bin/archify.mjs` (`deliveryLockPath`) prevents two `finalize` calls
   from racing on the same destination; the atomic-output layer assumes its

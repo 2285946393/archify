@@ -2,17 +2,17 @@
   "schemaVersion": 1,
   "skillId": "archify",
   "channel": "stable",
-  "version": "3.0.0",
-  "publishedAt": "2026-09-28T11:13:16Z",
+  "version": "3.2.0",
+  "publishedAt": "2026-10-19T00:20:11Z",
   "source": {
     "repository": "https://github.com/tt-a1i/archify",
-    "ref": "v3.0.0",
-    "treeSha": "f581ddf0a84bb59497b49d2ebf4d002366d111b9"
+    "ref": "v3.2.0",
+    "treeSha": "39069dd190f574064fe410aa3af1b6dfd98a522c"
   },
   "artifact": {
-    "sha256": "e30f65ddab8bbb0c467fa4be5bccf7e3853bd3ee86e8338f31e102037496be18"
+    "sha256": "70e210265c59f24dcbdf2a502ff671104b5454e7ee7d3554aecd86bad32384f5"
   },
-  "summary": "Redesigns the diagram reader, improves routing and Lifecycle v2, fixes Sequence legends and canvas use, and strengthens verified delivery.",
-  "releaseNotes": "https://github.com/tt-a1i/archify/releases/tag/v3.0.0",
+  "summary": "Adds one-page answers with cited sources, interactive diagrams and image/PDF export, plus clearer node indexes, update notices and portability fixes.",
+  "releaseNotes": "https://github.com/tt-a1i/archify/releases/tag/v3.2.0",
   "severity": "normal"
 }
