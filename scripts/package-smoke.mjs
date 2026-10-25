@@ -144,16 +144,21 @@ async function verifyPackage() {
     throw new Error('packaged skill is missing LICENSE');
   }
   const packageLicense = fs.readFileSync(packageLicensePath, 'utf8');
-  const packageLicenseLines = packageLicense.split(/\r?\n/);
-  if (!packageLicenseLines.includes('Copyright (c) 2025 Cocoon AI')) {
-    throw new Error('packaged LICENSE is missing the exact Cocoon AI copyright line');
-  }
   const repositoryLicense = fs.readFileSync(path.join(repoRoot, 'LICENSE'), 'utf8');
   if (packageLicense !== repositoryLicense) {
     throw new Error('packaged LICENSE must byte-match the repository LICENSE');
   }
-  if (!packageLicense.includes('The above copyright notice and this permission notice shall be included in all')) {
-    throw new Error('packaged LICENSE is missing the MIT notice-preservation terms');
+  for (const name of ['LICENSE-MIT', 'NOTICE']) {
+    const target = path.join(skillRoot, name);
+    if (!fs.existsSync(target)) throw new Error(`packaged skill is missing ${name}`);
+    if (!fs.readFileSync(target).equals(fs.readFileSync(path.join(repoRoot, name)))) {
+      throw new Error(`packaged ${name} must byte-match the repository ${name}`);
+    }
+  }
+  const legacyLicense = fs.readFileSync(path.join(skillRoot, 'LICENSE-MIT'), 'utf8');
+  if (!legacyLicense.split(/\r?\n/).includes('Copyright (c) 2025 Cocoon AI') ||
+      !legacyLicense.includes('The above copyright notice and this permission notice shall be included in all')) {
+    throw new Error('packaged LICENSE-MIT is missing the original MIT copyright and permission notice');
   }
 
   const packageNoticesPath = path.join(skillRoot, 'THIRD_PARTY_NOTICES.md');
