@@ -1608,6 +1608,8 @@ test('preview: HEAD returns GET representation metadata without a response body'
   source.meta.title = 'Preview metadata · 中文';
   fs.writeFileSync(input, JSON.stringify(source));
   const preview = await startPreview({ type: 'architecture', input, output, open: false, watch: false });
+  // A timed-out HTTP request cannot reach finally until its socket is closed.
+  t.after(() => preview.stop({ force: true }));
   try {
     await waitForState(preview.url, (state) => state.status === 'verified', 'HEAD fixture did not verify');
     for (const pathname of ['/', '/state', '/artifact.html']) {
