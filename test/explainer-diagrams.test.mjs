@@ -404,3 +404,20 @@ test('automatic alternatives do not override explicit or subsequently edited nat
   await assert.rejects(prepareExplainerDiagrams(documentOf([blockOf('architecture',edited)])),
     error=>error.archifyDiagnostics?.length>0);
 });
+
+test('automatic workflow branch labels follow locale without changing authored lanes or topology (#1082)',()=>{
+  const rows=['a | Build | backend','b | Ship | backend','c | Roll back | backend','a > b | green','a > c | red'];
+  const original=compileExplainerDiagram('workflow',rows,{id:'flow',title:'Release flow'});
+  const english=compileExplainerDiagram('workflow',rows,{id:'flow',title:'Release flow',locale:'en'});
+  assert.equal(original.lanes[1].label,'分支 1');
+  assert.equal(english.lanes[1].label,'Branch 1');
+  const withOriginalLabels=structuredClone(english);
+  withOriginalLabels.lanes=original.lanes;
+  assert.deepEqual(withOriginalLabels,original);
+  const authored=compileExplainerDiagram('workflow',['lane build | Authored lane','a | Build | backend | build','b | Ship | backend | build','a > b'],{id:'authored',title:'Authored workflow',locale:'en'});
+  assert.ok(authored.lanes.some(lane=>lane.label==='Authored lane')||authored.phases?.some(phase=>phase.label==='Authored lane'));
+  const wrappedRows=[...Array.from({length:8},(_,i)=>`n${i} | Step ${i} | backend`),...Array.from({length:7},(_,i)=>`n${i} > n${i+1}`)];
+  const wrapped=compileExplainerDiagram('workflow',wrappedRows,{id:'wrapped',title:'Release bands'});
+  assert.ok(wrapped.lanes.length>1);
+  assert.deepEqual(compileExplainerDiagram('workflow',wrappedRows,{id:'wrapped',title:'Release bands',locale:'en'}),wrapped,'wrapped band titles stay authored');
+});
