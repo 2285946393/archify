@@ -9,6 +9,8 @@ import { createHash } from 'node:crypto';
 import { preparePanelPatch } from '../archify/explainer/patch.mjs';
 import { packPageBundle, unpackPageBundle } from '../archify/explainer/page-bundle.mjs';
 import { compileExplainerDiagram } from '../archify/explainer/diagrams.mjs';
+import { prepareExplainer, rebindPreparedBundle } from '../archify/explainer/prepare.mjs';
+import { renderExplainer } from '../archify/explainer/render.mjs';
 const cli=path.resolve('archify/bin/archify.mjs');
 const run=args=>spawnSync(process.execPath,[cli,...args],{encoding:'utf8',maxBuffer:64*1024*1024,env:{...process.env,ARCHIFY_UPDATE_CHECK_DISABLED:'1'}});
 const read=file=>unpackPageBundle(JSON.parse(scanHtml(fs.readFileSync(file,'utf8')).scripts.find(s=>s.attrs.id==='archify-explainer-prepared').text));
@@ -146,4 +148,64 @@ test('a page without its source directory can patch prose but cannot read unrela
   fs.writeFileSync(path.join(dir,'asset.png'),'An unrelated file beside the HTML');
   panel.blocks.push({id:'new-image',type:'image',path:'asset.png',alt:'New image'});fs.writeFileSync(replacementPath,JSON.stringify(panel));
   await assert.rejects(preparePanelPatch({artifactPath:artifact,panelId:'first',replacementPath}),{message:'Local images require an input directory.'});
+});
+
+
+test('patch output excludes temporary execution paths and is reproducible (#1085)', t => {
+  const dir = temp(t), {artifact, input} = deliver(dir);
+  const replacement = path.join(dir, 'replacement.json'), outputs = ['first', 'second'].map(name => path.join(dir, name, 'patched.html'));
+  for (const output of outputs) fs.mkdirSync(path.dirname(output));
+  fs.writeFileSync(replacement, JSON.stringify({...fixture().panels[0], title:'A stable replacement'}));
+  const original = fs.readFileSync(artifact), source = fs.readFileSync(input);
+  let previous;
+  for (const output of outputs) {
+    const patched = run(['patch','explainer',artifact,'first',replacement,output,'--json']);
+    assert.equal(patched.status, 0, patched.stdout + patched.stderr);
+    const bundle = read(output), bytes = fs.readFileSync(output);
+    assert.equal(Object.hasOwn(bundle, 'inputPath'), false);
+    assert.equal(path.resolve(path.dirname(output), bundle.sourcePath), input);
+    assert.doesNotMatch(JSON.stringify(bundle), /archify-explainer-patch-[^/\\]*[/\\]patched-draft\.json/);
+    assert.equal(bundle.digest, createHash('sha256').update(JSON.stringify({...bundle,digest:undefined})).digest('hex'));
+    if (previous) assert.deepEqual(bytes, previous, 'equivalent output directories give identical HTML despite separate patch temporaries');
+    previous = bytes;
+    const checked = run(['check',output,'--json','--require-provenance']);
+    assert.equal(checked.status, 0, checked.stdout + checked.stderr);
+  }
+  assert.deepEqual(fs.readFileSync(artifact), original);
+  assert.deepEqual(fs.readFileSync(input), source);
+  fs.unlinkSync(input);
+  // A later edit resolves a new relative resource from the original draft directory.
+  const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a8XcAAAAASUVORK5CYII=','base64');
+  fs.writeFileSync(path.join(dir, 'later.png'), png);
+  fs.writeFileSync(replacement, JSON.stringify({...fixture().panels[0], blocks:[{id:'new-image',type:'image',path:'later.png',alt:'A later resource'}]}));
+  const output = path.join(dir, 'repatched.html');
+  const again = run(['patch','explainer',outputs[0],'first',replacement,output,'--json']);
+  assert.equal(again.status, 0, again.stdout + again.stderr);
+  const bundle = read(output);
+  assert.equal(Object.hasOwn(bundle, 'inputPath'), false);
+  assert.equal(path.resolve(dir, bundle.sourcePath), input);
+  assert.equal(bundle.preparedSources.assets['new-image'].sha256, createHash('sha256').update(png).digest('hex'));
+  const checked = run(['check',output,'--json','--require-provenance']);
+  assert.equal(checked.status, 0, checked.stdout + checked.stderr);
+});
+
+test('reader serialization omits private bindings for Windows paths and missing origins (#1085)', async t => {
+  const dir = temp(t), sourceText = JSON.stringify(fixture());
+  const prepared = await prepareExplainer(sourceText, {inputPath:path.join(dir,'draft.json')});
+  for (const origin of [true, false]) {
+    const bundle = rebindPreparedBundle({...prepared,
+      sourcePath:origin ? 'C:\\project\\draft.json' : null,
+      baseDir:origin ? 'C:\\project' : null,
+      inputPath:'C:\\Users\\FixtureUser\\AppData\\Local\\Temp\\archify-explainer-patch-random\\patched-draft.json'}, {sourceText:prepared.sourceText,document:prepared.document,sourceMap:prepared.sourceMap,format:prepared.format,diagnostics:prepared.diagnostics});
+    const before = JSON.stringify(bundle);
+    const html = renderExplainer(bundle.document, {preparedBundle:bundle, sourceText:bundle.sourceText,
+      sourceMap:bundle.sourceMap, preparedSources:bundle.preparedSources, preparedDiagrams:bundle.preparedDiagrams,
+      ...(origin ? {pageDirectory:'C:\\project\\output'} : {})});
+    const page = unpackPageBundle(JSON.parse(scanHtml(html).scripts.find(s=>s.attrs.id==='archify-explainer-prepared').text));
+    assert.equal(Object.hasOwn(page, 'inputPath'), false);
+    assert.doesNotMatch(JSON.stringify(page), /FixtureUser|patched-draft|archify-explainer-patch-random/);
+    assert.equal(page.sourcePath, origin ? '..\\draft.json' : null);
+    assert.equal(page.digest, createHash('sha256').update(JSON.stringify({...page,digest:undefined})).digest('hex'));
+    assert.equal(JSON.stringify(bundle), before, 'private validated bundle must stay unchanged');
+  }
 });
