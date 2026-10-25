@@ -18,6 +18,7 @@ export const browserTestFiles = [
   'viewer-chrome-layout.test.mjs',
   'semantic-radar.test.mjs',
   'viewer-camera-browser.test.mjs',
+  'viewer-radar-scroll-browser.test.mjs',
   'motion-governor-browser.test.mjs',
   'finder-browser.test.mjs',
   'intent-trace-browser.test.mjs',
@@ -28,6 +29,7 @@ export const browserTestFiles = [
   'crossover-state-browser.test.mjs',
   'semantic-passport-move-browser.test.mjs',
   'export-browser.test.mjs',
+  'menu-modifier-browser.test.mjs',
   'export-selection-browser.test.mjs',
   'sequence-note-export-browser.test.mjs',
   'viewer-identifiers-browser.test.mjs',
@@ -39,4 +41,10 @@ export const browserTestFiles = [
   'workflow-edge-label-contrast-browser.test.mjs',
   'lifecycle-note-contrast-browser.test.mjs',
   'sequence-segment-contrast-browser.test.mjs',
+  'toolbar-keyboard-browser.test.mjs',
+  'bottom-node-index-browser.test.mjs',
+  'explainer-browser.test.mjs',
+  'story-browser.test.mjs',
+  // Benchmark observers and real export integration require this explicit Chrome lane.
+  'diagram-quality-e2e-browser.test.mjs',
 ];
