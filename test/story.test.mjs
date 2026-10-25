@@ -38,6 +38,8 @@ test('public story draft returns source identities and attach preserves the enti
   assert.equal(fs.readFileSync(native,'utf8'),source);
   const payload=JSON.parse(/id="story-data">([\s\S]*?)<\/script>/.exec(embedded(html))[1]);
   assert.match(embedded(html),/<html lang="en"/);
+  assert.match(embedded(html), /id="archify-software-notices"/);
+  assert.ok(Buffer.byteLength(embedded(html).slice(0, embedded(html).indexOf('<meta charset='))) < 1024);
   assert.deepEqual(payload.facts.nodes.map(node=>node.id),facts.nodes.map(node=>node.id));
   assert.deepEqual(payload.facts.edges.map(edge=>[edge.id,edge.from,edge.to]),facts.edges.map(edge=>[edge.id,edge.from,edge.to]));
   assert.ok(payload.plan.shots.filter(shot=>shot.preset==='establish').every(shot=>shot.duration<=6));
