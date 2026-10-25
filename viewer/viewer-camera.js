@@ -19,6 +19,8 @@
       var autoScrollUntil = 0;
       var originalFlowHeight = container.style.getPropertyValue('height');
       var originalFlowHeightPriority = container.style.getPropertyPriority('height');
+      var originalFlowAlignment = container.style.getPropertyValue('align-items');
+      var originalFlowAlignmentPriority = container.style.getPropertyPriority('align-items');
       var compactPageFlow = false;
 
       var viewBox = svg.viewBox && svg.viewBox.baseVal;
@@ -175,7 +177,8 @@
         } else if (compactPageFlow) {
           if (originalFlowHeight) container.style.setProperty('height', originalFlowHeight, originalFlowHeightPriority);
           else container.style.removeProperty('height');
-          container.style.removeProperty('align-items');
+          if (originalFlowAlignment) container.style.setProperty('align-items', originalFlowAlignment, originalFlowAlignmentPriority);
+          else container.style.removeProperty('align-items');
           compactPageFlow = false;
         }
       }

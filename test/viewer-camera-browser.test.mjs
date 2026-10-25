@@ -773,4 +773,31 @@ test('zooming out a tall diagram keeps its top inside the frame', {
   assert.equal(restored.computedAlign, 'center', 'the centered reader layout is preserved at 100%');
   assert.ok(Math.abs((restored.svgTop - restored.containerTop) - (initial.svgTop - initial.containerTop)) < 1,
     'the SVG sits at the same place inside its container as before zooming');
+  const customized = path.join(scratch, 'tall-inline-alignment.html');
+  const originalHtml = fs.readFileSync(artifact, 'utf8');
+  assert.ok(originalHtml.includes('class="diagram-container"'));
+  fs.writeFileSync(customized, originalHtml.replace('class="diagram-container"', 'class="diagram-container" style="align-items: center !important"'));
+  const customizedLoaded = browser.cdp.waitFor('Page.loadEventFired', session);
+  await send('Page.navigate', { url: pathToFileURL(customized).href });
+  await customizedLoaded;
+  await stable();
+  const alignment = () => run(`(() => {const c=document.querySelector('.diagram-container');return {value:c.style.getPropertyValue('align-items'),priority:c.style.getPropertyPriority('align-items')};})()`);
+  const authoredAlignment = {value:'center',priority:'important'};
+  assert.deepEqual(await alignment(), authoredAlignment);
+  await run(`document.querySelector('[data-view="out"]').click()`);
+  await stable();
+  assert.deepEqual(await alignment(), {value:'flex-start',priority:''});
+  for (const mode of ['embed', 'present', 'print']) {
+    if (mode === 'print') await send('Emulation.setEmulatedMedia', {media:'print'});
+    else await run(`document.documentElement.setAttribute('data-${mode}','true')`);
+    await stable();
+    assert.deepEqual(await alignment(), authoredAlignment, mode+' restores authored inline alignment and priority');
+    if (mode === 'print') await send('Emulation.setEmulatedMedia', {media:''});
+    else await run(`document.documentElement.removeAttribute('data-${mode}')`);
+    await stable();
+    assert.deepEqual(await alignment(), {value:'flex-start',priority:''}, mode+' exit resumes compact flow');
+  }
+  await run(`document.querySelector('[data-view="reset"]').click()`);
+  await stable();
+  assert.deepEqual(await alignment(), authoredAlignment, 'reset restores authored inline alignment and priority');
 });
