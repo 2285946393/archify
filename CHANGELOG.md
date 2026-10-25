@@ -10,6 +10,8 @@ All notable changes are documented here. Format loosely follows [Keep a Changelo
 
 - **WebP brand container bounds (#602).** Reject missing or out-of-bounds image chunks, including incomplete animation frames, before reporting capture or pinned validation success. Preserve valid lossy, lossless, extended and animated containers and original-byte digests.
 
+- **Architecture Delta translation changes (#600).** Compare reports additions, removals and edits to `meta.translations` as presentation changes; translation-key order and empty-versus-omitted catalogs do not affect presentation classification or entity-change counts.
+
 - **Explainer chart data (#1008, #1011).** Preserve quotes and backslashes in labels, parse quoted multiline CSV records, and normalize ordinary display whitespace without rewriting source data. Malformed records, missing values and unsupported control characters still fail before replacing an existing delivery.
 
 - Viewer toolbar arrow-key and Home/End navigation includes visible Style and Export triggers (#899).
