@@ -7,8 +7,7 @@
     "subtitle": "Second child of the same API node (Passport list entry #2)",
     "output": "examples/drilldown-api-sequence.html",
     "parentHref": "drilldown-overview.html",
-    "quality_profile": "standard",
-    "viewBox": [720, 560]
+    "quality_profile": "standard"
   },
   "participants": [
     { "id": "client", "type": "frontend", "label": "Client", "sublabel": "UI" },

@@ -5342,7 +5342,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     <!-- Main Diagram -->
     <div class="diagram-container" data-detail-level="read"
          data-preset-badge-editorial-plate="ARCHIFY / PLATE 04">
-      <svg viewBox="0 0 720 560" data-sequence-column-fit="spread" role="img" lang="en" aria-labelledby="archify-diagram-title archify-diagram-description" data-animation="trace" data-preset="classic" data-parent-href="drilldown-overview.html" data-quality-profile="standard" data-motion-choreography="sequence">
+      <svg viewBox="0 0 920 564" data-sequence-column-fit="spread" data-reader-fit="width-first" role="img" lang="en" aria-labelledby="archify-diagram-title archify-diagram-description" data-animation="trace" data-preset="classic" data-parent-href="drilldown-overview.html" data-quality-profile="standard" data-motion-choreography="sequence">
         <title id="archify-diagram-title">API Cache Miss Sequence</title>
         <desc id="archify-diagram-description">Second child of the same API node (Passport list entry #2)</desc>
         <!-- Definitions -->
@@ -5371,60 +5371,60 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
 
 
         <!-- Lifelines -->
-        <path d="M 124.5 142 L 124.5 495" class="a-default" stroke-width="0.8" stroke-dasharray="3,7"/>
-        <path d="M 288.83333333333337 142 L 288.83333333333337 495" class="a-default" stroke-width="0.8" stroke-dasharray="3,7"/>
-        <path d="M 453.1666666666667 142 L 453.1666666666667 495" class="a-default" stroke-width="0.8" stroke-dasharray="3,7"/>
-        <path d="M 617.5 142 L 617.5 495" class="a-default" stroke-width="0.8" stroke-dasharray="3,7"/>
+        <path d="M 149.5 142 L 149.5 468" class="a-default" stroke-width="0.8" stroke-dasharray="3,7"/>
+        <path d="M 363.83333333333337 142 L 363.83333333333337 468" class="a-default" stroke-width="0.8" stroke-dasharray="3,7"/>
+        <path d="M 578.1666666666667 142 L 578.1666666666667 468" class="a-default" stroke-width="0.8" stroke-dasharray="3,7"/>
+        <path d="M 792.5 142 L 792.5 468" class="a-default" stroke-width="0.8" stroke-dasharray="3,7"/>
 
         <!-- Activations -->
 
 
         <!-- Messages -->
         <g data-edge-from="client" data-edge-to="api" data-edge-label="GET /resource" data-edge-key="0">
-          <path data-composition-edge-from="client" data-composition-edge-to="api" data-composition-points="131.5,180;281.83333333333337,180" d="M 131.5 180 L 281.83333333333337 180" class="a-emphasis" data-animate="edge" style="--step:0" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+          <path data-composition-edge-from="client" data-composition-edge-to="api" data-composition-points="156.5,180;356.83333333333337,180" d="M 156.5 180 L 356.83333333333337 180" class="a-emphasis" data-animate="edge" style="--step:0" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
         <g data-detail="context">
-          <rect x="166.86666666666667" y="160" width="79.60000000000001" height="16" rx="3" class="c-mask"/>
-          <text x="206.66666666666669" y="170" class="t-edge-emphasis" font-size="9" text-anchor="middle">GET /resource</text>
+          <rect x="216.86666666666667" y="160" width="79.60000000000001" height="16" rx="3" class="c-mask"/>
+          <text x="256.6666666666667" y="170" class="t-edge-emphasis" font-size="9" text-anchor="middle">GET /resource</text>
         </g>
         </g>
 
         <g data-edge-from="api" data-edge-to="cache" data-edge-label="GET key" data-edge-key="1">
-          <path data-composition-edge-from="api" data-composition-edge-to="cache" data-composition-points="295.83333333333337,240;446.1666666666667,240" d="M 295.83333333333337 240 L 446.1666666666667 240" class="a-default" data-animate="edge" style="--step:1" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+          <path data-composition-edge-from="api" data-composition-edge-to="cache" data-composition-points="370.83333333333337,240;571.1666666666667,240" d="M 370.83333333333337 240 L 571.1666666666667 240" class="a-default" data-animate="edge" style="--step:1" stroke-width="1.4" marker-end="url(#arrowhead)"/>
         <g data-detail="context">
-          <rect x="346.8" y="220" width="48.4" height="16" rx="3" class="c-mask"/>
-          <text x="371" y="230" class="t-muted" font-size="9" text-anchor="middle">GET key</text>
+          <rect x="446.80000000000007" y="220" width="48.4" height="16" rx="3" class="c-mask"/>
+          <text x="471.00000000000006" y="230" class="t-muted" font-size="9" text-anchor="middle">GET key</text>
         </g>
         </g>
 
         <g data-edge-from="cache" data-edge-to="api" data-edge-label="miss" data-edge-key="2">
-          <path data-composition-edge-from="cache" data-composition-edge-to="api" data-composition-points="446.1666666666667,290;295.83333333333337,290" d="M 446.1666666666667 290 L 295.83333333333337 290" class="a-default" data-animate="edge" style="--step:2" stroke-width="1.4" stroke-dasharray="3,5" marker-end="url(#arrowhead)"/>
+          <path data-composition-edge-from="cache" data-composition-edge-to="api" data-composition-points="571.1666666666667,290;370.83333333333337,290" d="M 571.1666666666667 290 L 370.83333333333337 290" class="a-default" data-animate="edge" style="--step:2" stroke-width="1.4" stroke-dasharray="3,5" marker-end="url(#arrowhead)"/>
         <g data-detail="context">
-          <rect x="354" y="270" width="34" height="16" rx="3" class="c-mask"/>
-          <text x="371" y="280" class="t-muted" font-size="9" text-anchor="middle">miss</text>
+          <rect x="454.00000000000006" y="270" width="34" height="16" rx="3" class="c-mask"/>
+          <text x="471.00000000000006" y="280" class="t-muted" font-size="9" text-anchor="middle">miss</text>
         </g>
         </g>
 
         <g data-edge-from="api" data-edge-to="db" data-edge-label="SELECT" data-edge-key="3">
-          <path data-composition-edge-from="api" data-composition-edge-to="db" data-composition-points="295.83333333333337,350;610.5,350" d="M 295.83333333333337 350 L 610.5 350" class="a-emphasis" data-animate="edge" style="--step:3" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+          <path data-composition-edge-from="api" data-composition-edge-to="db" data-composition-points="370.83333333333337,350;785.5,350" d="M 370.83333333333337 350 L 785.5 350" class="a-emphasis" data-animate="edge" style="--step:3" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
         <g data-detail="context">
-          <rect x="431.56666666666666" y="330" width="43.2" height="16" rx="3" class="c-mask"/>
-          <text x="453.1666666666667" y="340" class="t-edge-emphasis" font-size="9" text-anchor="middle">SELECT</text>
+          <rect x="556.5666666666667" y="330" width="43.2" height="16" rx="3" class="c-mask"/>
+          <text x="578.1666666666667" y="340" class="t-edge-emphasis" font-size="9" text-anchor="middle">SELECT</text>
         </g>
         </g>
 
         <g data-edge-from="db" data-edge-to="api" data-edge-label="row" data-edge-key="4">
-          <path data-composition-edge-from="db" data-composition-edge-to="api" data-composition-points="610.5,400;295.83333333333337,400" d="M 610.5 400 L 295.83333333333337 400" class="a-default" data-animate="edge" style="--step:4" stroke-width="1.4" stroke-dasharray="3,5" marker-end="url(#arrowhead)"/>
+          <path data-composition-edge-from="db" data-composition-edge-to="api" data-composition-points="785.5,400;370.83333333333337,400" d="M 785.5 400 L 370.83333333333337 400" class="a-default" data-animate="edge" style="--step:4" stroke-width="1.4" stroke-dasharray="3,5" marker-end="url(#arrowhead)"/>
         <g data-detail="context">
-          <rect x="436.1666666666667" y="380" width="34" height="16" rx="3" class="c-mask"/>
-          <text x="453.1666666666667" y="390" class="t-muted" font-size="9" text-anchor="middle">row</text>
+          <rect x="561.1666666666667" y="380" width="34" height="16" rx="3" class="c-mask"/>
+          <text x="578.1666666666667" y="390" class="t-muted" font-size="9" text-anchor="middle">row</text>
         </g>
         </g>
 
         <g data-edge-from="api" data-edge-to="client" data-edge-label="200 OK" data-edge-key="5">
-          <path data-composition-edge-from="api" data-composition-edge-to="client" data-composition-points="281.83333333333337,460;131.5,460" d="M 281.83333333333337 460 L 131.5 460" class="a-default" data-animate="edge" style="--step:5" stroke-width="1.4" stroke-dasharray="3,5" marker-end="url(#arrowhead)"/>
+          <path data-composition-edge-from="api" data-composition-edge-to="client" data-composition-points="356.83333333333337,460;156.5,460" d="M 356.83333333333337 460 L 156.5 460" class="a-default" data-animate="edge" style="--step:5" stroke-width="1.4" stroke-dasharray="3,5" marker-end="url(#arrowhead)"/>
         <g data-detail="context">
-          <rect x="185.0666666666667" y="440" width="43.2" height="16" rx="3" class="c-mask"/>
-          <text x="206.66666666666669" y="450" class="t-muted" font-size="9" text-anchor="middle">200 OK</text>
+          <rect x="235.0666666666667" y="440" width="43.2" height="16" rx="3" class="c-mask"/>
+          <text x="256.6666666666667" y="450" class="t-muted" font-size="9" text-anchor="middle">200 OK</text>
         </g>
         </g>
 
@@ -5434,55 +5434,69 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         <!-- Participants -->
         <g id="node-client" data-node-id="client" data-node-label="Client" tabindex="0" role="button" aria-label="Focus Client, UI, Sequence participant" aria-pressed="false" data-node-kind="frontend" data-node-sublabel="UI" data-node-context="Sequence participant">
           <title>Client · UI · Sequence participant</title>
-          <rect x="62" y="72" width="125" height="60" rx="6" class="c-mask"/>
-          <rect x="62" y="72" width="125" height="60" rx="6" class="c-frontend" data-animate="node" style="--step:0" stroke-width="1.5"/>
+          <rect x="62" y="72" width="175" height="60" rx="6" class="c-mask"/>
+          <rect x="62" y="72" width="175" height="60" rx="6" class="c-frontend" data-animate="node" style="--step:0" stroke-width="1.5"/>
           <g aria-hidden="true" data-semantic-sigil="frontend" class="semantic-sigil s-frontend" transform="translate(68 78) scale(0.6875)">
             <rect x="2" y="3" width="12" height="10" rx="2"/>
             <path d="M2 6.5h12"/>
             <circle cx="4.1" cy="4.8" r=".7" class="sigil-fill"/>
             <circle cx="6.3" cy="4.8" r=".7" class="sigil-fill"/>
           </g>
-          <text data-node-label="" data-detail-anchor="" x="124.5" y="108" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Client</text>
-          <text data-detail="context" x="124.5" y="122" class="t-muted" font-size="7" text-anchor="middle">UI</text>
+          <text data-node-label="" data-detail-anchor="" x="149.5" y="108" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Client</text>
+          <text data-detail="context" x="149.5" y="122" class="t-muted" font-size="7" text-anchor="middle">UI</text>
         </g>
 
         <g id="node-api" data-node-id="api" data-node-label="API" tabindex="0" role="button" aria-label="Focus API, handler, Sequence participant" aria-pressed="false" data-node-kind="backend" data-node-sublabel="handler" data-node-context="Sequence participant">
           <title>API · handler · Sequence participant</title>
-          <rect x="226.33333333333337" y="72" width="125" height="60" rx="6" class="c-mask"/>
-          <rect x="226.33333333333337" y="72" width="125" height="60" rx="6" class="c-backend" data-animate="node" style="--step:1" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(232.33333333333337 78) scale(0.6875)">
+          <rect x="276.33333333333337" y="72" width="175" height="60" rx="6" class="c-mask"/>
+          <rect x="276.33333333333337" y="72" width="175" height="60" rx="6" class="c-backend" data-animate="node" style="--step:1" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(282.33333333333337 78) scale(0.6875)">
             <path d="M6 3 3 8l3 5M10 3l3 5-3 5"/>
           </g>
-          <text data-node-label="" data-detail-anchor="" x="288.83333333333337" y="108" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">API</text>
-          <text data-detail="context" x="288.83333333333337" y="122" class="t-muted" font-size="7" text-anchor="middle">handler</text>
+          <text data-node-label="" data-detail-anchor="" x="363.83333333333337" y="108" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">API</text>
+          <text data-detail="context" x="363.83333333333337" y="122" class="t-muted" font-size="7" text-anchor="middle">handler</text>
         </g>
 
         <g id="node-cache" data-node-id="cache" data-node-label="Cache" tabindex="0" role="button" aria-label="Focus Cache, Redis, Sequence participant" aria-pressed="false" data-node-kind="database" data-node-sublabel="Redis" data-node-context="Sequence participant">
           <title>Cache · Redis · Sequence participant</title>
-          <rect x="390.6666666666667" y="72" width="125" height="60" rx="6" class="c-mask"/>
-          <rect x="390.6666666666667" y="72" width="125" height="60" rx="6" class="c-database" data-animate="node" style="--step:2" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(396.6666666666667 78) scale(0.6875)">
+          <rect x="490.66666666666674" y="72" width="175" height="60" rx="6" class="c-mask"/>
+          <rect x="490.66666666666674" y="72" width="175" height="60" rx="6" class="c-database" data-animate="node" style="--step:2" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(496.66666666666674 78) scale(0.6875)">
             <ellipse cx="8" cy="4" rx="5" ry="2"/>
             <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
           </g>
-          <text data-node-label="" data-detail-anchor="" x="453.1666666666667" y="108" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Cache</text>
-          <text data-detail="context" x="453.1666666666667" y="122" class="t-muted" font-size="7" text-anchor="middle">Redis</text>
+          <text data-node-label="" data-detail-anchor="" x="578.1666666666667" y="108" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Cache</text>
+          <text data-detail="context" x="578.1666666666667" y="122" class="t-muted" font-size="7" text-anchor="middle">Redis</text>
         </g>
 
         <g id="node-db" data-node-id="db" data-node-label="DB" tabindex="0" role="button" aria-label="Focus DB, PG, Sequence participant" aria-pressed="false" data-node-kind="database" data-node-sublabel="PG" data-node-context="Sequence participant">
           <title>DB · PG · Sequence participant</title>
-          <rect x="555" y="72" width="125" height="60" rx="6" class="c-mask"/>
-          <rect x="555" y="72" width="125" height="60" rx="6" class="c-database" data-animate="node" style="--step:3" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(561 78) scale(0.6875)">
+          <rect x="705" y="72" width="175" height="60" rx="6" class="c-mask"/>
+          <rect x="705" y="72" width="175" height="60" rx="6" class="c-database" data-animate="node" style="--step:3" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(711 78) scale(0.6875)">
             <ellipse cx="8" cy="4" rx="5" ry="2"/>
             <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
           </g>
-          <text data-node-label="" data-detail-anchor="" x="617.5" y="108" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">DB</text>
-          <text data-detail="context" x="617.5" y="122" class="t-muted" font-size="7" text-anchor="middle">PG</text>
+          <text data-node-label="" data-detail-anchor="" x="792.5" y="108" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">DB</text>
+          <text data-detail="context" x="792.5" y="122" class="t-muted" font-size="7" text-anchor="middle">PG</text>
         </g>
 
         <!-- Legend -->
-
+        <g data-legend="">
+          <text x="40" y="490" class="t-primary" font-size="12" font-weight="650">Legend</text>
+          <g data-legend-semantic-kind="emphasis" data-legend-x="40" data-legend-baseline="510" data-legend-width="118">
+            <path d="M 40 507 L 74 507" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+            <text x="83" y="510" class="t-muted" font-size="10" font-weight="500">main request</text>
+          </g>
+          <g data-legend-semantic-kind="return" data-legend-x="180" data-legend-baseline="510" data-legend-width="81">
+            <path d="M 180 507 L 214 507" class="a-default" stroke-width="1.4" stroke-dasharray="3,5" marker-end="url(#arrowhead)"/>
+            <text x="223" y="510" class="t-muted" font-size="10" font-weight="500">return</text>
+          </g>
+          <g data-legend-semantic-kind="default" data-legend-x="283" data-legend-baseline="510" data-legend-width="87">
+            <path d="M 283 507 L 317 507" class="a-default" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+            <text x="326" y="510" class="t-muted" font-size="10" font-weight="500">message</text>
+          </g>
+        </g>
       </svg>
       <p class="intent-trace-status no-print" id="intent-trace-status" role="status" aria-live="polite" aria-atomic="true"></p>
       <div class="diagram-guide no-print" id="diagram-guide" hidden role="dialog" aria-modal="false" aria-labelledby="diagram-guide-title">
