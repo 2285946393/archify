@@ -5529,6 +5529,18 @@ function inspectArtifactDeliveryProvenance(
       },
     });
     return result;
+  } catch (error) {
+    if (error?.code !== 'ARCHIFY_SIDECAR_NAMESPACE_INDETERMINATE') throw error;
+    return {
+      ok: false, status: 'unknown',
+      diagnostics: [diagnostic({
+        code: 'delivery/provenance-unknown',
+        message: error.message,
+        subject: { artifact: artifactPath },
+        evidence: { namespaceReason: error.sidecarNamespaceReason, systemCode: error.code },
+        supportedFixes: ['restore access to probe the artifact directory, then rerun the checker'],
+      })],
+    };
   } finally {
     releaseRegularFileBinding(artifactCapture.binding);
   }
