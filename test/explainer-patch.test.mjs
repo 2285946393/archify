@@ -17,6 +17,44 @@ function temp(t){const dir=fs.mkdtempSync(path.join(os.tmpdir(),'archify-explain
 function fixture(){return {schema_version:1,diagram_type:'explainer',meta:{id:'patch-document',title:'What can change?',locale:'en'},answer:{summary:'One stable panel can be replaced.'},panels:[{id:'first',title:'What changes?',blocks:[{id:'first-text',type:'prose',text:'This text may change.'}]},{id:'second',title:'What stays?',blocks:[{id:'second-text',type:'prose',text:'This text remains exactly the same.'}]}],sources:[]};}
 function deliver(dir,doc=fixture(),options=[]){const input=path.join(dir,'author.json'),artifact=path.join(dir,'original.html');fs.writeFileSync(input,JSON.stringify(doc,null,2)+'\n');const result=run(['deliver','explainer',input,artifact,...options,'--json']);assert.equal(result.status,0,result.stdout+result.stderr);return {input,artifact};}
 
+test('patch payload errors preserve their specific repair advice',async t=>{
+  const dir=temp(t),artifact=path.join(dir,'original.html'),replacement=path.join(dir,'replacement.md'),output=path.join(dir,'patched.html');
+  const replacementText='## Question {#question}\n\nReplacement.\n';
+  fs.writeFileSync(replacement,replacementText);
+  const script=text=>`<script type="application/json" id="archify-explainer-prepared">${text}</script>`;
+  const cases=[
+    [fs.readFileSync('archify/examples/lifecycle-agent-run.html','utf8'),'The artifact must contain one original draft and prepared resource payload.','Use an artifact produced by the formal explainer CLI.'],
+    [script('{}')+script('{}'),'The artifact must contain one original draft and prepared resource payload.','Use an artifact produced by the formal explainer CLI.'],
+    [script('{invalid'),'Embedded draft payload is invalid.','Rebuild the artifact from its original draft.'],
+    [script(JSON.stringify({preparedDiagrams:{diagrams:{flow:{htmlGzip:'not-gzip'}}}})),'Embedded native diagram payload cannot be inflated.','Rebuild the original artifact before patching.'],
+  ];
+  for(const [html,message,fix] of cases) {
+    fs.writeFileSync(artifact,html);
+    await assert.rejects(preparePanelPatch({artifactPath:artifact,panelId:'question',replacementPath:replacement}),error=>{
+      const diagnostic=error.archifyDiagnostics[0];
+      assert.equal(error.message,message);
+      assert.equal(diagnostic.code,'explainer/patch-payload');
+      assert.equal(diagnostic.message,message);
+      assert.deepEqual(diagnostic.supportedFixes,[fix]);
+      return true;
+    });
+    assert.equal(fs.readFileSync(artifact,'utf8'),html);
+    assert.equal(fs.readFileSync(replacement,'utf8'),replacementText);
+  }
+  // A valid native page passes the CLI's artifact check, then needs the specific
+  // missing-Explainer-payload diagnostic. Malformed HTML is rejected earlier.
+  fs.writeFileSync(artifact,cases[0][0]);fs.writeFileSync(output,'previous verified artifact');
+  const result=run(['patch','explainer',artifact,'question',replacement,output,'--json']);
+  assert.equal(result.status,1,result.stdout+result.stderr);
+  const diagnostic=JSON.parse(result.stdout).diagnostics[0];
+  assert.equal(diagnostic.code,'explainer/patch-payload');
+  assert.equal(diagnostic.message,cases[0][1]);
+  assert.deepEqual(diagnostic.supportedFixes,[cases[0][2]]);
+  assert.equal(fs.readFileSync(artifact,'utf8'),cases[0][0]);
+  assert.equal(fs.readFileSync(replacement,'utf8'),replacementText);
+  assert.equal(fs.readFileSync(output,'utf8'),'previous verified artifact');
+});
+
 test('panel patch preserves original source outside target token range',t=>{
   const dir=temp(t),{artifact}=deliver(dir),previous=read(artifact),replacement=path.join(dir,'replacement.json'),output=path.join(dir,'patched.html');
   const next={...previous.document.panels[0],title:'What changed?',blocks:[{id:'first-text',type:'prose',text:'The selected panel has new content.'}]};
