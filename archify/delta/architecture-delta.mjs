@@ -35,10 +35,10 @@ function sortedBy(values, keyFor) {
 
 function normalizeRepository(repository) {
   if (!repository) return undefined;
-  const location = parseRepositoryRemote(repository.url, { authored: true });
+  const location = parseRepositoryRemote(repository.url, { authored: true, provider: repository.provider });
   const url = location?.url || String(repository.url || '');
   return {
-    url: location?.provider === 'github' ? url.toLowerCase() : url,
+    url: location?.provider === 'github' || location?.provider === 'gitlab' ? url.toLowerCase() : url,
     revision: String(repository.revision || '').toLowerCase(),
     ...(repository.provider !== undefined ? { provider: repository.provider } : {}),
     ...(repository.link_mode !== undefined ? { link_mode: repository.link_mode } : {}),
@@ -181,7 +181,7 @@ function fieldChanges(before, after, groups) {
 }
 
 const COMPONENT_FIELDS = {
-  semantic: ['type', 'label', 'sublabel', 'tag', 'brand'],
+  semantic: ['type', 'label', 'sublabel', 'tag', 'brand', 'icon'],
   evidence: ['sources'],
   geometry: ['row', 'col', 'pos', 'size'],
 };
@@ -235,7 +235,6 @@ function presentationChanged(base, head) {
     quality_profile: base.meta?.quality_profile,
     engineering_profile: base.meta?.engineering_profile,
     legend: base.meta?.legend,
-    views: base.meta?.views,
     viewBox: base.meta?.viewBox,
     layout: base.layout,
     cards: base.cards,
@@ -249,7 +248,6 @@ function presentationChanged(base, head) {
     quality_profile: head.meta?.quality_profile,
     engineering_profile: head.meta?.engineering_profile,
     legend: head.meta?.legend,
-    views: head.meta?.views,
     viewBox: head.meta?.viewBox,
     layout: head.layout,
     cards: head.cards,
@@ -276,7 +274,7 @@ export function compareArchitecture(base, head, evidence = {}) {
 
   const baseRepository = normalizeRepository(base.meta?.repository);
   const headRepository = normalizeRepository(head.meta?.repository);
-  const identity = (repository) => parseRepositoryRemote(repository.url, { authored: true })?.identity || repository.url;
+  const identity = (repository) => parseRepositoryRemote(repository.url, { authored: true, provider: repository.provider })?.identity || repository.url;
   if (baseRepository && headRepository && identity(baseRepository) !== identity(headRepository)) {
     fail('delta/repository-mismatch', 'The snapshots name different repositories.', {
       baseRepository: baseRepository.url,
