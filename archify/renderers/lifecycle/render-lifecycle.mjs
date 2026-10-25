@@ -1131,4 +1131,5 @@ writeDiagram({
   svg: renderSvg(),
   cards: lifecycle.cards,
   sourceEvidence,
+    diagram: lifecycle,
 });

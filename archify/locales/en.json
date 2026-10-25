@@ -484,5 +484,10 @@
   "legend.waterfall.ok": "Completed",
   "legend.waterfall.error": "Error",
   "legend.waterfall.cancelled": "Cancelled",
-  "legend.waterfall.incomplete": "Incomplete (no recorded end)"
+  "legend.waterfall.incomplete": "Incomplete (no recorded end)",
+  "viewer.passport.explain": "Explain",
+  "viewer.passport.explain.show": "Show the explanation for this node",
+  "viewer.passport.explanation": "Explanation",
+  "viewer.passport.explanation.back": "{label} explanation. Activate to return to the passport",
+  "viewer.passport.explanation.backLink": "Back to passport"
 }

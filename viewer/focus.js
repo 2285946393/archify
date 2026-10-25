@@ -26,6 +26,12 @@
       var downstreamCount = document.getElementById('focus-reach-downstream-count');
       var relationshipList = document.getElementById('relationship-lens-list');
       var copyBtn = document.getElementById('btn-focus-copy');
+      var explainBtn = document.getElementById('btn-focus-explain');
+      var explanationFace = document.getElementById('focus-explanation');
+      var explanationTitle = document.getElementById('focus-explanation-title');
+      var explanationBody = document.getElementById('focus-explanation-body');
+      var explanationBack = document.getElementById('focus-explanation-back');
+      var explanationBaseHeight = 0;
       var relationsBtn = document.getElementById('btn-focus-relations');
       var clearBtn = document.getElementById('btn-focus-clear');
       var moveBtn = document.getElementById('btn-focus-move');
@@ -374,7 +380,60 @@
         });
         evidence.hidden = false;
       }
+      function explanationFor(id) {
+        return Archify.explanations && typeof Archify.explanations.node === 'function' ? Archify.explanations.node(id) : null;
+      }
+      function closeExplanation(options) {
+        options = options || {};
+        if (!explanationFace) return false;
+        var wasOpen = chip.getAttribute('data-explaining') === 'true';
+        chip.removeAttribute('data-explaining');
+        chip.style.height = '';
+        explanationBaseHeight = 0;
+        explanationFace.hidden = true;
+        if (wasOpen && options.restoreFocus !== false && explainBtn && !explainBtn.hidden) {
+          try { explainBtn.focus({ preventScroll: true }); } catch (_) { try { explainBtn.focus(); } catch (_) {} }
+        }
+        return wasOpen;
+      }
+      function fitExplanation() {
+        if (chip.getAttribute('data-explaining') !== 'true') return;
+        var rect = container.getBoundingClientRect();
+        var padding = window.innerWidth <= 720 ? 8 : 16;
+        var available = Math.max(0, Math.min(rect.bottom - padding, window.innerHeight - padding)
+          - Math.max(rect.top + padding, padding));
+        var needed = explanationFace.scrollHeight - explanationBody.clientHeight + explanationBody.scrollHeight + 2;
+        chip.style.height = Math.ceil(Math.min(available, Math.max(explanationBaseHeight, needed))) + 'px';
+      }
+      function openExplanation() {
+        if (!explanationFace || chip.hidden || activeIds.length !== 1) return false;
+        var text = explanationFor(activeIds[0]);
+        if (!text) return false;
+        var title = label.textContent;
+        explanationTitle.textContent = title;
+        while (explanationBody.firstChild) explanationBody.removeChild(explanationBody.firstChild);
+        text.split(/\n\s*\n/).forEach(function (paragraph) {
+          var trimmed = paragraph.trim();
+          if (!trimmed) return;
+          var p = document.createElement('p');
+          p.textContent = trimmed;
+          explanationBody.appendChild(p);
+        });
+        explanationBaseHeight = chip.offsetHeight;
+        explanationFace.hidden = false;
+        chip.setAttribute('data-explaining', 'true');
+        explanationBody.scrollTop = 0;
+        fitExplanation();
+        placeRelationshipLens();
+        if (explanationBack) { try { explanationBack.focus({ preventScroll: true }); } catch (_) { try { explanationBack.focus(); } catch (_) {} } }
+        return true;
+      }
+      function toggleExplanation() {
+        return chip.getAttribute('data-explaining') === 'true' ? !closeExplanation() : openExplanation();
+      }
       function renderPassport(id, node) {
+        closeExplanation({ restoreFocus: false });
+        if (explainBtn) explainBtn.hidden = !explanationFor(id);
         setPassportValue(detail, node.getAttribute('data-node-sublabel'));
         setPassportValue(kind, viewerKindLabel(node.getAttribute('data-node-kind') || 'node'));
         setPassportValue(context, node.getAttribute('data-node-context'));
@@ -1164,6 +1223,7 @@
         var containerRect = container.getBoundingClientRect();
         var nodeRect = node.getBoundingClientRect();
         if (containerRect.bottom <= 0 || containerRect.top >= window.innerHeight) return;
+        fitExplanation();
         var padding = window.innerWidth <= 720 ? 8 : 16;
         var visibleTop = Math.max(padding, -containerRect.top + padding);
         var visibleBottom = Math.min(containerRect.height - padding, window.innerHeight - containerRect.top - padding);
@@ -1272,6 +1332,8 @@
           node.setAttribute('aria-pressed', 'false');
         });
         edges().forEach(function (edge) { edge.removeAttribute('data-focus-match'); });
+        closeExplanation({ restoreFocus: false });
+        if (explainBtn) explainBtn.hidden = true;
         chip.hidden = true;
         label.textContent = '';
         detail.textContent = '';
@@ -1447,6 +1509,10 @@
       moveBtn.addEventListener('keydown', moveLensWithKeyboard);
       clearBtn.addEventListener('click', function () { clear({ restoreFocus: true }); });
       copyBtn.addEventListener('click', copyFocusLink);
+      if (explainBtn) explainBtn.addEventListener('click', function (event) { event.stopPropagation(); toggleExplanation(); });
+      if (explanationBack) {
+        explanationBack.addEventListener('click', function (event) { event.stopPropagation(); closeExplanation(); });
+      }
       upstreamBtn.addEventListener('click', function () { applyReachability('upstream'); });
       downstreamBtn.addEventListener('click', function () { applyReachability('downstream'); });
       relationsBtn.addEventListener('click', function () {
@@ -1588,6 +1654,8 @@
         setMany: setMany,
         clear: clear,
         copyLink: copyFocusLink,
+        explain: toggleExplanation,
+        explaining: function () { return chip.getAttribute('data-explaining') === 'true'; },
         reach: applyReachability,
         clearReach: clearReachability,
         reachabilitySnapshot: reachabilitySnapshot,

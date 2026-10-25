@@ -484,5 +484,10 @@
   "legend.waterfall.ok": "已完成",
   "legend.waterfall.error": "錯誤",
   "legend.waterfall.cancelled": "已取消",
-  "legend.waterfall.incomplete": "未完成（沒有結束記錄）"
+  "legend.waterfall.incomplete": "未完成（沒有結束記錄）",
+  "viewer.passport.explain": "說明",
+  "viewer.passport.explain.show": "顯示此節點的說明",
+  "viewer.passport.explanation": "說明",
+  "viewer.passport.explanation.back": "{label} 的說明。啟用以返回語義護照",
+  "viewer.passport.explanation.backLink": "返回語義護照"
 }

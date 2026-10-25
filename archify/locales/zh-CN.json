@@ -484,5 +484,10 @@
   "legend.waterfall.ok": "已完成",
   "legend.waterfall.error": "出错",
   "legend.waterfall.cancelled": "已取消",
-  "legend.waterfall.incomplete": "未完成（无结束记录）"
+  "legend.waterfall.incomplete": "未完成（无结束记录）",
+  "viewer.passport.explain": "解释",
+  "viewer.passport.explain.show": "显示此节点的解释",
+  "viewer.passport.explanation": "解释",
+  "viewer.passport.explanation.back": "{label} 的解释。激活以返回语义护照",
+  "viewer.passport.explanation.backLink": "返回语义护照"
 }

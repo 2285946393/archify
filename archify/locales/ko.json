@@ -484,5 +484,10 @@
   "legend.waterfall.ok": "완료",
   "legend.waterfall.error": "오류",
   "legend.waterfall.cancelled": "취소됨",
-  "legend.waterfall.incomplete": "미완료 (종료 기록 없음)"
+  "legend.waterfall.incomplete": "미완료 (종료 기록 없음)",
+  "viewer.passport.explain": "설명",
+  "viewer.passport.explain.show": "이 노드의 설명 보기",
+  "viewer.passport.explanation": "설명",
+  "viewer.passport.explanation.back": "{label} 설명. 활성화하면 패스포트로 돌아갑니다",
+  "viewer.passport.explanation.backLink": "패스포트로 돌아가기"
 }

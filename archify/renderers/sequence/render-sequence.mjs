@@ -1102,4 +1102,5 @@ writeDiagram({
   svg: renderSvg(),
   cards: sequence.cards,
   sourceEvidence,
+    diagram: sequence,
 });
