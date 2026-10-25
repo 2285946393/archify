@@ -42,6 +42,8 @@ test('export filenames drop detached Unicode marks', () => {
 
 test('export filenames keep existing Latin behavior', () => {
   assert.equal(diagramFilename('Checkout Platform Diagram'), 'checkout-platform');
+  assert.equal(diagramFilename('_'), '_');
+  assert.equal(diagramFilename('___'), '___');
   assert.equal(diagramFilename('  My Title!!  '), 'my-title');
   assert.equal(diagramFilename('<script>alert(1)</script>'), 'script-alert-1-script');
   assert.equal(diagramFilename(''), 'diagram');

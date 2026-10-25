@@ -43,7 +43,7 @@
                         .replace(/[^\p{L}\p{M}\p{N}_\-]+/gu, '-')
                         .toLowerCase()
                         .replace(/^-+|-+$/g, '');
-        return /[\p{L}\p{N}]/u.test(name) ? name : 'diagram';
+        return name || 'diagram';
       }
 
       function currentBg() {
