@@ -85,7 +85,7 @@ export function parseExplainer(sourceText, { inputPath, output } = {}) {
     const descriptor = (line, endLine = line + 1) => locate(starts[line] ?? sourceText.length, starts[endLine] ?? sourceText.length);
     const closePanel = end => { if (panelIndex >= 0) sourceMap[`/panels/${panelIndex}`].end = end; };
     function heading(line, prefix) {
-      const match = line.slice(prefix.length).trim().match(/^(.*?)(?:\s+\{(?:#([^}\s]+))?(?:\s*span=(\d+))?\})?$/u);
+      const match = line.slice(prefix.length).trim().match(/^(.*?)(?:\s+\{(?:#([^}\s]+))?(?:\s*span=(\d+))?\})?$/su);
       return {title:match[1].trim(),id:match[2],...(match[3]?{span:Number(match[3])}:{})};
     }
     function addBlock(block, at, until, rows = []) {
