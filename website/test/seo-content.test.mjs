@@ -31,6 +31,14 @@ function assertProofLink(page, link, lang, proof) {
 const links = node => [...(node.tagName === 'a' ? [node] : []), ...(node.childNodes || []).flatMap(links)];
 
 for (const lang of ['en', 'zh']) {
+  test(`initial ${lang} start HTML exposes every canonical diagram type as a selectable tab`, () => {
+    const page = read('start', lang);
+    const types = byClass(page, 'type-tab').map(node => attr(node, 'data-type'));
+    const expected = new Set(SCENARIO_RECIPES.map(recipe => recipe.type));
+    assert.equal(types.length, expected.size);
+    assert.deepEqual(new Set(types), expected);
+  });
+
   test(`initial ${lang} guide HTML contains every canonical recipe and its evidence without JavaScript`, () => {
     const page = read('guide', lang);
     const reference = find(page, 'recipe-reference');
@@ -75,7 +83,7 @@ test('initial homepage product facts explain identity, inputs, delivery, license
   const page = read('index', 'en');
   const section = find(page, 'about-archify');
   const content = clean(text(section));
-  for (const fact of ['open-source Agent Skill', 'typed JSON', 'interactive HTML', 'Mermaid', 'MIT', 'Codex', 'PNG', 'runtime system behavior', 'stable main']) assert.ok(content.includes(fact), fact);
+  for (const fact of ['open-source Agent Skill', 'typed JSON', 'interactive HTML', 'Mermaid', 'Apache-2.0', 'Codex', 'PNG', 'runtime system behavior', 'stable main']) assert.ok(content.includes(fact), fact);
   const hrefs = links(section).map(link => attr(link, 'href'));
   assert.ok(hrefs.includes('https://github.com/tt-a1i/archify/releases'));
   assert.ok(hrefs.includes('https://github.com/tt-a1i/archify/blob/main/LICENSE'));
