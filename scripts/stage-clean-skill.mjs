@@ -445,6 +445,7 @@ function validateLicenseInputs(repoRoot, packageEntries) {
   if (JSON.parse(manifest.content.toString('utf8')).license !== 'Apache-2.0') return;
   for (const name of ['LICENSE', 'LICENSE-MIT', 'NOTICE']) {
     const relative = `archify/${name}`;
+    // path-contract-allow: portable-logical-path -- Both values are tracked package entry names, not native paths.
     const entry = packageEntries.find(candidate => candidate.relative === relative);
     if (!entry) throw new Error(`required package input is missing: ${relative}`);
     requireTrackedFile(repoRoot, name);

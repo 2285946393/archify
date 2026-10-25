@@ -87,9 +87,15 @@ test('every checked-in viewer artifact carries its font and reaches no external 
 test('standalone software notices preserve both licenses as non-executable text', () => {
   const payload = softwareNoticesHtml.match(/<script type="application\/json" id="archify-software-notices">([\s\S]*)<\/script>/)[1];
   assert.equal(JSON.parse(payload), softwareNotices);
-  for (const name of ['NOTICE', 'LICENSE', 'LICENSE-MIT']) {
+  for (const name of ['NOTICE', 'LICENSE', 'LICENSE-MIT', 'THIRD_PARTY_NOTICES.md']) {
     const canonical = fs.readFileSync(path.join(repoRoot, name), 'utf8').trimEnd();
     assert.ok(softwareNotices.includes(`${name}\n${canonical}`), `${name} must retain its complete text`);
   }
   assert.match(softwareNotices, /Copyright \(c\) 2025 Cocoon AI/);
+  for (const name of ['archify-repo-grid', 'archify-repo', 'maka-architecture', 'rag-pipeline', 'web-app']) {
+    const html = fs.readFileSync(path.join(repoRoot, 'examples', `${name}.html`), 'utf8');
+    const embedded = html.match(/id="archify-software-notices">([\s\S]*?)<\/script>/)?.[1];
+    assert.ok(embedded, `${name} must carry software notices`);
+    assert.equal(JSON.parse(embedded), softwareNotices, `${name} must carry current license text`);
+  }
 });
