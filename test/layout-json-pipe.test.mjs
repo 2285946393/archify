@@ -12,6 +12,9 @@ const skillRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..
 // fixture below produces a layout report well past both sizes.
 const PIPE_LIMIT = 64 * 1024;
 
+// A shell argument must preserve literal path characters such as $ and quotes.
+const shellQuote = (value) => "'" + String(value).replaceAll("'", "'\"'\"'") + "'";
+
 const wideTree = () => {
   const nodes = [{ id: 'root', label: 'root' }];
   for (let i = 0; i < 20; i += 1) {
@@ -111,14 +114,14 @@ for (const [type, build] of cases) {
     // pipe buffer would reach the file.
     const pipedPath = path.join(dir, 'piped.json');
     const command = [
-      JSON.stringify(process.execPath),
-      JSON.stringify(renderer),
-      JSON.stringify(input),
-      JSON.stringify(output),
+      shellQuote(process.execPath),
+      shellQuote(renderer),
+      shellQuote(input),
+      shellQuote(output),
       '--layout-json',
       '| (sleep 2; cat)',
       '>',
-      JSON.stringify(pipedPath),
+      shellQuote(pipedPath),
     ].join(' ');
     const pipedRun = spawnSync('sh', ['-c', command], { encoding: 'utf8', timeout: 30_000 });
     assert.equal(pipedRun.status, 0, pipedRun.stderr);
