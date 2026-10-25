@@ -44,4 +44,7 @@ export const browserTestFiles = [
   'toolbar-keyboard-browser.test.mjs',
   'bottom-node-index-browser.test.mjs',
   'explainer-browser.test.mjs',
+  'story-browser.test.mjs',
+  // Benchmark observers and real export integration require this explicit Chrome lane.
+  'diagram-quality-e2e-browser.test.mjs',
 ];
