@@ -23,10 +23,12 @@ test('tracked scratch package runs public explainer without dependencies and mis
     const relative = path.relative(path.join(repository, 'archify'), file);
     return !relative.split(path.sep).some(segment => ['node_modules', 'test'].includes(segment) || segment.startsWith('.validator-check-'));
   } });
-  fs.copyFileSync(path.join(repository, 'THIRD_PARTY_NOTICES.md'), path.join(source, 'THIRD_PARTY_NOTICES.md'));
+  for (const name of ['THIRD_PARTY_NOTICES.md', 'LICENSE', 'LICENSE-MIT', 'NOTICE']) {
+    fs.copyFileSync(path.join(repository, name), path.join(source, name));
+  }
   const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('GIT_')
     && !key.startsWith('ARCHIFY_UPDATE_') && key !== 'ARCHIFY_EXPLAINER_PREPARED' && key !== 'NODE_PATH'));
-  for (const args of [['init'], ['add', '--force', '--', 'archify', 'THIRD_PARTY_NOTICES.md']]) {
+  for (const args of [['init'], ['add', '--force', '--', 'archify', 'THIRD_PARTY_NOTICES.md', 'LICENSE', 'LICENSE-MIT', 'NOTICE']]) {
     const result = spawnSync('git', ['-C', source, ...args], { env, encoding: 'utf8' });
     assert.equal(result.status, 0, result.stderr);
   }
