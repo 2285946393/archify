@@ -4451,7 +4451,29 @@ async function commandDeliver(args) {
   let stagingDirectory;
   let stagingIdentity;
   let deliveryAliasOutput;
+  let protectedInputs = type === 'explainer' ? null : [path.resolve(input)];
+  const assertDeliveryInputPaths = output => {
+    if (type !== 'explainer' || !output || !/\.html?$/i.test(output)) return;
+    if (!protectedInputs) throw new Error('Explainer inputs could not be inspected; failure evidence was not written.');
+    for (const target of [deliveryProvenancePath(output), deliveryPendingPath(output), deliverySidecarPath(output, '.delivery-lock.json'), path.join(path.dirname(output), DELIVERY_DIRECTORY_LOCK)]) {
+      resolveOutputPath({requestedOutput:target,inputPaths:protectedInputs,requiredExtension:'.json',inputDescription:'an Explainer input'});
+    }
+  };
   const reportDeliveryFailure = async (options) => {
+    try {
+      assertDeliveryInputPaths(options.output);
+    } catch (error) {
+      await reportPreparedArtifactFailure({
+        ...options,
+        error: error.message,
+        diagnostics: [...(options.diagnostics || []), ...(error.archifyDiagnostics || [diagnostic({
+          code: 'explainer/input-publication', message: error.message,
+          subject: { input: path.resolve(input), output: options.output },
+          supportedFixes: ['repair the original draft and choose evidence paths distinct from its local inputs'],
+        })])],
+      });
+      return { ok: false, status: 'unrecorded' };
+    }
     const ownership = deliveryOwnership;
     deliveryOwnership = undefined;
     const recorded = writeDeliveryFailureReceipt({
@@ -4482,7 +4504,14 @@ async function commandDeliver(args) {
   try {
     specification = fs.readFileSync(inputPath);
     if (type === 'explainer') {
+      const { declaredExplainerInputPaths } = await import('../explainer/prepare.mjs');
+      protectedInputs = declaredExplainerInputPaths(specification.toString('utf8'), inputPath);
       explainerBundle = await prepareExplainerInput(specification, inputPath, { repoRoot: repoArgs.repoRoot, quality: qualityArgs.quality, writingMode: writingArgs.writingMode });
+      // Prepared patch/finalize inputs may retain resources relative to their
+      // original draft rather than the execution-only temporary input.
+      protectedInputs = [...new Set([...protectedInputs, explainerBundle.sourcePath,
+        ...(explainerBundle.dependencies || []).filter(entry => entry.kind !== 'repository' && !entry.inline && typeof entry.path === 'string').map(entry => entry.path),
+      ].filter(Boolean))];
       diagram = explainerBundle.document;
     } else diagram = JSON.parse(specification.toString('utf8'));
   } catch (error) {
@@ -4509,7 +4538,7 @@ async function commandDeliver(args) {
       requestedOutput,
       authoredOutput,
       defaultOutput: `${type}.html`,
-      inputPaths: [inputPath],
+      inputPaths: protectedInputs,
     }));
     deliveryAliasOutput = outputPath;
     // Redelivery through a case, normalization, 8.3, or file-symlink alias
@@ -4575,12 +4604,13 @@ async function commandDeliver(args) {
   // directory. A later target snapshot still rejects any authored alias that
   // was retargeted across this boundary.
   try {
+    assertDeliveryInputPaths(outputPath);
     const defaultProvenancePath = deliveryProvenancePath(outputPath);
     ({ outputPath: provenancePath } = resolveOutputPath({
       requestedOutput: defaultProvenancePath,
       defaultOutput: defaultProvenancePath,
       requiredExtension: '.json',
-      inputPaths: [inputPath],
+      inputPaths: protectedInputs,
       inputDescription: 'the delivery input',
       otherOutputPaths: [outputPath],
     }));
@@ -4701,6 +4731,7 @@ async function commandDeliver(args) {
 
   try {
     try {
+      assertDeliveryInputPaths(outputPath);
       deliveryOwnership = acquireDeliveryLock(
         outputPath,
         receiptId,
@@ -5083,18 +5114,19 @@ async function commandDeliver(args) {
     }
 
     try {
+      assertDeliveryInputPaths(outputPath);
       const currentOutputPath = canonicalFuturePath(resolveOutputPath({
         requestedOutput,
         authoredOutput,
         defaultOutput: `${type}.html`,
-        inputPaths: [inputPath],
+        inputPaths: protectedInputs,
         otherOutputPaths: [provenancePath],
       }).outputPath);
       resolveOutputPath({
         requestedOutput: deliveryProvenancePath(currentOutputPath),
         defaultOutput: deliveryProvenancePath(currentOutputPath),
         requiredExtension: '.json',
-        inputPaths: [inputPath],
+        inputPaths: protectedInputs,
         inputDescription: 'the delivery input',
         otherOutputPaths: [currentOutputPath],
       });
