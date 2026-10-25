@@ -473,7 +473,7 @@ node bin/archify.mjs deliver workflow examples/agent-tool-call.workflow.json /tm
 
 <table>
 <tr>
-  <td align="center"><strong><img src="docs/assets/community/wechat.svg" alt="" width="18" /> 微信群</strong><br/><img src="docs/assets/community/wechat-qr.png" alt="Archify Official 微信群二维码" width="300" height="300" /></td>
+  <td align="center"><strong><img src="docs/assets/community/wechat.svg" alt="" width="18" /> 微信群</strong><br/><img src="docs/assets/community/wechat-qr.png" alt="Archify Official 微信群二维码" width="300" height="318" /></td>
   <td align="center"><strong><img src="docs/assets/community/qq.svg" alt="" width="18" /> QQ 群</strong><br/><img src="docs/assets/community/qq-qr.png" alt="Archify Official QQ 群二维码" width="300" height="300" /></td>
 </tr>
 </table>
