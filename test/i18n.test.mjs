@@ -520,8 +520,8 @@ test('enrolling a catalog is a data-only change and works from an unrelated work
     filter: (source) => !['node_modules', 'test'].includes(path.basename(source)) || path.dirname(source) !== skillRoot,
   });
   const french = JSON.parse(fs.readFileSync(path.join(skillRoot, 'examples/locales/fr.json'), 'utf8'));
-  // The example catalog is complete; drop one key so the enrolled catalog
-  // still exercises the partial-coverage disclosure asserted below.
+  // Drop a known key so this fixture exercises partial-coverage disclosure
+  // independently of future changes to the example catalog.
   delete french['viewer.rail.show'];
   fs.writeFileSync(path.join(packageRoot, 'locales/fr.json'), JSON.stringify(french));
   const manifestPath = path.join(packageRoot, 'locales/manifest.json');
