@@ -4631,7 +4631,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     html[data-embed="true"] .relationship-pulse-overlay { display: none; }
 
     /* Intent Trace is a temporary, pre-click exploration layer. Related
-       topology stays readable while a short viewer-only signal runs over
+       topology stays readable while a viewer-only signal follows the active trace over
        cloned edge geometry; the authored edge remains untouched underneath. */
     /* Keep the node's opaque backing mask intact while its visible ink dims.
        Fading the whole group also fades that mask and briefly exposes arrows
@@ -4656,7 +4656,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       stroke-dashoffset: 0;
       vector-effect: non-scaling-stroke;
       opacity: 0.94;
-      animation: archify-intent-trace-flow 1.15s linear 1 both;
+      animation: archify-intent-trace-flow 1.15s linear infinite;
     }
     /* Direction names describe each edge relative to the focused node only.
        The cloned geometry already runs from the authored source to target, so
@@ -5018,9 +5018,8 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     }
 
     @keyframes archify-intent-trace-flow {
-      0% { opacity: 0.28; stroke-dashoffset: 0; }
-      12%, 78% { opacity: 0.94; }
-      100% { opacity: 0; stroke-dashoffset: -1; }
+      0% { opacity: 0.94; stroke-dashoffset: 0; }
+      100% { opacity: 0.94; stroke-dashoffset: -1; }
     }
     @keyframes archify-route-probe-flow {
       0% { stroke-dashoffset: 0; opacity: 0.96; }
