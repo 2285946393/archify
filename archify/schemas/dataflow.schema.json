@@ -23,7 +23,8 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "title"
+        "title",
+        "output"
       ],
       "properties": {
         "title": {
@@ -33,11 +34,14 @@
         "locale": {
           "$ref": "common.schema.json#/$defs/locale"
         },
+        "translations": {
+          "$ref": "common.schema.json#/$defs/translations"
+        },
         "subtitle": {
           "type": "string"
         },
         "output": {
-          "type": "string"
+          "$ref": "common.schema.json#/$defs/portableOutputPath"
         },
         "animation": {
           "$ref": "common.schema.json#/$defs/animation"
@@ -48,6 +52,9 @@
         "quality_profile": {
           "$ref": "common.schema.json#/$defs/qualityProfile"
         },
+        "repository": {
+          "$ref": "common.schema.json#/$defs/repository"
+        },
         "views": {
           "$ref": "common.schema.json#/$defs/guidedViews"
         },
@@ -55,28 +62,16 @@
           "type": "object",
           "additionalProperties": false,
           "properties": {
-            "mode": {
-              "$ref": "common.schema.json#/$defs/legendMode"
-            },
+            "mode": { "$ref": "common.schema.json#/$defs/legendMode" },
             "entries": {
               "type": "object",
               "additionalProperties": false,
               "properties": {
-                "default": {
-                  "$ref": "common.schema.json#/$defs/legendEntry"
-                },
-                "emphasis": {
-                  "$ref": "common.schema.json#/$defs/legendEntry"
-                },
-                "security": {
-                  "$ref": "common.schema.json#/$defs/legendEntry"
-                },
-                "dashed": {
-                  "$ref": "common.schema.json#/$defs/legendEntry"
-                },
-                "database": {
-                  "$ref": "common.schema.json#/$defs/legendEntry"
-                }
+                "default": { "$ref": "common.schema.json#/$defs/legendEntry" },
+                "emphasis": { "$ref": "common.schema.json#/$defs/legendEntry" },
+                "security": { "$ref": "common.schema.json#/$defs/legendEntry" },
+                "dashed": { "$ref": "common.schema.json#/$defs/legendEntry" },
+                "database": { "$ref": "common.schema.json#/$defs/legendEntry" }
               }
             }
           }
@@ -141,19 +136,19 @@
             "type": "string",
             "minLength": 1
           },
+          "explanation": { "type": "string", "minLength": 1, "maxLength": 1200 },
           "sublabel": {
             "type": "string"
           },
           "tag": {
             "type": "string"
           },
+          "icon": { "$ref": "common.schema.json#/$defs/nodeIcon" },
           "brand": {
             "$ref": "common.schema.json#/$defs/brandMark"
           },
-          "explanation": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 1200
+          "sources": {
+            "$ref": "common.schema.json#/$defs/sourceReferences"
           },
           "stage": {
             "type": "integer",
