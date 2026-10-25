@@ -404,7 +404,7 @@ export function isSiblingHtmlHref(value) {
   if (typeof value !== 'string') return false;
   const href = value.trim();
   if (!href || href.length > 512) return false;
-  return /^[A-Za-z0-9][A-Za-z0-9._-]*\.html(?:[?#][A-Za-z0-9._~/=&%+!?$-]*)?$/.test(href);
+  return /^[A-Za-z0-9][A-Za-z0-9._-]*\.html(?:\?[A-Za-z0-9._~/=&%+!?$-]*)?(?:#[A-Za-z0-9._~/=&%+!?$-]*)?$/.test(href);
 }
 
 /**

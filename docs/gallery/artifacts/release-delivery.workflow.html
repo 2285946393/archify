@@ -1973,17 +1973,17 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     html[data-preset="blueprint"] .parent-back-bar button { border-radius: 0.15rem; }
     svg [data-node-id][data-node-drilldowns] { cursor: pointer; }
     /* 单目标下钻：原生 SVG <a> 不画下划线；角标必须跟 SVG 一起导出 */
-    a.archify-drilldown-link {
+    svg a.archify-drilldown-link {
       text-decoration: none;
       color: inherit;
       cursor: pointer;
     }
-    .archify-drilldown-mark-disc {
+    svg .archify-drilldown-mark-disc {
       fill: color-mix(in srgb, var(--backend-stroke) 88%, var(--panel));
       stroke: color-mix(in srgb, var(--backend-stroke) 55%, var(--toolbar-border));
       stroke-width: 1;
     }
-    .archify-drilldown-mark-arrow {
+    svg .archify-drilldown-mark-arrow {
       stroke: var(--panel);
       stroke-width: 1.6;
       stroke-linecap: round;
@@ -6195,6 +6195,10 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       }
 
       function cleanExportClone(clone) {
+        Array.prototype.forEach.call(clone.querySelectorAll('a[data-archify-authored-href]'), function (anchor) {
+          anchor.setAttribute('href', anchor.getAttribute('data-archify-authored-href'));
+          anchor.removeAttribute('data-archify-authored-href');
+        });
         Array.prototype.forEach.call(clone.querySelectorAll('[data-ambient-flow-overlay]'), function (el) {
           el.remove();
         });
@@ -9041,7 +9045,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         if (typeof value !== 'string') return false;
         var href = value.trim();
         if (!href || href.length > 512) return false;
-        return /^[A-Za-z0-9][A-Za-z0-9._-]*\.html(?:[?#][A-Za-z0-9._~/=&%+!?$-]*)?$/.test(href);
+        return /^[A-Za-z0-9][A-Za-z0-9._-]*\.html(?:\?[A-Za-z0-9._~/=&%+!?$-]*)?(?:#[A-Za-z0-9._~/=&%+!?$-]*)?$/.test(href);
       }
       function currentPageHref() {
         var parts = (location.pathname || '').split('/');
@@ -9115,7 +9119,9 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
        */
       function rewriteDrilldownAnchors() {
         Array.prototype.forEach.call(svg.querySelectorAll('a[data-archify-drilldown]'), function (anchor) {
-          var next = hrefWithFrom(anchor.getAttribute('href'));
+          var authored = anchor.getAttribute('href');
+          anchor.setAttribute('data-archify-authored-href', authored);
+          var next = hrefWithFrom(authored);
           if (next) anchor.setAttribute('href', next);
         });
       }

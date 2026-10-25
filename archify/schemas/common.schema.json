@@ -182,7 +182,7 @@
       "minLength": 1,
       "maxLength": 512,
       "description": "Same-directory HTML file only (no scheme, no '/'). Optional ?query or #fragment such as #focus=id.",
-      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*\\.html(?:[?#][A-Za-z0-9._~/=&%+!?$-]*)?$"
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*\\.html(?:\\?[A-Za-z0-9._~/=&%+!?$-]*)?(?:#[A-Za-z0-9._~/=&%+!?$-]*)?$"
     },
     "nodeHrefSugar": {
       "$ref": "#/$defs/relativeHtmlHref",

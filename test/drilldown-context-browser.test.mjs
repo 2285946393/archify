@@ -34,13 +34,42 @@ test('local sibling navigation preserves reader context, authored overrides and 
   const child = path.join(root, 'drilldown-integrations.html');
   fs.copyFileSync(path.join(skillRoot, 'examples/drilldown-integrations.html'), child);
   const parent = path.join(root, 'drilldown-platform.html');
-  for (const authored of ['', '?theme=light&embed=0&present=0', '#focus=gateway']) {
+  for (const authored of ['', '?theme=light&embed=0&present=0', '#focus=gateway', '?theme=light&embed=0&present=0#focus=gateway']) {
     const spec = JSON.parse(fs.readFileSync(path.join(skillRoot, 'examples/drilldown-platform.architecture.json')));
     spec.components.find(node => node.href).href = `drilldown-integrations.html${authored}`;
     const input = path.join(root, 'parent.json');
     fs.writeFileSync(input, JSON.stringify(spec));
     execFileSync(process.execPath, [path.join(skillRoot, 'renderers/architecture/render-architecture.mjs'), input, parent]);
     await loaded(() => send('Page.navigate', { url: pathToFileURL(parent).href + '?theme=dark&embed=1&present=1' }));
+    const exported = await run(`(async () => {
+      var blob;
+      var create = URL.createObjectURL;
+      var click = HTMLAnchorElement.prototype.click;
+      URL.createObjectURL = value => { blob = value; return create.call(URL, value); };
+      HTMLAnchorElement.prototype.click = function () {};
+      try { await Archify.exportMenu.run('svg'); } finally {
+        URL.createObjectURL = create;
+        HTMLAnchorElement.prototype.click = click;
+      }
+      const text = await blob.text();
+      const frame = document.createElement('iframe');
+      frame.style.display = 'none';
+      const ready = new Promise(resolve => frame.onload = resolve);
+      frame.srcdoc = text;
+      document.body.appendChild(frame);
+      await ready;
+      const doc = frame.contentDocument;
+      const anchor = doc.querySelector('a[data-archify-drilldown]');
+      const arrow = doc.querySelector('.archify-drilldown-mark-arrow');
+      const result = { href: anchor.getAttribute('href'),
+        runtime: anchor.hasAttribute('data-archify-authored-href'),
+        stroke: frame.contentWindow.getComputedStyle(arrow).stroke };
+      frame.remove();
+      return result;
+    })()`);
+    assert.equal(exported.href, `drilldown-integrations.html${authored}`);
+    assert.equal(exported.runtime, false);
+    assert.notEqual(exported.stroke, 'none', 'exported sibling mark retains its visible arrow');
     const target = await run(`(() => {
       const a = document.querySelector('a[data-archify-drilldown]');
       const r = a.getBoundingClientRect();
@@ -56,7 +85,7 @@ test('local sibling navigation preserves reader context, authored overrides and 
     assert.equal(state.theme, authored.startsWith('?') ? 'light' : 'dark');
     assert.equal(state.embed, authored.startsWith('?') ? null : 'true');
     assert.equal(state.present, authored.startsWith('?') ? null : 'true');
-    if (authored.startsWith('#')) assert.equal(new URL(state.href).hash, '#focus=gateway');
+    if (authored.includes('#')) assert.equal(new URL(state.href).hash, '#focus=gateway');
     // The parent may be embedded, so trigger its same Back handler directly.
     await loaded(() => run("document.getElementById('btn-parent-back').click()"));
     const back = new URL(await run('location.href'));

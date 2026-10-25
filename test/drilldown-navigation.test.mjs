@@ -45,6 +45,7 @@ test('isSiblingHtmlHref allows only same-directory html files', () => {
   assert.equal(isSiblingHtmlHref('child.html'), true);
   assert.equal(isSiblingHtmlHref('child.html#focus=api'), true);
   assert.equal(isSiblingHtmlHref('child.html?from=overview.html'), true);
+  assert.equal(isSiblingHtmlHref('child.html?theme=light&embed=0#focus=api'), true);
   assert.equal(isSiblingHtmlHref('../x.html'), false);
   assert.equal(isSiblingHtmlHref('dir/x.html'), false);
   assert.equal(isSiblingHtmlHref('/abs.html'), false);

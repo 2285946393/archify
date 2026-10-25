@@ -397,7 +397,7 @@
         if (typeof value !== 'string') return false;
         var href = value.trim();
         if (!href || href.length > 512) return false;
-        return /^[A-Za-z0-9][A-Za-z0-9._-]*\.html(?:[?#][A-Za-z0-9._~/=&%+!?$-]*)?$/.test(href);
+        return /^[A-Za-z0-9][A-Za-z0-9._-]*\.html(?:\?[A-Za-z0-9._~/=&%+!?$-]*)?(?:#[A-Za-z0-9._~/=&%+!?$-]*)?$/.test(href);
       }
       function currentPageHref() {
         var parts = (location.pathname || '').split('/');
@@ -471,7 +471,9 @@
        */
       function rewriteDrilldownAnchors() {
         Array.prototype.forEach.call(svg.querySelectorAll('a[data-archify-drilldown]'), function (anchor) {
-          var next = hrefWithFrom(anchor.getAttribute('href'));
+          var authored = anchor.getAttribute('href');
+          anchor.setAttribute('data-archify-authored-href', authored);
+          var next = hrefWithFrom(authored);
           if (next) anchor.setAttribute('href', next);
         });
       }
