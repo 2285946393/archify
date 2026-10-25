@@ -310,6 +310,9 @@ test('Export preserves menu, clipboard, semantic cards and recording lifecycles'
           const svgText = await run('exportDownloads[0].blob.text()');
           const svgFile = path.join(evidence || scratch, `${mode}-${theme}.svg`);
           fs.writeFileSync(svgFile, svgText);
+          assert.match(svgText, /<metadata id="archify-software-notices">/);
+          assert.match(svgText, /Copyright \(c\) 2025 Cocoon AI/);
+          assert.match(svgText, /Apache License/);
           const figure = await run(`(()=>{const v=document.querySelector('.diagram-container svg').viewBox.baseVal;const sub=(document.querySelector('.header .subtitle')||{}).textContent;const header=document.querySelector('.header h1')?32+(sub&&sub.trim()?24:0)+18:0;return [(v.width+104)*4,(v.height+104+header)*4];})()`);
           const rasterSizes = [];
           // All modes exercise real raster sizing. Shared MIME/quality encoding
