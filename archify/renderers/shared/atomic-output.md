@@ -12,25 +12,22 @@ the contract those callers depend on.
 
 ## Why this exists
 
-The CLI promises that a successful `finalize` leaves the destination in a
-state any *future* invocation can verify against. That promise has two
-real-world failure modes that a naive "write file then write `.meta.json`"
-flow cannot satisfy:
+Callers need to distinguish their prepared candidate from a path that another
+writer has replaced, including when publication or cleanup fails. A candidate
+is written separately before publication so the caller can inspect its complete
+bytes before exposing the destination.
 
-1. **Crash mid-write.** A reader that opens the destination during the
-   second after `fs.writeFileSync` opened but before it returned sees a
-   zero-byte or partial file. The receipt then claims the file is complete.
-2. **Concurrent writers.** Two `finalize` calls racing on the same
-   destination either silently overwrite each other or end up with one
-   winner and one corrupted loser. There is no audit trail of which
-   process wrote what.
+The publication flow uses an open file binding to verify identity, content,
+mode and link count during the active operation:
 
-The atomic-output layer answers both with one protocol:
+> A candidate is published by hard-linking it into the destination. While the
+> caller retains the binding, explicit verification checks can establish that
+> the destination still names the captured candidate and content. Publication
+> performs these checks around its mutations and cleanup.
 
-> A regular file is committed by hard-linking a candidate into the
-> destination. Because the destination's inode is the candidate's inode,
-> every later read can verify "this exact candidate is now at this path"
-> without trusting filesystem metadata alone.
+The caller owns binding lifetime and any required writer coordination. This
+protocol does not serialize callers, automatically verify future reads, or
+provide a transaction across multiple files.
 
 ## The contract
 
@@ -185,10 +182,11 @@ diagnostic. No caller path is allowed to treat a rejection as success.
 - This is **not** a transactional database. It does not roll back partial
   side effects on remote systems or make a multi-file operation transactional.
   It verifies individual file bindings and reports retained recovery paths.
-- This is **not** a concurrency lock. The delivery lock in
-  `bin/archify.mjs` (`deliveryLockPath`) prevents two `finalize` calls
-  from racing on the same destination; the atomic-output layer assumes its
-  caller holds that lock and verifies the post-condition anyway.
+- This is **not** a concurrency lock. The delivery/finalize paths in
+  `bin/archify.mjs` use their delivery lock (`deliveryLockPath`). Other
+  consumers call the shared publication primitives directly. The primitives
+  verify path identity and content without acquiring that lock; each caller
+  owns the concurrency coordination and binding lifetime its workflow needs.
 - This is **not** idempotent across destination paths. Two `finalize`
   calls on two different destinations produce two independent artifacts;
   the layer does not deduplicate by content.
@@ -205,7 +203,7 @@ diagnostic. No caller path is allowed to treat a rejection as success.
 | `verifyAtomicOutput` | Re-derive identity for an already-captured target |
 | `verifyRegularFileBinding` | Reusable version |
 | `quarantineRemoveRegularFileBinding` | Move into private quarantine, then unlink; handles the `preserved` path |
-| `backupPublicRegularFileBinding` | Move a destination aside before overwriting |
+| `backupPublicRegularFileBinding` | Hard-link a verified backup, then quarantine-remove the public name and verify the remaining link |
 | `publishRegularFileBinding` | The publication protocol itself: hard-link the candidate in, quarantine the candidate out, fail closed |
 | `removeEmptyDirectoryWithRetry` | Bounded retry on SMB "ENOTEMPTY" races |
 
