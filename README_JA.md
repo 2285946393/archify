@@ -31,7 +31,7 @@
 <p align="center">
   <a href="https://github.com/tt-a1i/archify/stargazers"><img src="https://img.shields.io/github/stars/tt-a1i/archify?style=flat-square&amp;color=E5B650&amp;logo=github&amp;label=Stars" alt="GitHub stars" /></a>
   <a href="https://skills.sh/tt-a1i/archify/archify"><img src="https://img.shields.io/badge/installs-130K%2B-0EA5E9?style=flat-square" alt="130K+ installs on skills.sh" /></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-22c55e?style=flat-square" alt="MIT License" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-22c55e?style=flat-square" alt="Apache License 2.0" /></a>
   <a href="#インストール方法"><img src="https://img.shields.io/badge/works_with-Claude_Code_%7C_Codex_%7C_Cursor_%7C_OpenCode-7C3AED?style=flat-square" alt="Works with Claude Code, Codex, Cursor, and OpenCode" /></a>
   <a href="CHANGELOG.md#unreleased"><img src="https://img.shields.io/badge/version-3.2.1--dev.1-0891b2?style=flat-square" alt="Development version 3.2.1-dev.1" /></a>
 </p>
@@ -448,13 +448,15 @@ Mermaid の自動パース、汎用オートレイアウト、ホスティング
 
 ## 公式リンクと第三者サービス
 
-- **オープンソースプロジェクト：** ソースコードとインストールパッケージは [MIT ライセンス](LICENSE)に従って無料で利用できます。
+- **オープンソースプロジェクト：** 現在のソースコードとそれから構築したパッケージには [Apache-2.0 ライセンス](LICENSE)が適用され、過去のリリースは元の許諾を維持します。
 - **公式サイト：** [archify.si](https://archify.si) は現在、プロジェクトの紹介、サンプル、インストール手順を提供しています。
 - **第三者サービス：** 料金、データの取り扱い、サポートは各運営者が決定します。名称やドメインが似ていても、公式の提携を意味するものではありません。
 
 ## ライセンス
 
-[MIT](LICENSE) — 自由に利用・改変・配布できます。
+[Apache-2.0](LICENSE) — 自由に利用・改変・配布できます。
+
+過去の MIT 許諾は引き続き有効です。[NOTICE](NOTICE) と [LICENSE-MIT](LICENSE-MIT) を参照してください。第三者コンポーネントには各自のライセンスが適用されます。ソフトウェアの許諾はユーザー作成コンテンツの権利を変更せず、Archify の商標を一般的に使用する権利も付与しません。
 
 ## コントリビュート
 
