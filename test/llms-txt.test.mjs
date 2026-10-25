@@ -46,6 +46,8 @@ test('llms.txt states the package version and the bounded install', () => {
   assert.match(root, new RegExp(discovery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
   assert.match(root, /--skill archify --agent <agent> --global --copy --yes/);
   assert.match(root, /unmanaged files/);
+  assert.match(root, /Before either install command, inspect every selected agent destination/);
+  assert.match(root, /stop and report the conflict before running the installer/);
   assert.match(root, new RegExp(doctor.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
   assert.match(root, /ten diagram types/i);
   assert.match(root, /one-page explainer/i);
@@ -69,6 +71,10 @@ test('localized quick starts show the agent prompt and non-interactive flags', (
     assert.ok(installSection.includes(paste), `${filename}: agent paste prompt is missing from Quick Start`);
     assert.ok(installSection.includes(cursorCommand), `${filename}: current-agent install must stay outside the collapsed details`);
     assert.ok(installSection.includes(multi), `${filename}: multi-agent install must list every switcher target`);
+    const installBlocks = [...installSection.matchAll(/```bash\n([\s\S]*?)```/g)]
+      .map(match => match[1].trim().split('\n'));
+    assert.ok(installBlocks.some(lines => lines.length === 1 && lines[0] === cursorCommand), `${filename}: one copied block must install only Cursor`);
+    assert.ok(installBlocks.some(lines => lines.length === 1 && lines[0] === multi), `${filename}: all-agent install must be a separate choice`);
     const stars = readme.lastIndexOf('## Star History');
     const wallAt = readme.indexOf(wall);
     assert.ok(wallAt > installAt && wallAt < stars, `${filename}: contributors wall must precede Star History`);

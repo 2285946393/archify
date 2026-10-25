@@ -239,8 +239,15 @@ Install Archify for me by reading https://raw.githubusercontent.com/tt-a1i/archi
 
 Or install without prompts. Pass one agent, or repeat `--agent` for every switcher target (`cursor`, `codex`, `claude-code`, `opencode`, `github-copilot`). `--copy` copies the skill instead of symlinking:
 
+Cursor only:
+
 ```bash
 npx -y skills add tt-a1i/archify --skill archify --agent cursor --global --copy --yes
+```
+
+Or, only if you want all five agents:
+
+```bash
 npx -y skills add tt-a1i/archify --skill archify --agent cursor --agent codex --agent claude-code --agent opencode --agent github-copilot --global --copy --yes
 ```
 

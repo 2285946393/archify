@@ -213,8 +213,15 @@ Install Archify for me by reading https://raw.githubusercontent.com/tt-a1i/archi
 
 確認なしでインストールすることもできます。`--agent` は 1 つ、または切り替え対象ごとに繰り返します（`cursor`、`codex`、`claude-code`、`opencode`、`github-copilot`）。`--copy` はシンボリックリンクではなくファイルをコピーします:
 
+Cursor のみにインストールする場合:
+
 ```bash
 npx -y skills add tt-a1i/archify --skill archify --agent cursor --global --copy --yes
+```
+
+または、5 つすべてのエージェントが必要な場合のみ:
+
+```bash
 npx -y skills add tt-a1i/archify --skill archify --agent cursor --agent codex --agent claude-code --agent opencode --agent github-copilot --global --copy --yes
 ```
 

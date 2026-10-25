@@ -144,18 +144,26 @@ function avatarRequestUrl(avatarUrl, login) {
   return url;
 }
 
-export async function fetchAvatarDataUri(person, { token = '', fetchImpl = fetch } = {}) {
-  const response = await fetchImpl(avatarRequestUrl(person.avatarUrl, person.login), {
-    headers: githubHeaders(token, 'application/octet-stream'),
-    redirect: 'follow',
-    signal: AbortSignal.timeout(20_000),
-  });
-  if (!response.ok) throw new Error(`Avatar download failed for ${person.login} (${response.status})`);
-  const requested = avatarRequestUrl(person.avatarUrl, person.login);
-  const finalHost = new URL(response.url || requested).hostname;
-  if (!['avatars.githubusercontent.com', 'github.com'].includes(finalHost)) {
-    throw new Error(`Refusing redirected avatar host for ${person.login}`);
+export async function fetchAvatarDataUri(person, { fetchImpl = fetch } = {}) {
+  let requested = avatarRequestUrl(person.avatarUrl, person.login);
+  let response;
+  for (let redirects = 0; ; redirects += 1) {
+    // Avatars are public. Keep the API token on the API request path only.
+    response = await fetchImpl(requested, {
+      headers: githubHeaders('', 'application/octet-stream'),
+      redirect: 'manual',
+      signal: AbortSignal.timeout(20_000),
+    });
+    if (![301, 302, 303, 307, 308].includes(response.status)) break;
+    await response.body?.cancel();
+    const location = response.headers.get('location');
+    if (!location) throw new Error(`Avatar redirect has no location for ${person.login}`);
+    if (redirects >= 5) throw new Error(`Too many avatar redirects for ${person.login}`);
+    // Validate each hop before fetching it, including HTTPS and allowed hosts.
+    requested = avatarRequestUrl(new URL(location, requested).href, person.login);
   }
+  if (!response.ok) throw new Error(`Avatar download failed for ${person.login} (${response.status})`);
+  avatarRequestUrl(response.url || requested, person.login);
   const bytes = Buffer.from(await response.arrayBuffer());
   if (bytes.length === 0 || bytes.length > MAX_AVATAR_BYTES) {
     throw new Error(`Avatar for ${person.login} is empty or larger than ${MAX_AVATAR_BYTES} bytes`);

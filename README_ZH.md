@@ -239,8 +239,15 @@ Install Archify for me by reading https://raw.githubusercontent.com/tt-a1i/archi
 
 也可以直接非交互安装。`--agent` 写一个，或为每个切换器目标各写一次（`cursor`、`codex`、`claude-code`、`opencode`、`github-copilot`）。`--copy` 会复制 Skill，而不是创建符号链接：
 
+只安装到 Cursor：
+
 ```bash
 npx -y skills add tt-a1i/archify --skill archify --agent cursor --global --copy --yes
+```
+
+或者，仅在需要全部五个 Agent 时运行：
+
+```bash
 npx -y skills add tt-a1i/archify --skill archify --agent cursor --agent codex --agent claude-code --agent opencode --agent github-copilot --global --copy --yes
 ```
 

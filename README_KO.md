@@ -114,8 +114,15 @@ Install Archify for me by reading https://raw.githubusercontent.com/tt-a1i/archi
 
 확인 없이 설치할 수도 있습니다. `--agent`는 하나, 또는 전환 대상마다 반복합니다 (`cursor`, `codex`, `claude-code`, `opencode`, `github-copilot`). `--copy`는 심볼릭 링크 대신 파일을 복사합니다.
 
+Cursor에만 설치:
+
 ```bash
 npx -y skills add tt-a1i/archify --skill archify --agent cursor --global --copy --yes
+```
+
+또는 다섯 에이전트가 모두 필요한 경우에만:
+
+```bash
 npx -y skills add tt-a1i/archify --skill archify --agent cursor --agent codex --agent claude-code --agent opencode --agent github-copilot --global --copy --yes
 ```
 

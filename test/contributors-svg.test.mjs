@@ -9,6 +9,7 @@ import {
   avatarMediaType,
   buildContributorsSvg,
   displayLogin,
+  fetchAvatarDataUri,
   fetchContributors,
   isBotContributor,
   renderContributorsSvg,
@@ -132,6 +133,49 @@ test('avatar bytes are inlined only from GitHub image responses', async () => {
   assert.match(svg, /<title>ada<\/title>/);
   assert.equal(svg.includes('claude'), false);
   assert.match(svg, /data:image\/png;base64,/);
+});
+
+test('public avatars follow validated GitHub redirects without sending the API token', async () => {
+  const requests = [];
+  const data = await fetchAvatarDataUri({ login: 'ada', avatarUrl: 'https://github.com/ada.png' }, {
+    token: 'SYNTHETIC-CANARY',
+    fetchImpl: async (url, options) => {
+      requests.push(String(url));
+      assert.equal(new Headers(options.headers).has('authorization'), false);
+      assert.equal(options.redirect, 'manual');
+      if (requests.length === 1) return new Response(null, {
+        status: 302, headers: { location: 'https://avatars.githubusercontent.com/u/3' },
+      });
+      return new Response(png, { headers: { 'content-type': 'image/png' } });
+    },
+  });
+  assert.equal(data, dataUri);
+  assert.equal(requests.length, 2);
+  assert.equal(new URL(requests[1]).hostname, 'avatars.githubusercontent.com');
+});
+
+for (const location of ['https://other.example/avatar.png', 'http://avatars.githubusercontent.com/u/3']) {
+  test(`avatar redirects are refused before requesting ${location}`, async () => {
+    let requests = 0;
+    await assert.rejects(() => fetchAvatarDataUri({ login: 'ada', avatarUrl: 'https://github.com/ada.png' }, {
+      fetchImpl: async () => {
+        requests += 1;
+        return new Response(null, { status: 302, headers: { location } });
+      },
+    }), /Refusing avatar host/);
+    assert.equal(requests, 1, 'the rejected target must never receive a request');
+  });
+}
+
+test('avatar redirect loops stop after a bounded number of requests', async () => {
+  let requests = 0;
+  await assert.rejects(() => fetchAvatarDataUri({ login: 'ada', avatarUrl: 'https://github.com/ada.png' }, {
+    fetchImpl: async () => {
+      requests += 1;
+      return new Response(null, { status: 302, headers: { location: '/ada.png' } });
+    },
+  }), /Too many avatar redirects/);
+  assert.equal(requests, 6);
 });
 
 function git(cwd, args) {
