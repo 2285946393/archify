@@ -73,7 +73,9 @@ for (const item of CASES) {
     subtitle: source.meta.subtitle || '',
     schemaVersion: source.schema_version,
     visualPreset: source.meta.visual_preset || 'classic',
-    animation: source.meta.animation || 'static',
+    animation: ['class', 'tree', 'timeline', 'waterfall'].includes(item.type)
+      ? artifactBuffer.toString('utf8').match(/<svg\b[^>]*\bdata-animation="([^"]+)"/)?.[1] || 'static'
+      : source.meta.animation || 'static',
     engineeringProfile: source.meta.engineering_profile || null,
     nodeCount: Array.isArray(source[nodeKey]) ? source[nodeKey].length : 0,
     edgeCount: ['tree', 'waterfall'].includes(item.type)

@@ -277,7 +277,7 @@ const RAW_RECIPES = [
   },
   {
     id: 'payment-modules', type: 'class', proof: 'payments',
-    presentation: { preset: 'classic', motion: 'static' },
+    presentation: { preset: 'classic', motion: 'trace' },
     start: {
       en: { descriptionPrompt: 'Use Archify to model this as a class diagram: [paste the types, their key members, and how they depend on or implement each other]. No repository is required. Show contracts as interfaces, mark implementations and dependencies explicitly, and list only the members the reader needs rather than every field.' },
       zh: { descriptionPrompt: '用 Archify 把下面这些类型画成类图：[粘贴类型、关键成员，以及它们之间的依赖或实现关系]。不需要代码库。契约用接口表达，实现与依赖要明确标注；只列出读者需要的成员，而不是罗列所有字段。' },
@@ -302,7 +302,7 @@ const RAW_RECIPES = [
   },
   {
     id: 'platform-hierarchy', type: 'tree', proof: 'payment-platform',
-    presentation: { preset: 'classic', motion: 'static' },
+    presentation: { preset: 'classic', motion: 'trace' },
     start: {
       en: { descriptionPrompt: 'Use Archify to draw this single-parent hierarchy as a tree: [paste the root, its levels, and what each branch contains]. No repository is required. Keep one parent per non-root node, group siblings that answer the same question, and mark unknown branches instead of inventing them.' },
       zh: { descriptionPrompt: '用 Archify 把下面的单亲层级画成树图：[粘贴根节点、各层级，以及每个分支包含的内容]。不需要代码库。每个非根节点只有一个父节点，回答同一问题的兄弟节点放在一起；未知分支要标明而不是编造。' },
@@ -327,7 +327,7 @@ const RAW_RECIPES = [
   },
   {
     id: 'incident-timeline', type: 'timeline', proof: 'payment-incident',
-    presentation: { preset: 'classic', motion: 'static' },
+    presentation: { preset: 'classic', motion: 'trace' },
     start: {
       en: { descriptionPrompt: 'Use Archify to lay out this incident or release history as a timeline: [paste the timestamps with time zone, the events, and the lanes they belong to]. No repository is required. State whether times are observed or illustrative, keep events in lanes by source, and mark uncertain timestamps instead of inventing them.' },
       zh: { descriptionPrompt: '用 Archify 把这次事故或发布历史画成时间线：[粘贴带时区的时间戳、事件，以及事件所属泳道]。不需要代码库。注明时间是实测还是示意，事件按来源分泳道，不确定的时间要标明而不是编造。' },
@@ -352,7 +352,7 @@ const RAW_RECIPES = [
   },
   {
     id: 'checkout-timings', type: 'waterfall', proof: 'checkout-request',
-    presentation: { preset: 'classic', motion: 'static' },
+    presentation: { preset: 'classic', motion: 'trace' },
     start: {
       en: { descriptionPrompt: 'Use Archify to chart this request or agent run as a waterfall: [paste the spans with their start times and durations]. No repository is required. Show nesting where one span contains another, state whether timings are measured or illustrative, and mark unknown durations instead of inventing them.' },
       zh: { descriptionPrompt: '用 Archify 把这次请求或智能体运行画成瀑布图：[粘贴各时间段及其开始时间与时长]。不需要代码库。存在包含关系时要体现嵌套，注明耗时是实测还是示意，未知时长要标明而不是编造。' },

@@ -65,6 +65,13 @@ test('generated proof gallery matches its sources, receipts, and checked-in arti
     const source = path.join(generatedRoot, entry.input.replace(/^gallery\//, 'gallery/'));
     assert.ok(fs.existsSync(artifact), `${entry.id}: artifact missing`);
     assert.ok(fs.existsSync(source), `${entry.id}: source missing`);
+    if (['class', 'tree', 'timeline', 'waterfall'].includes(entry.type)) {
+      const svg = fs.readFileSync(artifact, 'utf8').match(/<svg\b[^>]*\bdata-animation="([^"]+)"/);
+      assert.ok(svg, `${entry.id}: proof must declare its Viewer motion capability`);
+      assert.equal(entry.animation, svg[1], `${entry.id}: receipt must describe actual proof motion`);
+      const recipe = SCENARIO_RECIPES.find(candidate => candidate.proof === entry.id);
+      assert.equal(recipe.presentation.motion, svg[1], `${entry.id}: Start and Guide must describe actual proof motion`);
+    }
     if (['tree', 'waterfall'].includes(entry.type)) {
       const html = fs.readFileSync(artifact, 'utf8');
       const renderedRelationships = (html.match(/data-edge-from=/g) || []).length;
