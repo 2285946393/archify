@@ -4136,7 +4136,7 @@ html[data-preset="classic"] .diagram-container {
     radial-gradient(circle at 1px 1px, var(--canvas-dot) 1px, transparent 1.4px) 0 0 / 20px 20px,
     var(--panel);
 }
-html[data-preset="classic"] .diagram-container > svg .c-grid { stroke: transparent; }
+svg[data-preset="classic"] .c-grid { stroke: transparent; }
 html[data-preset="classic"][data-theme="light"] .diagram-container > svg [data-node-id] > rect:not(.c-mask) {
   --ambient-node-base-filter: drop-shadow(0 1px 1px rgba(17, 24, 39, 0.05)) drop-shadow(0 6px 12px rgba(17, 24, 39, 0.06));
   filter: var(--ambient-node-base-filter);
