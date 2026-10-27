@@ -1053,6 +1053,18 @@ test('render output check: single_svg keeps a root with a quoted slash-gt inside
   assert.deepEqual(finite.details, ['rect x="NaN"']);
 });
 
+test('render output check: single_svg keeps a root when whitespace precedes an attribute equals', () => {
+  const { result } = checkRawHtml('spaced-equals-root', `<!doctype html><html><body>
+<svg viewBox="0 0 240 154" data-quality-profile="standard" data-note = "a/>b"><rect x="NaN"/></svg>
+</body></html>`);
+  const single = result.checks.find(item => item.name === 'single_svg');
+  assert.equal(single.ok, true);
+  assert.deepEqual(single.details, ['found 1 <svg> block(s)']);
+  const finite = result.checks.find(item => item.name === 'finite_svg');
+  assert.equal(finite.ok, false);
+  assert.deepEqual(finite.details, ['rect x="NaN"']);
+});
+
 test('render output check: single_svg does not self-close a root on an unquoted trailing slash', () => {
   const { result } = checkRawHtml('unquoted-slash-root', `<!doctype html><html><body>
 <svg viewBox="0 0 240 154" data-note=value/><rect x="NaN" y="0" width="10" height="10"/></svg>

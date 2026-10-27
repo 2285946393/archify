@@ -135,7 +135,7 @@ function addCheck(name, ok, details = []) {
 // every attribute value, immediately before the '>'.
 function isSelfClosingTag(token) {
   let quote = null;
-  let value = 'none'; // 'none' | 'aname' (in attribute name) | 'pending' (just after '=') | 'unquoted'
+  let value = 'none'; // 'none' | 'aname' (in attribute name) | 'afterName' (whitespace after a name) | 'pending' (just after '=') | 'unquoted'
   let slash = false; // the previous char was a '/' outside any attribute value
   for (let k = 1; k < token.length; k += 1) {
     const ch = token[k];
@@ -146,12 +146,22 @@ function isSelfClosingTag(token) {
       return slash;
     } else if (value === 'aname') {
       if (ch === '=') value = 'pending';
-      else if (/[ \t\n\f\r/]/.test(ch)) value = 'none';
-      // A '/' here can be the self-closing flag when it terminates the tag
-      // name (<svg/>): only a '/' immediately before '>' sets the flag, so
-      // remember it instead of clearing it. A '/' inside an unquoted value
-      // never reaches this branch (it stays 'unquoted'), and '<svg / >'
-      // clears the flag on the space that follows.
+      // Whitespace after a name does not end the attribute: a following '='
+      // still belongs to it (data-note = "a/>b"). Resetting to 'none' here
+      // made '=' start a new attribute, so the quoted '/>' that followed
+      // was read as the self-closing flag and the rest of the root was cut
+      // off. A '/' here can be the self-closing flag when it terminates
+      // the tag name (<svg/>): only a '/' immediately before '>' sets the
+      // flag, so remember it instead of clearing it. A '/' inside an
+      // unquoted value never reaches this branch (it stays 'unquoted'),
+      // and '<svg / >' clears the flag on the space that follows.
+      else if (/[ \t\n\f\r]/.test(ch)) value = 'afterName';
+      else if (ch === '/') value = 'none';
+      slash = ch === '/';
+    } else if (value === 'afterName') {
+      if (ch === '=') value = 'pending';
+      else if (ch === '/') value = 'none';
+      else if (!/[ \t\n\f\r]/.test(ch)) value = 'aname';
       slash = ch === '/';
     } else if (value === 'pending') {
       if (ch === '"' || ch === "'") quote = ch;
@@ -177,7 +187,7 @@ function isSelfClosingTag(token) {
 // (data-quality-profile included) is lost.
 function svgRootTag(block) {
   let quote = null;
-  let value = 'none'; // 'none' | 'aname' (in attribute name) | 'pending' (just after '=') | 'unquoted'
+  let value = 'none'; // 'none' | 'aname' (in attribute name) | 'afterName' (whitespace after a name) | 'pending' (just after '=') | 'unquoted'
   for (let k = 0; k < block.length; k += 1) {
     const ch = block[k];
     if (quote !== null) {
@@ -186,7 +196,14 @@ function svgRootTag(block) {
       return block.slice(0, k + 1);
     } else if (value === 'aname') {
       if (ch === '=') value = 'pending';
-      else if (/[ \t\n\f\r/]/.test(ch)) value = 'none';
+      else if (/[ \t\n\f\r]/.test(ch)) value = 'afterName';
+      else if (ch === '/') value = 'none';
+    } else if (value === 'afterName') {
+      // Whitespace after a name does not end the attribute: a following
+      // '=' still belongs to it (data-note = "a/>b").
+      if (ch === '=') value = 'pending';
+      else if (ch === '/') value = 'none';
+      else if (!/[ \t\n\f\r]/.test(ch)) value = 'aname';
     } else if (value === 'pending') {
       if (ch === '"' || ch === "'") quote = ch;
       else if (!/[ \t\n\f\r]/.test(ch)) value = 'unquoted';
@@ -208,7 +225,7 @@ function svgRootTag(block) {
 // '>', or -1 when the tag never terminates.
 function endOfTag(source, from) {
   let quote = null;
-  let value = 'none'; // 'none' | 'aname' (in attribute name) | 'pending' (just after '=') | 'unquoted'
+  let value = 'none'; // 'none' | 'aname' (in attribute name) | 'afterName' (whitespace after a name) | 'pending' (just after '=') | 'unquoted'
   let k = from;
   while (k < source.length) {
     const ch = source[k];
@@ -218,7 +235,14 @@ function endOfTag(source, from) {
       return k;
     } else if (value === 'aname') {
       if (ch === '=') value = 'pending';
-      else if (/[ \t\n\f\r/]/.test(ch)) value = 'none';
+      else if (/[ \t\n\f\r]/.test(ch)) value = 'afterName';
+      else if (ch === '/') value = 'none';
+    } else if (value === 'afterName') {
+      // Whitespace after a name does not end the attribute: a following
+      // '=' still belongs to it (data-note = "a/>b").
+      if (ch === '=') value = 'pending';
+      else if (ch === '/') value = 'none';
+      else if (!/[ \t\n\f\r]/.test(ch)) value = 'aname';
     } else if (value === 'pending') {
       if (ch === '"' || ch === "'") quote = ch;
       else if (!/[ \t\n\f\r]/.test(ch)) value = 'unquoted';
