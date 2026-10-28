@@ -3,6 +3,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { sameLocation } from '../archify/renderers/shared/path-semantics.mjs';
 
 const help = `Usage: node scripts/integrate-pr-zip.mjs --base <ref> --expect-head <sha> --expect-base <sha> [--apply]
 
@@ -54,7 +55,7 @@ function main() {
     if (options.apply) {
       const gitDir = path.resolve(root, git(['rev-parse', '--git-dir']).stdout.trim());
       const commonDir = path.resolve(root, git(['rev-parse', '--git-common-dir']).stdout.trim());
-      if (gitDir === commonDir || git(['symbolic-ref', '-q', 'HEAD'], true).status !== 0) throw new Error('--apply requires an isolated linked worktree on a branch');
+      if (sameLocation(gitDir, commonDir).status !== 'different' || git(['symbolic-ref', '-q', 'HEAD'], true).status !== 0) throw new Error('--apply requires an isolated linked worktree on a branch');
     }
   }
   checkState();
@@ -92,7 +93,8 @@ function main() {
     if (build.status !== 0) throw new Error(`Canonical ZIP build failed (${build.status}): ${build.stderr.trim()}\n${build.stdout.trim()}`);
     verifySource();
     git(['add', '--', 'archify.zip']);
-    if (resolve('HEAD') !== head || fs.readFileSync(path.resolve(root, git(['rev-parse', '--git-path', 'MERGE_HEAD']).stdout.trim()), 'utf8').trim() !== base) throw new Error('Merge identity changed');
+    const mergeHead = fs.readFileSync(path.resolve(root, git(['rev-parse', '--git-path', 'MERGE_HEAD']).stdout.trim()), 'utf8').trim();
+    if (resolve('HEAD') !== head || mergeHead !== base) throw new Error('Merge identity changed');
     receipt.resultTree = git(['write-tree']).stdout.trim();
     receipt.zipBlob = git(['rev-parse', ':archify.zip']).stdout.trim();
     receipt.state = 'Uncommitted merge; HEAD unchanged; both parent histories retained in MERGE_HEAD';

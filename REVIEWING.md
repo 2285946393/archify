@@ -65,26 +65,6 @@ Compare against the last reviewed head, resolve outstanding findings, and inspec
 
 Finish when the agreed outcome is delivered, relevant evidence is sufficient, and no acceptance blockers remain. Report non-blocking limitations. A review conclusion does not itself authorize a GitHub approval or merge; follow the authorized action and [final integration requirements](CONTRIBUTING.md#final-integration-and-follow-up).
 
-## Incremental scans and GitHub feedback
-
-Use the `gh` CLI for GitHub comments and reviews, with `--body-file` for prepared text. Keep evidence in an existing task directory outside the checkout. The optional scanner uses paginated REST reads and compares head, body, activity timestamp, draft state, and target base:
-
-```sh
-node scripts/pr-review-scan.mjs scan --repo tt-a1i/archify --state /absolute/task/review-state.json
-```
-
-The first scan lists new candidates; later scans list changes. The complete latest delta is in `lastScan.changes`, and raw inventory/ref responses are in `lastScan.evidence`; stdout shows at most 100 summaries. Consume or save that delta before scanning again, which replaces it. Fetch detailed diffs, author replies, and reviews only for candidates being assessed. Activity timestamps are a discovery signal, not a complete discussion or CI history. Before any integration, refresh the current head, base, required checks, and unresolved reviews independently of this cache. A disappeared PR is only “no longer open” until its actual disposition is checked.
-
-Check previous feedback and current author replies before repeating a request. After posting through `gh`, record its link and a stable finding key:
-
-```sh
-gh pr comment PR_NUMBER --repo tt-a1i/archify --body-file /absolute/task/comment.md
-gh pr review PR_NUMBER --repo tt-a1i/archify --request-changes --body-file /absolute/task/review.md
-node scripts/pr-review-scan.mjs record-feedback --repo tt-a1i/archify --state /absolute/task/review-state.json --pr PR_NUMBER --key FINDING_TOPIC --url COMMENT_OR_REVIEW_URL
-```
-
-Choose the appropriate comment or review command, not both for the same feedback. Replace uppercase placeholders with actual values. The local ledger records what was requested, not whether it remains unresolved; it neither posts nor verifies a comment. The scanner does not certify personal confirmation, benchmark sufficiency, or merge readiness. Do not attach every scanned PR to the task; attach PRs actually being worked on.
-
 ## Integrating a sole generated ZIP conflict
 
 When integration is authorized and the reviewed source is ready, the optional helper can handle a conflict limited to `archify.zip`. Fetch the target branch, check out the candidate in a clean linked worktree on a branch, and record both full commit SHAs. With the canonical build runtime on `PATH`, first inspect:
