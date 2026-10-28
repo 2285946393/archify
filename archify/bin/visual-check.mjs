@@ -2387,7 +2387,21 @@ function persistBrowserEvidenceFailure(
   failure,
   { outDir, compareSidecarParents = sameParent, ownership, command = 'visual-check', capture = true, captureViewports = CAPTURE_VIEWPORTS } = {},
 ) {
-  const outputs = evidenceSidecarPaths(artifactPath, { outDir, command, capture, captureViewports });
+  let outputs;
+  try {
+    outputs = evidenceSidecarPaths(artifactPath, { outDir, command, capture, captureViewports });
+  } catch (error) {
+    if (error?.code !== 'ARCHIFY_SIDECAR_NAMESPACE_INDETERMINATE') throw error;
+    const failed = evidenceWriteFailure(artifactPath, error.message, [{
+      directory: path.resolve(outDir || path.dirname(artifactPath)),
+      namespaceReason: error.sidecarNamespaceReason,
+    }]);
+    return {
+      ...failure, ok: false, status: 'fail', error: failed.error,
+      sidecars: { files: [] },
+      diagnostics: [...(failure.diagnostics || []), failed.diagnostic],
+    };
+  }
   const directory = resolveSidecarDirectory(artifactPath, outputs, compareSidecarParents);
   const capturedArtifact = readRegularFileContents(artifactPath, {
     subject: 'failure-artifact',
