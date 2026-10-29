@@ -1,7 +1,7 @@
 const RAW_RECIPES = [
   {
     id: 'system-overview', type: 'architecture', proof: 'web-app',
-    presentation: { preset: 'classic', motion: 'static', views: 'optional' },
+    presentation: { preset: 'classic', motion: 'static' },
     start: {
       en: { descriptionPrompt: 'Use Archify to turn this plain-language system description into a high-level architecture diagram: [describe the users, core components, primary path, external dependencies, and boundaries]. No repository is required. Ask only for missing facts that would materially change the diagram, mark any remaining unknowns instead of inventing them, and keep one obvious primary path across 8–12 core components.' },
       zh: { descriptionPrompt: '用 Archify 把下面这段自然语言系统描述画成高层架构图：[在这里描述用户、核心组件、主要路径、外部依赖和边界]。不需要代码库。只追问会实质影响图的缺失信息，其余不确定内容要标明而不是编造；保留 8–12 个核心组件和一条一眼可见的主路径。' },
@@ -26,7 +26,7 @@ const RAW_RECIPES = [
   },
   {
     id: 'deployment-ownership', type: 'architecture', proof: 'deployment-ownership',
-    presentation: { preset: 'blueprint', motion: 'trace', views: 'recommended' },
+    presentation: { preset: 'blueprint', motion: 'trace' },
     signals: [['deployment topology', 14], ['region', 7], ['vpc', 9], ['cluster', 6], ['availability zone', 8], ['ownership', 7], ['cloud deployment', 12], ['部署拓扑', 14], ['区域', 6], ['集群', 6], ['可用区', 8], ['资源归属', 9], ['跨区', 8]],
     en: {
       title: 'Deployment ownership', question: 'Where does each workload run, and what crosses a boundary?',
@@ -47,7 +47,7 @@ const RAW_RECIPES = [
   },
   {
     id: 'agent-tool-call', type: 'workflow', proof: 'agent-tool-call',
-    presentation: { preset: 'signal-flow', motion: 'trace', views: 'recommended' },
+    presentation: { preset: 'signal-flow', motion: 'trace' },
     start: {
       en: { descriptionPrompt: 'Use Archify workflow mode to turn this description into a diagram: [paste the actors, main steps, decisions, approvals, and exception paths]. Use lanes for distinct owners, keep one unmistakable happy path, and mark missing ownership or unresolved branches instead of inventing them.' },
       zh: { descriptionPrompt: '用 Archify 工作流模式把下面的描述画成图：[粘贴参与者、主要步骤、决策、审批和异常路径]。不同负责方使用独立泳道，保留一条明确的成功主路径，缺失的负责人或未定分支要标明而不是编造。' },
@@ -72,7 +72,7 @@ const RAW_RECIPES = [
   },
   {
     id: 'delivery-workflow', type: 'workflow', proof: 'delivery-workflow',
-    presentation: { preset: 'classic', motion: 'trace', views: 'optional' },
+    presentation: { preset: 'classic', motion: 'trace' },
     signals: [['ci/cd', 14], ['release workflow', 14], ['deployment pipeline', 11], ['pull request', 7], ['staging', 7], ['rollback', 8], ['发布流程', 14], ['流水线', 9], ['上线', 7], ['预发', 7], ['回滚', 8], ['审批发布', 10]],
     en: {
       title: 'Delivery workflow', question: 'How does a change move safely from commit to production?',
@@ -93,7 +93,7 @@ const RAW_RECIPES = [
   },
   {
     id: 'incident-runbook', type: 'workflow', proof: 'incident-runbook',
-    presentation: { preset: 'signal-flow', motion: 'trace', views: 'recommended' },
+    presentation: { preset: 'signal-flow', motion: 'trace' },
     signals: [['incident response', 15], ['runbook', 12], ['outage', 9], ['triage', 8], ['mitigation', 8], ['escalation', 7], ['事故处置', 15], ['故障', 9], ['应急预案', 12], ['排障', 9], ['缓解', 7], ['升级响应', 8]],
     en: {
       title: 'Incident runbook', question: 'How do responders detect, triage, mitigate, verify, and escalate?',
@@ -114,7 +114,7 @@ const RAW_RECIPES = [
   },
   {
     id: 'api-request', type: 'sequence', proof: 'cache-miss',
-    presentation: { preset: 'classic', motion: 'trace', views: 'optional' },
+    presentation: { preset: 'classic', motion: 'trace' },
     start: {
       en: { descriptionPrompt: 'Use Archify sequence mode to draw this interaction: [paste the participants, calls, returns, fallback, and asynchronous side effects]. Keep message order unambiguous, labels short, and unknown behavior explicit. No repository is required.' },
       zh: { descriptionPrompt: '用 Archify 时序模式绘制下面的交互：[粘贴参与者、调用、返回、回退和异步副作用]。确保消息顺序无歧义、标签简短，并明确标注未知行为。不需要代码库。' },
@@ -139,7 +139,7 @@ const RAW_RECIPES = [
   },
   {
     id: 'async-roundtrip', type: 'sequence', proof: 'async-roundtrip',
-    presentation: { preset: 'signal-flow', motion: 'trace', views: 'recommended' },
+    presentation: { preset: 'signal-flow', motion: 'trace' },
     signals: [['async roundtrip', 14], ['webhook', 10], ['callback', 10], ['acknowledgement', 8], ['timeout', 7], ['retry message', 8], ['异步回调', 14], ['回调', 10], ['确认消息', 8], ['超时', 7], ['消息重试', 9], ['webhook', 10]],
     en: {
       title: 'Async roundtrip', question: 'What happens after the initial request returns?',
@@ -160,7 +160,7 @@ const RAW_RECIPES = [
   },
   {
     id: 'data-lineage', type: 'dataflow', proof: 'product-analytics',
-    presentation: { preset: 'classic', motion: 'trace', views: 'recommended' },
+    presentation: { preset: 'classic', motion: 'trace' },
     signals: [['data lineage', 15], ['etl', 12], ['warehouse', 9], ['pii', 11], ['governance', 9], ['analytics pipeline', 12], ['数据血缘', 15], ['数据管道', 11], ['数仓', 9], ['治理', 9], ['隐私数据', 10], ['用户同意', 9]],
     en: {
       title: 'Data lineage', question: 'Where does data come from, how does it change, and who consumes it?',
@@ -181,7 +181,7 @@ const RAW_RECIPES = [
   },
   {
     id: 'event-stream', type: 'dataflow', proof: 'event-stream',
-    presentation: { preset: 'signal-flow', motion: 'trace', views: 'recommended' },
+    presentation: { preset: 'signal-flow', motion: 'trace' },
     start: {
       en: { descriptionPrompt: 'Use Archify dataflow mode to map this data journey: [paste the sources, data assets, transforms, stores, boundaries, and consumers]. Label every flow, distinguish streaming from batch where relevant, and mark unknown classifications or ownership instead of inventing them.' },
       zh: { descriptionPrompt: '用 Archify 数据流模式梳理下面的数据路径：[粘贴来源、数据资产、转换、存储、边界和消费者]。为每条数据流标注名称，在有意义时区分流式与批处理，未知的分类或归属要标明而不是编造。' },
@@ -206,7 +206,7 @@ const RAW_RECIPES = [
   },
   {
     id: 'object-lifecycle', type: 'lifecycle', proof: 'agent-run',
-    presentation: { preset: 'classic', motion: 'trace', views: 'optional' },
+    presentation: { preset: 'classic', motion: 'trace' },
     start: {
       en: { descriptionPrompt: 'Use Archify lifecycle mode to model this object: [paste its states, transition events, waits, retries, cancellation, and terminal outcomes]. Separate active, waiting, recoverable-failure, and terminal states, and never hide an ending. No repository is required.' },
       zh: { descriptionPrompt: '用 Archify 生命周期模式建模这个对象：[粘贴它的状态、转换事件、等待、重试、取消和终态]。分开执行、等待、可恢复失败和终态，不要隐藏任何结束方式。不需要代码库。' },
@@ -231,7 +231,7 @@ const RAW_RECIPES = [
   },
   {
     id: 'deployment-lifecycle', type: 'lifecycle', proof: 'deployment-lifecycle',
-    presentation: { preset: 'signal-flow', motion: 'trace', views: 'recommended' },
+    presentation: { preset: 'signal-flow', motion: 'trace' },
     signals: [['deployment lifecycle', 15], ['release state', 10], ['promotion state', 9], ['approval status', 8], ['rollback state', 10], ['部署生命周期', 15], ['发布状态', 10], ['晋级', 7], ['审批状态', 8], ['回滚状态', 10]],
     en: {
       title: 'Deployment lifecycle', question: 'What state is a release in, and what can happen next?',
@@ -248,6 +248,170 @@ const RAW_RECIPES = [
       avoidWhen: '如果重点是人员与 CI 的交付动作顺序，而不是部署对象状态，请用交付工作流。',
       include: ['排队与执行态', '验证与审批', '晋级与回滚', '成功、失败与取消'],
       prompt: '用 Archify 生命周期模式建模部署对象。展示排队、构建、验证、等待审批、晋级、回滚以及所有终态，并标注允许每次状态转换的事件和守卫条件。',
+    },
+  },
+  {
+    id: 'database-schema', type: 'erd', proof: 'orders',
+    presentation: { preset: 'classic', motion: 'static', views: 'optional' },
+    start: {
+      en: { descriptionPrompt: 'Use Archify to model this data model as an entity-relationship diagram: [paste the schema DDL, or describe the tables, their key columns, and how they relate]. No repository is required. Include every column the reader needs rather than a summary, mark primary, foreign, and unique keys, and draw each foreign-key relationship with the cardinality and optionality of both ends.' },
+      zh: { descriptionPrompt: '用 Archify 把这份数据模型画成实体关系图：[粘贴建表 DDL，或描述表、关键字段以及表之间的关联]。不需要代码库。字段要完整而不是摘要，标注主键、外键和唯一键，并为每条外键关系画出两端的基数和可选性。' },
+    },
+    signals: [['entity relationship', 14], ['er diagram', 15], ['database schema', 13], ['table schema', 12], ['foreign key', 11], ['primary key', 9], ['cardinality', 9], ['实体关系图', 15], ['ER 图', 15], ['表结构', 13], ['数据库设计', 12], ['外键', 11], ['主键', 9], ['实体关系', 12]],
+    en: {
+      title: 'Database schema', question: 'Which tables exist, what columns and keys do they carry, and how do they relate?',
+      summary: 'An entity-relationship map of tables with their complete column lists, key markers, and the cardinality between them.',
+      useWhen: 'Schema reviews, data-model onboarding, migration planning, or explaining a foreign-key graph.',
+      avoidWhen: 'The question is row-level movement between systems (data flow) or access order at runtime (sequence).',
+      include: ['tables with their complete column lists', 'primary, foreign, and unique key markers', 'cardinality and optionality at both ends', 'cards reserved for supplementary notes'],
+      prompt: 'Use Archify ERD mode to model this schema. Show every physical column inside its table — the field list is this diagram\'s primary content, not a summary — and mark primary, foreign, and unique keys. Draw every foreign-key relationship with its cardinality and optionality at both ends, and group related tables into contiguous domain blocks. Keep cards for supplementary notes instead of moving columns out of the tables.',
+    },
+    zh: {
+      title: '数据库表结构', question: '有哪些表、各自带哪些字段和键、彼此如何关联？',
+      summary: '用实体关系图展示表及其完整字段清单、键标记和表之间的基数关系。',
+      useWhen: '适合表结构评审、数据模型上手、迁移规划和解释外键关系图。',
+      avoidWhen: '如果重点是系统之间的行级数据流动或运行期访问顺序，请用数据流图或时序图。',
+      include: ['表及其完整字段清单', '主键、外键、唯一键标记', '两端的基数与可选性', '卡片只放补充说明'],
+      prompt: '用 Archify ERD 模式建模这份表结构。每张表的完整物理字段都画在表内——字段清单是这张图的主要内容，不是摘要——并标注主键、外键和唯一键。为每条外键关系画出两端的基数和可选性，把相关表组织成连续的领域块。卡片只保留补充说明，不要用它把字段移出表外。',
+    },
+  },
+  {
+    id: 'payment-modules', type: 'class', proof: 'payments',
+    presentation: { preset: 'classic', motion: 'trace' },
+    start: {
+      en: { descriptionPrompt: 'Use Archify to model this as a class diagram: [paste the types, their key members, and how they depend on or implement each other]. No repository is required. Show contracts as interfaces, mark implementations and dependencies explicitly, and list only the members the reader needs rather than every field.' },
+      zh: { descriptionPrompt: '用 Archify 把下面这些类型画成类图：[粘贴类型、关键成员，以及它们之间的依赖或实现关系]。不需要代码库。契约用接口表达，实现与依赖要明确标注；只列出读者需要的成员，而不是罗列所有字段。' },
+    },
+    signals: [['class diagram', 15], ['implements', 11], ['dependency', 9], ['type relationships', 12], ['类图', 15], ['接口', 12], ['实现关系', 12], ['依赖关系', 10], ['类型关系', 11]],
+    en: {
+      title: 'Payment module types', question: 'Which contracts exist, who implements them, and how do the types depend on each other?',
+      summary: 'A class diagram of services and gateways: one payment contract, two implementations, and the order service that depends on the contract.',
+      useWhen: 'Explaining an API contract, reviewing an inheritance or implementation graph, or onboarding developers to a module boundary.',
+      avoidWhen: 'The question is row-level data shape (ERD), runtime call order (sequence), or where code lives in a repository (tree).',
+      include: ['types with their key members', 'interfaces for contracts', 'implements and dependency arrows', 'one clear dependency direction'],
+      prompt: 'Use Archify class mode to model these types. Show each service or gateway as a type with the members the reader needs, introduce an interface for the payment contract, and draw explicit implements and depends-on relationships so the dependency direction is unambiguous. Do not invent members the code does not support.',
+    },
+    zh: {
+      title: '支付模块类型', question: '有哪些契约、谁实现了它们、类型之间如何依赖？',
+      summary: '用类图表达服务与网关：一个支付契约、两个实现，以及依赖该契约的订单服务。',
+      useWhen: '适合解释 API 契约、评审继承或实现关系图、梳理模块边界。',
+      avoidWhen: '如果重点是字段级数据形状（ERD）、运行期调用顺序（时序图）或代码在仓库中的位置（树图），请换其他配方。',
+      include: ['类型及其关键成员', '契约用接口表达', '实现与依赖箭头', '明确的依赖方向'],
+      prompt: '用 Archify 类图模式建模这些类型。每个服务或网关画成带关键成员的类型，为支付契约引入接口，并明确画出实现和依赖关系，让依赖方向一目了然。不要编造代码中不存在的成员。',
+    },
+  },
+  {
+    id: 'platform-hierarchy', type: 'tree', proof: 'payment-platform',
+    presentation: { preset: 'classic', motion: 'trace' },
+    start: {
+      en: { descriptionPrompt: 'Use Archify to draw this single-parent hierarchy as a tree: [paste the root, its levels, and what each branch contains]. No repository is required. Keep one parent per non-root node, group siblings that answer the same question, and mark unknown branches instead of inventing them.' },
+      zh: { descriptionPrompt: '用 Archify 把下面的单亲层级画成树图：[粘贴根节点、各层级，以及每个分支包含的内容]。不需要代码库。每个非根节点只有一个父节点，回答同一问题的兄弟节点放在一起；未知分支要标明而不是编造。' },
+    },
+    signals: [['tree diagram', 15], ['hierarchy', 13], ['repository structure', 12], ['module breakdown', 12], ['capability breakdown', 12], ['containment', 9], ['树图', 15], ['层级', 13], ['仓库结构', 12], ['模块拆分', 12], ['能力拆分', 12], ['包含关系', 9]],
+    en: {
+      title: 'Payment platform hierarchy', question: 'How is the platform decomposed, and what does each branch contain?',
+      summary: 'A single-parent tree of the payment platform: capability groups, the capabilities inside each, and where refunds and reconciliation sit.',
+      useWhen: 'Repository orientation, capability reviews, module inventories, or explaining a service breakdown.',
+      avoidWhen: 'The question is how components call each other (architecture) or how types depend on contracts (class).',
+      include: ['one root with clear levels', 'one parent per non-root node', 'capability groups as branches', 'leaf contents stated, not implied'],
+      prompt: 'Use Archify tree mode to draw this single-parent hierarchy. Give every non-root node exactly one parent, group siblings under capability branches, and state what each leaf contains. Do not invent branches the evidence does not support.',
+    },
+    zh: {
+      title: '支付平台层级', question: '平台如何拆分，每个分支包含什么？',
+      summary: '支付平台的单亲树：能力分组、每组内的能力，以及退款与对账的位置。',
+      useWhen: '适合仓库梳理、能力评审、模块盘点或解释服务拆分。',
+      avoidWhen: '如果重点是组件之间如何互相调用（架构图）或类型如何依赖契约（类图），请换其他配方。',
+      include: ['一个根节点与清晰的层级', '每个非根节点只有一个父节点', '能力分组作为分支', '叶子节点的内容要写明'],
+      prompt: '用 Archify 树图模式绘制这个单亲层级。每个非根节点只有一个父节点，兄弟节点归入能力分支，并写明每个叶子包含什么。不要编造证据不支持的分支。',
+    },
+  },
+  {
+    id: 'incident-timeline', type: 'timeline', proof: 'payment-incident',
+    presentation: { preset: 'classic', motion: 'trace' },
+    start: {
+      en: { descriptionPrompt: 'Use Archify to lay out this incident or release history as a timeline: [paste the timestamps with time zone, the events, and the lanes they belong to]. No repository is required. State whether times are observed or illustrative, keep events in lanes by source, and mark uncertain timestamps instead of inventing them.' },
+      zh: { descriptionPrompt: '用 Archify 把这次事故或发布历史画成时间线：[粘贴带时区的时间戳、事件，以及事件所属泳道]。不需要代码库。注明时间是实测还是示意，事件按来源分泳道，不确定的时间要标明而不是编造。' },
+    },
+    signals: [['timeline', 14], ['incident timeline', 16], ['release history', 13], ['postmortem', 12], ['when did', 9], ['chronology', 12], ['时间线', 14], ['事故时间线', 16], ['发布历史', 13], ['复盘', 12], ['先后顺序', 10]],
+    en: {
+      title: 'Payment incident timeline', question: 'When did the incident unfold, in which lane, and how far apart were the events?',
+      summary: 'A timestamped incident review: deploy, alert, rollback, recovery, and closure across release, monitoring, and response lanes.',
+      useWhen: 'Incident reviews, release histories, audit narratives, or any question that starts with "when".',
+      avoidWhen: 'The question is exact call order between services (sequence) or state-machine transitions without wall-clock time (lifecycle).',
+      include: ['timestamps with time zone', 'events grouped by source lane', 'whether times are observed or illustrative', 'a single chronological axis'],
+      prompt: 'Use Archify timeline mode to lay out this history. Give every event a timestamp with its time zone, place events in source lanes, and label whether the times are observed or illustrative. Do not invent timestamps the record does not support.',
+    },
+    zh: {
+      title: '支付事故时间线', question: '事故何时展开、发生在哪条泳道、事件之间相隔多久？',
+      summary: '带时间戳的事故复盘：部署、告警、回滚、恢复与关闭，分布在发布、监控和响应泳道。',
+      useWhen: '适合事故复盘、发布历史、审计叙述，或任何以"何时"开头的问题。',
+      avoidWhen: '如果重点是服务之间的精确调用顺序（时序图）或没有墙钟时间的状态机流转（生命周期），请换其他配方。',
+      include: ['带时区的时间戳', '事件按来源泳道分组', '注明时间是实测还是示意', '一条按时间排列的主轴'],
+      prompt: '用 Archify 时间线模式排布这段历史。每个事件都给出带时区的时间戳，放入来源泳道，并注明时间是实测还是示意。不要编造记录中不存在的时间。',
+    },
+  },
+  {
+    id: 'checkout-timings', type: 'waterfall', proof: 'checkout-request',
+    presentation: { preset: 'classic', motion: 'trace' },
+    start: {
+      en: { descriptionPrompt: 'Use Archify to chart this request or agent run as a waterfall: [paste the spans with their start times and durations]. No repository is required. Show nesting where one span contains another, state whether timings are measured or illustrative, and mark unknown durations instead of inventing them.' },
+      zh: { descriptionPrompt: '用 Archify 把这次请求或智能体运行画成瀑布图：[粘贴各时间段及其开始时间与时长]。不需要代码库。存在包含关系时要体现嵌套，注明耗时是实测还是示意，未知时长要标明而不是编造。' },
+    },
+    signals: [['waterfall', 14], ['latency breakdown', 15], ['timing', 12], ['duration', 12], ['where time went', 13], ['瀑布图', 14], ['耗时', 13], ['时长', 12], ['延迟拆解', 15], ['时间段', 11]],
+    en: {
+      title: 'Checkout request execution', question: 'Where did the request spend its time, and which steps ran concurrently?',
+      summary: 'An execution waterfall of one checkout request: sequential spans, concurrent lookups, and the nested parent span.',
+      useWhen: 'Latency reviews, performance narratives, agent-run timing, or answering "where did the time go".',
+      avoidWhen: 'The question is event chronology across days (timeline) or message order between participants (sequence).',
+      include: ['spans with start and duration', 'concurrency shown by overlap', 'nesting for parent spans', 'whether timings are measured or illustrative'],
+      prompt: 'Use Archify waterfall mode to chart this run. Give every span its start time and duration, let overlapping spans show concurrency, and nest child spans under their parent. State whether the timings are measured or illustrative, and do not invent durations the record does not support.',
+    },
+    zh: {
+      title: '结账请求执行', question: '这次请求的时间花在哪里，哪些步骤在并发执行？',
+      summary: '一次结账请求的执行瀑布图：顺序时间段、并发查询，以及嵌套的父时间段。',
+      useWhen: '适合延迟评审、性能叙述、智能体运行计时，或回答"时间花在哪里"。',
+      avoidWhen: '如果重点是跨天的事件先后（时间线）或参与者之间的消息顺序（时序图），请换其他配方。',
+      include: ['时间段及其开始与时长', '重叠表示并发', '父子时间段的嵌套', '注明耗时是实测还是示意'],
+      prompt: '用 Archify 瀑布图模式绘制这次运行。每个时间段给出开始时间和时长，用重叠表示并发，子时间段嵌套在父级之下。注明耗时是实测还是示意，不要编造记录中不存在的时长。',
+    },
+  },
+  {
+    id: 'layout-repair', type: 'architecture', proof: 'web-app',
+    presentation: { preset: 'classic', motion: 'static' },
+    signals: [
+      ['layout repair', 20], ['repair order', 20], ['fix order', 20],
+      ['viewport overflow', 20], ['overflow', 16], ['scrollheight', 16], ['scrollwidth', 16],
+      ['overlap', 16], ['label overlap', 20], ['edge through node', 20], ['crossing', 8],
+      ['via', 7], ['waypoint', 14],
+      ['布局修复', 20], ['修复顺序', 20], ['视口溢出', 20], ['溢出', 16], ['滚动高度', 16], ['滚动宽度', 16],
+      ['重叠', 16], ['标签重叠', 20], ['连线穿过节点', 20], ['连线穿节点', 20], ['交叉', 8],
+      ['途经点', 14], ['路径点', 14], ['拐点', 14],
+    ],
+    en: {
+      title: 'Layout repair', question: 'Why does the existing diagram overflow, overlap, or route through nodes, and what should be fixed first?',
+      summary: 'Repair an existing diagram in its current mode using validation diagnostics, explicit waypoint semantics, and a measured desktop viewport budget.',
+      useWhen: 'An existing architecture, workflow, sequence, dataflow, or lifecycle diagram needs layout repair; keep its diagram type and presentation settings.',
+      avoidWhen: 'The task is choosing a new diagram type. Do not change topology, delete meaningful labels, or hide overflow just to pass checks.',
+      include: [
+        'repair order: schema → overlap → direction → crossings → labels',
+        'via contract: absolute [x, y] intermediate points; route = [start, ...via, end]',
+        'desktop viewport budget for the complete page, including header and necessary cards',
+        'validate after each edit, then inspect the final HTML in a browser',
+      ],
+      prompt: 'Use Archify to repair this existing diagram while preserving its diagram type, topology, meaningful labels, and presentation settings. Follow references/authoring-contract.md in this order: (1) schema and missing/invalid meta.quality_profile; (2) node overlap or out-of-range placement; (3) edge-through-node and endpoint-direction errors; (4) crossings, ambiguous corridors, border runs, excessive detours, and route rhythm; (5) labels: label-to-node, label-to-label, then label-to-route clearance. Run validate after every edit and use diagnostics[] code, subject, evidence, and supportedFixes; apply one diagnosed geometry control at a time. Where the current schema supports via, it is an ordered array of absolute SVG [x, y] intermediate points: the route is [start, ...via, end], with start/end supplied by the node anchors. Explicit via points override automatic routing; they are not offsets or a request for automatic obstacle avoidance. For an orthogonal repair, align adjacent points on the same x or y and make the first/final segment respect fromSide/toSide; use only controls supported by the current diagram mode. Follow references/delivery-contract.md for the viewport budget: check 1440×900, 1600×1000, 1920×1080, and 2048×1320; require document.documentElement.scrollWidth <= window.innerWidth. Prefer document.documentElement.scrollHeight <= window.innerHeight, but preserve a Reader-declared readable vertical page scroll when browser-check explicitly accepts it after reaching the projected-text floor. Budget the entire page, including header, diagram, and necessary cards. Repair every other overflow by removing only redundant content or compacting spacing first; do not hide overflow, clip content, introduce an internal diagram scroller, stretch the SVG, or shrink typography to force a pass. Let finalize run the required browser evidence; run perceptual visual review only when requested or escalated by the delivery contract.',
+    },
+    zh: {
+      title: '布局修复', question: '现有图为什么仍然溢出、重叠或连线穿过节点，应该先修什么？',
+      summary: '保留现有图表模式，依据验证诊断、途经点语义和实测桌面视口预算修复布局。',
+      useWhen: '已有架构图、工作流、时序图、数据流或生命周期图需要修复布局；保留原来的图表类型和表现设置。',
+      avoidWhen: '任务是为新图选择类型时不要使用。不要为了通过检查改变拓扑、删除有意义的标签或隐藏溢出。',
+      include: [
+        '修复顺序：schema → 重叠 → 方向 → 交叉 → 标签',
+        'via 契约：绝对 [x, y] 中间点；路径 = [start, ...via, end]',
+        '包含标题和必要卡片的整页桌面视口预算',
+        '每次修改后 validate，最终在浏览器中检查 HTML',
+      ],
+      prompt: '用 Archify 修复这张现有图，保留图表类型、拓扑、有意义的标签和表现设置。遵循 references/authoring-contract.md 的顺序：(1) schema 错误及缺失或无效的 meta.quality_profile；(2) 节点重叠或越界；(3) 连线穿过节点及端点方向错误；(4) 交叉、含混的共享通道、贴边走线、过度绕行和转弯节奏；(5) 标签与节点、标签与标签、标签与连线的间距。每次修改后运行 validate，依据 diagnostics[] 的 code、subject、evidence 和 supportedFixes，每次只应用一项有诊断依据的几何控制。当前 schema 支持 via 时，它是按顺序排列的绝对 SVG [x, y] 中间点数组：路径为 [start, ...via, end]，起终点由节点锚点提供。显式 via 会覆盖自动路由，不是偏移量，也不会请求自动绕障。修复正交走线时，相邻点应共享 x 或 y，首尾线段应遵守 fromSide/toSide；只使用当前模式支持的控制字段。视口预算遵循 references/delivery-contract.md：检查 1440×900、1600×1000、1920×1080 和 2048×1320，要求 document.documentElement.scrollWidth <= window.innerWidth。优先满足 document.documentElement.scrollHeight <= window.innerHeight；如果 browser-check 明确确认 Reader 已达到投影文字下限并接受可读的页面纵向滚动，则保留该滚动。预算覆盖整页，包括标题、主图和必要卡片。其他溢出先通过移除冗余内容或压缩间距修复，不得靠隐藏溢出、裁切、内部滚动区、拉伸 SVG 或缩小字体强行通过。让 finalize 执行必需的浏览器证据；只在用户要求或 delivery contract 规定的升级条件下进行感知视觉审阅。',
     },
   },
 ];
@@ -370,7 +534,7 @@ export function formatScenarioRecommendation(result) {
     `${labels.use}: ${recipe.useWhen}`,
     `${labels.avoid}: ${recipe.avoidWhen}`,
     `${labels.include}: ${recipe.include.join(isZh ? '、' : '; ')}`,
-    `${labels.presentation}: ${recipe.presentation.preset} · ${recipe.presentation.motion} · views ${recipe.presentation.views}`,
+    `${labels.presentation}: ${recipe.presentation.preset} · ${recipe.presentation.motion}`,
     '',
     `${labels.prompt}:`,
     recipe.prompt,
