@@ -509,6 +509,11 @@ pass('package-smoke', {
 // only in disposable roots, and restart the host for each observation.
 const oldSkillSource = run('git', ['show', '7158026e852f3aa6578c741e673b46d7878c92c1:archify/SKILL.md'], { cwd: repoRoot });
 requireStatus('shadowing-source', oldSkillSource);
+// The pinned CLI host loads the frontmatter-free, trimmed Markdown body.
+// Hash that expected historical body independently of the host probe; hashing
+// raw SKILL.md bytes would test frontmatter/outer whitespace instead of loading.
+// A host parser change requires reviewing this exact-host contract, not weakening
+// the loaded-body/path checks or copying the observed hash into the expectation.
 const oldBody = oldSkillSource.stdout.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n/, '').trim();
 const personalShadow = path.join(agentsHome, 'skills', 'archify');
 const projectShadow = path.join(workspace, '.agents', 'skills', 'archify');

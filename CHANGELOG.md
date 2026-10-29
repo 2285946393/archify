@@ -20,7 +20,6 @@ All notable changes are documented here. Format loosely follows [Keep a Changelo
 
 - Viewer toolbar arrow-key and Home/End navigation includes visible Style and Export triggers (#899).
 - Finder and Semantic Lens preserve input-method composition before handling navigation shortcuts (#928).
-- **DSH synchronization candidate (#1153).** Prepare independently versioned adapter 1.1.0 with pinned Archify 3.2.0 and exact host 0.2.1-rc.2 acceptance inputs. This does not publish the plugin: public installation remains on 1.0.0 pending separate release authorization and verification. See the [adapter changelog](integrations/deepseek-harness/CHANGELOG.md).
 
 ## [3.2.0] — 2026-10-18
 
